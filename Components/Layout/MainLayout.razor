@@ -1,0 +1,102 @@
+@inherits LayoutComponentBase
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<a class="skip-link" href="#main-content">Skip to content</a>
+
+<div class="page @(SidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Sidebar navigation">
+        <NavMenu />
+    </aside>
+
+    <main id="main-content">
+        <header class="top-row" role="banner">
+            <div class="top-left">
+                <button type="button" class="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="@(!SidebarCollapsed)" @onclick="ToggleSidebarAsync">
+                    <i class="bi @(SidebarCollapsed ? "bi-layout-sidebar-inset" : "bi-layout-sidebar-inset-reverse")"></i>
+                </button>
+                <div class="top-title-wrap">
+                    <div class="top-kicker" aria-hidden="true">OpsEye</div>
+                    <div class="top-title">Operations Dashboard</div>
+                </div>
+            </div>
+            <div class="top-right">
+                <span class="pill live-pill" role="status" aria-label="Live stream active">
+                    <span class="dot" aria-hidden="true"></span>Live
+                </span>
+                <span class="pill soft" aria-label="Auto refresh every 5 seconds">5s refresh</span>
+
+                <AuthorizeView>
+                    <Authorized Context="auth">
+                        <span class="pill soft" aria-label="Current user">
+                            <i class="bi bi-person-circle me-1"></i>@(auth.User.Identity?.Name ?? "Signed in")
+                        </span>
+                        <form method="post" action="/auth/logout" class="d-inline">
+                            <button type="submit" class="theme-btn top-action" aria-label="Logout" title="Logout">
+                                <i class="bi bi-box-arrow-right"></i>
+                                Logout
+                            </button>
+                        </form>
+                    </Authorized>
+                </AuthorizeView>
+
+                <AuthorizeView Roles="Admin">
+                    <Authorized>
+                        <button type="button" class="theme-btn top-action" @onclick="OpenSettingsAsync" aria-label="Open settings" title="Settings">
+                            <i class="bi bi-gear-fill"></i>
+                            Settings
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+                <button type="button" class="theme-btn top-action" onclick="themeManager.toggle()" aria-label="Toggle theme" title="Toggle light and dark theme">
+                    <i class="bi bi-moon-stars-fill"></i>
+                    Theme
+                </button>
+            </div>
+        </header>
+
+        <article class="content" role="main" aria-label="Main content">
+            @Body
+        </article>
+
+        <footer class="footer" role="contentinfo">
+            <span>OpsEye Operations Console</span>
+        </footer>
+    </main>
+</div>
+
+<div id="blazor-error-ui" data-nosnippet role="alert" aria-live="assertive">
+    An error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss" tabindex="0" role="button" aria-label="Dismiss">×</span>
+</div>
+
+@code {
+    private bool SidebarCollapsed { get; set; }
+    private bool SidebarStateLoaded { get; set; }
+
+    private Task OpenSettingsAsync()
+    {
+        NavigationManager.NavigateTo("/settings");
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || SidebarStateLoaded)
+        {
+            return;
+        }
+
+        SidebarCollapsed = false;
+        await JS.InvokeVoidAsync("monitorSettings.set", "sidebarCollapsed", SidebarCollapsed);
+        SidebarStateLoaded = true;
+        StateHasChanged();
+    }
+
+    private async Task ToggleSidebarAsync()
+    {
+        SidebarCollapsed = !SidebarCollapsed;
+        await JS.InvokeVoidAsync("monitorSettings.set", "sidebarCollapsed", SidebarCollapsed);
+    }
+}

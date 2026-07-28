@@ -1,0 +1,602 @@
+@page "/account"
+@attribute [Authorize]
+@using System.Security.Claims
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject MemberAuthService MemberAuthService
+@inject IConfiguration Configuration
+@inject SecuritySettingsRepository SecuritySettingsRepository
+
+<PageTitle>OpsEye | Account</PageTitle>
+
+<div class="account-page">
+    <div class="page-hero d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="eyebrow">Account Center</div>
+            <h1 class="display-6 mb-2">My profile</h1>
+            <p class="text-secondary mb-0">
+                Update your display name and password here. User roles and membership are managed by administrators.
+            </p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/">
+            <i class="bi bi-arrow-left me-2"></i>Back to dashboard
+        </a>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @( _isError ? "alert-danger" : "alert-success") shadow-sm" role="alert">
+            @_message
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-12 col-xl-6">
+            <div class="card section-card h-100">
+                <div class="card-header">
+                    <strong>My Profile</strong>
+                </div>
+                <div class="card-body d-grid gap-3">
+                    <div class="profile-summary">
+                        <div class="profile-avatar" aria-hidden="true">
+                            <i class="bi bi-person-circle"></i>
+                        </div>
+                        <div>
+                            <div class="fw-semibold">@(_currentMember?.DisplayName ?? "Signed in user")</div>
+                            <div class="text-secondary small">@(_currentMember?.UserName ?? "unknown")</div>
+                            <div class="small mt-1">
+                                <span class="badge text-bg-secondary">@(_currentMember?.Role ?? "User")</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label" for="profile-display-name">Display name</label>
+                            <input id="profile-display-name" class="form-control" @bind="_currentDisplayName" />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Created</label>
+                            <input class="form-control" value="@(_currentMember?.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Last login</label>
+                            <input class="form-control" value="@(_currentMember?.LastLoginUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
+                        </div>
+                    </div>
+
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-outline-primary" @onclick="SaveMyProfileAsync" disabled="@(!CanSaveProfile)">
+                            <i class="bi bi-person-check me-2"></i>Save profile
+                        </button>
+                        <button type="button" class="btn btn-outline-secondary" @onclick="ResetMyProfileFieldsAsync">
+                            Reset
+                        </button>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="current-password">Current password</label>
+                        <input id="current-password" type="password" class="form-control" autocomplete="current-password" @bind="_currentPassword" />
+                    </div>
+                    <div class="small text-secondary">
+                        Current password is required to change your password.
+                    </div>
+                    <div>
+                        <label class="form-label" for="new-password">New password</label>
+                        <input id="new-password" type="password" class="form-control" autocomplete="new-password" @bind="_newPassword" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="confirm-password">Confirm new password</label>
+                        <input id="confirm-password" type="password" class="form-control" autocomplete="new-password" @bind="_confirmPassword" />
+                    </div>
+
+                    <div class="alert alert-info small mb-0" role="note">
+                        Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.
+                    </div>
+
+                    <button type="button" class="btn btn-primary" @onclick="ChangeMyPasswordAsync" disabled="@(!CanSubmitOwnPassword)">
+                        <i class="bi bi-shield-lock me-2"></i>Change password
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="d-grid gap-4">
+                <div class="card section-card">
+                    <div class="card-header">
+                        <strong>Two-factor authentication</strong>
+                    </div>
+                    <div class="card-body d-grid gap-3">
+                        <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                            <div>
+                                <div class="fw-semibold">@(_currentMember?.TwoFactorEnabled == true ? "Enabled" : "Disabled")</div>
+                                <div class="text-secondary small">
+                                    @if (!_twoFactorGloballyEnabled)
+                                    {
+                                        <span>Two-factor authentication is disabled by administrator.</span>
+                                    }
+                                    else if (_currentMember?.TwoFactorEnabled == true)
+                                    {
+                                        <span>Enabled at @(_currentMember.TwoFactorEnabledUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</span>
+                                    }
+                                    else
+                                    {
+                                        <span>2FA is currently off.</span>
+                                    }
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <button type="button" class="btn btn-outline-primary" @onclick="BeginTwoFactorSetupAsync" disabled="@IsTwoFactorSetupDisabled()">
+                                    <i class="bi bi-qr-code me-2"></i>Start setup
+                                </button>
+                                <button type="button" class="btn btn-outline-danger" @onclick="DisableTwoFactorAsync" disabled="@IsDisableTwoFactorDisabled()">
+                                    <i class="bi bi-shield-slash me-2"></i>Disable
+                                </button>
+                            </div>
+                        </div>
+
+                        @if (!string.IsNullOrWhiteSpace(_twoFactorSetupSecret))
+                        {
+                            <div class="row g-3 align-items-center">
+                                @if (!string.IsNullOrWhiteSpace(_twoFactorQrCodeDataUrl))
+                                {
+                                    <div class="col-12 col-md-4">
+                                        <div class="border rounded-3 bg-white p-3 text-center">
+                                            <img src="@_twoFactorQrCodeDataUrl" alt="Two-factor QR code" class="img-fluid" />
+                                        </div>
+                                    </div>
+                                }
+                                <div class="col-12 @(string.IsNullOrWhiteSpace(_twoFactorQrCodeDataUrl) ? "col-md-12" : "col-md-8")">
+                                    <div class="alert alert-info small mb-0" role="note">
+                                        <div class="fw-semibold mb-2">Setup key</div>
+                                        <div class="text-break">@_twoFactorSetupSecret</div>
+                                        <div class="small text-secondary mt-2 text-break">
+                                            otpauth URI: @_twoFactorOtpUri
+                                        </div>
+                                        <div class="small text-secondary mt-2">
+                                            Scan the QR or enter the setup key into your authenticator app.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row g-3">
+                                <div class="col-12 col-md-6">
+                                    <label class="form-label" for="twofactor-code">Verification code</label>
+                                    <input id="twofactor-code" class="form-control" inputmode="numeric" autocomplete="one-time-code" @bind="_twoFactorCode" />
+                                </div>
+                                <div class="col-12 col-md-6 d-flex align-items-end">
+                                    <button type="button" class="btn btn-primary w-100" @onclick="ConfirmTwoFactorSetupAsync" disabled="@string.IsNullOrWhiteSpace(_twoFactorCode)">
+                                        <i class="bi bi-check2-circle me-2"></i>Confirm setup
+                                    </button>
+                                </div>
+                            </div>
+                        }
+
+                        @if (!_twoFactorGloballyEnabled)
+                        {
+                            <div class="alert alert-warning small mb-0" role="note">
+                                Two-factor authentication is currently disabled in system settings.
+                            </div>
+                        }
+
+                        @if (_recoveryCodes.Any())
+                        {
+                            <div class="alert alert-warning small mb-0" role="note">
+                                <div class="fw-semibold mb-2">Recovery codes</div>
+                                <div class="mb-2">Save these somewhere safe. Each code can be used once.</div>
+                                <div class="d-grid gap-1">
+                                    @foreach (var recoveryCode in _recoveryCodes)
+                                    {
+                                        <span class="font-monospace">@recoveryCode</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="GenerateRecoveryCodesAsync" disabled="@IsGenerateRecoveryDisabled()">
+                                <i class="bi bi-receipt-cutoff me-2"></i>Generate recovery codes
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card section-card">
+                    <div class="card-header">
+                        <strong>Active sessions</strong>
+                    </div>
+                    <div class="card-body d-grid gap-3">
+                        @if (_sessions.Any())
+                        {
+                            <div class="table-responsive">
+                                <table class="table table-sm align-middle">
+                                    <thead>
+                                        <tr>
+                                            <th>Created</th>
+                                            <th>Last seen</th>
+                                            <th>IP</th>
+                                            <th>Status</th>
+                                            <th></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach (var session in _sessions)
+                                        {
+                                            <tr class="@(session.SessionId == _currentSessionId ? "table-active" : string.Empty)">
+                                                <td>@session.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                                <td>@session.LastSeenUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                                <td>@(session.IpAddress ?? "-")</td>
+                                                <td>
+                                                    @if (session.RevokedUtc is not null)
+                                                    {
+                                                        <span class="badge text-bg-danger">Revoked</span>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="badge text-bg-success">Active</span>
+                                                    }
+                                                </td>
+                                                <td class="text-end">
+                                                    @if (session.SessionId != _currentSessionId)
+                                                    {
+                                                        <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RevokeSessionAsync(session.SessionId)">
+                                                            Revoke
+                                                        </button>
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="text-secondary small">Current</span>
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <button type="button" class="btn btn-outline-danger" @onclick="RevokeOtherSessionsAsync" disabled="@(!_sessions.Any(x => x.SessionId != _currentSessionId))">
+                                Revoke other sessions
+                            </button>
+                        }
+                        else
+                        {
+                            <div class="text-secondary">No active sessions were found.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private MemberEntity? _currentMember;
+    private string _currentDisplayName = string.Empty;
+    private string _currentPassword = string.Empty;
+    private string _newPassword = string.Empty;
+    private string _confirmPassword = string.Empty;
+    private string? _twoFactorSetupSecret;
+    private string _twoFactorCode = string.Empty;
+    private string? _currentSessionId;
+    private readonly List<MemberSessionEntity> _sessions = new();
+    private readonly List<string> _recoveryCodes = new();
+    private string? _message;
+    private bool _isError;
+    private string? _twoFactorQrCodeDataUrl;
+    private bool _twoFactorGloballyEnabled = true;
+
+    private bool CanSaveProfile =>
+        _currentMember is not null &&
+        !string.IsNullOrWhiteSpace(_currentDisplayName) &&
+        !string.Equals(_currentDisplayName.Trim(), _currentMember.DisplayName, StringComparison.Ordinal);
+
+    private bool CanSubmitOwnPassword =>
+        _currentMember is not null &&
+        !string.IsNullOrWhiteSpace(_currentPassword) &&
+        !string.IsNullOrWhiteSpace(_newPassword) &&
+        !string.IsNullOrWhiteSpace(_confirmPassword) &&
+        string.Equals(_newPassword, _confirmPassword, StringComparison.Ordinal) &&
+        global::Monitoring.Blazor.Services.MemberAuthService.ValidatePasswordPolicy(_currentMember.UserName, _newPassword) is null;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var baseSecuritySettings = Configuration.GetSection("Monitoring:Security").Get<SecuritySettings>() ?? new SecuritySettings();
+        _twoFactorGloballyEnabled = SecuritySettingsRepository.Load(baseSecuritySettings).TwoFactorEnabled;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var user = authState.User;
+        var memberIdValue = user.FindFirstValue(ClaimTypes.NameIdentifier);
+
+        if (long.TryParse(memberIdValue, out var memberId))
+        {
+            _currentMember = await MemberAuthService.GetMemberByIdAsync(memberId);
+            _currentDisplayName = _currentMember?.DisplayName ?? string.Empty;
+            _currentSessionId = authState.User.FindFirstValue("sid");
+            await LoadSecurityStateAsync();
+        }
+    }
+
+    private async Task SaveMyProfileAsync()
+    {
+        ClearMessage();
+
+        if (_currentMember is null)
+        {
+            SetError("Current member could not be loaded.");
+            return;
+        }
+
+        if (!CanSaveProfile)
+        {
+            SetError("Display name cannot be empty.");
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.UpdateDisplayNameAsync(_currentMember.Id, _currentDisplayName);
+            _currentMember.DisplayName = _currentDisplayName.Trim();
+            SetSuccess("Your profile has been updated.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task ResetMyProfileFieldsAsync()
+    {
+        if (_currentMember is null)
+        {
+            return;
+        }
+
+        _currentDisplayName = _currentMember.DisplayName;
+        ClearMessage();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ChangeMyPasswordAsync()
+    {
+        ClearMessage();
+
+        if (_currentMember is null)
+        {
+            SetError("Current member could not be loaded.");
+            return;
+        }
+
+        if (!CanSubmitOwnPassword)
+        {
+            SetError("Please check the password fields and policy requirements.");
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.ChangeOwnPasswordAsync(_currentMember.UserName, _currentPassword, _newPassword);
+            _currentPassword = string.Empty;
+            _newPassword = string.Empty;
+            _confirmPassword = string.Empty;
+            SetSuccess("Your password has been updated.");
+            await LoadSecurityStateAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task BeginTwoFactorSetupAsync()
+    {
+        ClearMessage();
+
+        if (!_twoFactorGloballyEnabled)
+        {
+            SetError("Two-factor authentication is disabled by administrator.");
+            return;
+        }
+
+        if (_currentMember is null)
+        {
+            SetError("Current member could not be loaded.");
+            return;
+        }
+
+        try
+        {
+            _twoFactorSetupSecret = await MemberAuthService.BeginTwoFactorSetupAsync(_currentMember.Id);
+            _twoFactorQrCodeDataUrl = MemberAuthService.GenerateTwoFactorQrCodeDataUrl(_currentMember.UserName, _twoFactorSetupSecret);
+            _twoFactorCode = string.Empty;
+            _recoveryCodes.Clear();
+            SetSuccess("Two-factor setup started. Scan the key or enter it in your authenticator app.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task ConfirmTwoFactorSetupAsync()
+    {
+        ClearMessage();
+
+        if (!_twoFactorGloballyEnabled)
+        {
+            SetError("Two-factor authentication is disabled by administrator.");
+            return;
+        }
+
+        if (_currentMember is null || string.IsNullOrWhiteSpace(_twoFactorSetupSecret))
+        {
+            SetError("Two-factor setup has not been started.");
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.EnableTwoFactorAsync(_currentMember.Id, _twoFactorCode);
+            _twoFactorSetupSecret = null;
+            _twoFactorQrCodeDataUrl = null;
+            _twoFactorCode = string.Empty;
+            await ReloadCurrentMemberAsync();
+            SetSuccess("Two-factor authentication has been enabled.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task DisableTwoFactorAsync()
+    {
+        ClearMessage();
+
+        if (!_twoFactorGloballyEnabled)
+        {
+            SetError("Two-factor authentication is disabled by administrator.");
+            return;
+        }
+
+        if (_currentMember is null || _currentMember.TwoFactorEnabled != true)
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.DisableTwoFactorAsync(_currentMember.Id);
+            _twoFactorSetupSecret = null;
+            _twoFactorQrCodeDataUrl = null;
+            _twoFactorCode = string.Empty;
+            _recoveryCodes.Clear();
+            await ReloadCurrentMemberAsync();
+            SetSuccess("Two-factor authentication has been disabled.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task RevokeSessionAsync(string sessionId)
+    {
+        if (_currentMember is null || string.IsNullOrWhiteSpace(sessionId))
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.RevokeSessionAsync(sessionId, "revoked by user");
+            await LoadSecurityStateAsync();
+            SetSuccess("Session revoked.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task RevokeOtherSessionsAsync()
+    {
+        if (_currentMember is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.RevokeAllSessionsAsync(_currentMember.Id, "revoked by user");
+            await LoadSecurityStateAsync();
+            SetSuccess("Other sessions have been revoked.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task GenerateRecoveryCodesAsync()
+    {
+        ClearMessage();
+
+        if (!_twoFactorGloballyEnabled)
+        {
+            SetError("Two-factor authentication is disabled by administrator.");
+            return;
+        }
+
+        if (_currentMember is null || _currentMember.TwoFactorEnabled != true)
+        {
+            SetError("Enable two-factor authentication before generating recovery codes.");
+            return;
+        }
+
+        try
+        {
+            _recoveryCodes.Clear();
+            _recoveryCodes.AddRange(await MemberAuthService.GenerateRecoveryCodesAsync(_currentMember.Id));
+            SetSuccess("Recovery codes have been generated. Save them now because they will not be shown again.");
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task LoadSecurityStateAsync()
+    {
+        if (_currentMember is null)
+        {
+            return;
+        }
+
+        _sessions.Clear();
+        _sessions.AddRange(await MemberAuthService.GetActiveSessionsAsync(_currentMember.Id));
+    }
+
+    private async Task ReloadCurrentMemberAsync()
+    {
+        if (_currentMember is null)
+        {
+            return;
+        }
+
+        _currentMember = await MemberAuthService.GetMemberByIdAsync(_currentMember.Id);
+        _currentDisplayName = _currentMember?.DisplayName ?? string.Empty;
+        await LoadSecurityStateAsync();
+    }
+
+    private bool IsTwoFactorSetupDisabled() => !_twoFactorGloballyEnabled || _currentMember is null || _currentMember.TwoFactorEnabled == true;
+
+    private bool IsDisableTwoFactorDisabled() => !_twoFactorGloballyEnabled || _currentMember is null || _currentMember.TwoFactorEnabled != true;
+
+    private bool IsGenerateRecoveryDisabled() => !_twoFactorGloballyEnabled || _currentMember is null || _currentMember.TwoFactorEnabled != true;
+
+    private string? _twoFactorOtpUri =>
+        _currentMember is null || string.IsNullOrWhiteSpace(_twoFactorSetupSecret)
+            ? null
+            : MemberAuthService.GenerateTwoFactorOtpUri(_currentMember.UserName, _twoFactorSetupSecret);
+
+    private void SetSuccess(string message)
+    {
+        _message = message;
+        _isError = false;
+    }
+
+    private void SetError(string message)
+    {
+        _message = message;
+        _isError = true;
+    }
+
+    private void ClearMessage()
+    {
+        _message = null;
+        _isError = false;
+    }
+}

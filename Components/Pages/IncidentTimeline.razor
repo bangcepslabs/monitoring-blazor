@@ -1,0 +1,345 @@
+@page "/incident-timeline"
+@attribute [Authorize]
+@using Monitoring.Blazor.Services
+@inject EventTimelineService TimelineService
+
+<PageTitle>OpsEye | Incident Timeline</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Operations</div>
+            <h1 class="h3 mb-1">Incident timeline</h1>
+            <p class="text-secondary mb-0">Security, alert, and configuration events prioritized as incidents.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Active incidents</div>
+                    <div class="fs-4 fw-semibold">@IncidentRows.Count(x => x.IsActive)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Alerts</div>
+                    <div class="fs-4 fw-semibold">@IncidentRows.Count(x => x.Category == "Alert")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Failed logins</div>
+                    <div class="fs-4 fw-semibold">@IncidentRows.Count(x => x.Category == "Login" && x.Severity == "Medium")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Config changes</div>
+                    <div class="fs-4 fw-semibold">@IncidentRows.Count(x => x.Category == "Audit" && (x.Severity is "High" or "Critical"))</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-4">
+                    <input class="form-control" placeholder="Search host / action / message" @bind="SearchText" @bind:event="oninput" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="CategoryFilter">
+                        <option value="">All categories</option>
+                        <option value="Alert">Alert</option>
+                        <option value="Login">Login</option>
+                        <option value="Audit">Audit</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="SeverityFilter">
+                        <option value="">All severity</option>
+                        <option value="Critical">Critical</option>
+                        <option value="High">High</option>
+                        <option value="Medium">Medium</option>
+                        <option value="Low">Low</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <input class="form-control" type="date" @bind="FromDate" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <input class="form-control" type="date" @bind="ToDate" />
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+                        <span class="text-muted small">Rows per page</span>
+                        <select class="form-select form-select-sm w-auto" @bind="PageSize">
+                            <option value="10">10</option>
+                            <option value="30">30</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            @if (PagedRows.Count == 0)
+            {
+                <div class="text-muted">No incidents found.</div>
+            }
+            else
+            {
+                <div class="timeline-list d-grid gap-2">
+                    @foreach (var row in PagedRows)
+                    {
+                        <div class="border rounded-3 p-3">
+                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                                <div class="fw-semibold">@row.Title</div>
+                                <div class="d-flex gap-2">
+                                    <span class="badge text-bg-secondary">@row.Category</span>
+                                    <span class="badge @GetSeverityBadge(row.Severity)">@row.Severity</span>
+                                </div>
+                            </div>
+                            <div class="text-secondary small">@row.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
+                            <div class="mt-2">
+                                <span class="badge text-bg-light text-dark border me-2">@row.Subject</span>
+                                <span class="text-break">@row.Message</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(row.Detail))
+                            {
+                                <div class="text-muted small mt-1 text-break">@row.Detail</div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                    <div class="text-muted small">
+                        Showing @DisplayRangeStart-@DisplayRangeEnd of @FilteredRows.Count item(s)
+                    </div>
+                    <div class="btn-group" role="group" aria-label="Pagination">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">Previous</button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">Next</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<EventTimelineEntry> _items = [];
+    private string _searchText = string.Empty;
+    private string _categoryFilter = string.Empty;
+    private string _severityFilter = string.Empty;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private int _pageSize = 30;
+    private int _currentPage = 1;
+
+    private string SearchText
+    {
+        get => _searchText;
+        set { _searchText = value; _currentPage = 1; }
+    }
+
+    private string CategoryFilter
+    {
+        get => _categoryFilter;
+        set { _categoryFilter = value; _currentPage = 1; }
+    }
+
+    private string SeverityFilter
+    {
+        get => _severityFilter;
+        set { _severityFilter = value; _currentPage = 1; }
+    }
+
+    private DateTime? FromDate
+    {
+        get => _fromDate;
+        set { _fromDate = value; _currentPage = 1; }
+    }
+
+    private DateTime? ToDate
+    {
+        get => _toDate;
+        set { _toDate = value; _currentPage = 1; }
+    }
+
+    private int PageSize
+    {
+        get => _pageSize;
+        set
+        {
+            _pageSize = value is 10 or 30 or 50 or 100 ? value : 30;
+            _currentPage = 1;
+        }
+    }
+
+    private List<IncidentRow> FilteredRows =>
+        _items
+            .Select(MapRow)
+            .Where(row =>
+                string.IsNullOrWhiteSpace(_searchText) ||
+                row.Subject.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                row.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                row.Message.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                row.Detail.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            .Where(row => string.IsNullOrWhiteSpace(_categoryFilter) || string.Equals(row.Category, _categoryFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(row => string.IsNullOrWhiteSpace(_severityFilter) || string.Equals(row.Severity, _severityFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(row => !_fromDate.HasValue || row.TimestampUtc.ToLocalTime() >= _fromDate.Value.Date)
+            .Where(row => !_toDate.HasValue || row.TimestampUtc.ToLocalTime() < _toDate.Value.Date.AddDays(1))
+            .OrderByDescending(row => row.Priority)
+            .ThenByDescending(row => row.TimestampUtc)
+            .ToList();
+
+    private List<IncidentRow> IncidentRows => FilteredRows;
+
+    private List<IncidentRow> PagedRows =>
+        FilteredRows
+            .Skip((_currentPage - 1) * _pageSize)
+            .Take(_pageSize)
+            .ToList();
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredRows.Count / (double)_pageSize));
+    private bool IsFirstPage => _currentPage <= 1;
+    private bool IsLastPage => _currentPage >= TotalPages;
+    private int DisplayRangeStart => FilteredRows.Count == 0 ? 0 : ((_currentPage - 1) * _pageSize) + 1;
+    private int DisplayRangeEnd => Math.Min(_currentPage * _pageSize, FilteredRows.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _items.Clear();
+        _items.AddRange(await TimelineService.GetRecentEventsAsync(200));
+        _currentPage = 1;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = string.Empty;
+        _categoryFilter = string.Empty;
+        _severityFilter = string.Empty;
+        _fromDate = null;
+        _toDate = null;
+        _currentPage = 1;
+    }
+
+    private void PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (_currentPage < TotalPages)
+        {
+            _currentPage++;
+        }
+    }
+
+    private static IncidentRow MapRow(EventTimelineEntry item)
+    {
+        var severity = GetSeverity(item);
+        var priority = severity switch
+        {
+            "Critical" => 4,
+            "High" => 3,
+            "Medium" => 2,
+            _ => 1
+        };
+
+        return new IncidentRow
+        {
+            TimestampUtc = item.TimestampUtc,
+            Category = item.Category,
+            Subject = item.Subject,
+            Title = item.Title,
+            Message = item.Message,
+            Detail = item.Detail,
+            Severity = severity,
+            Priority = priority,
+            IsActive = severity is "Critical" or "High"
+        };
+    }
+
+    private static string GetSeverity(EventTimelineEntry item)
+    {
+        if (item.Category == "Alert")
+        {
+            return item.Title.Contains("Recovery", StringComparison.OrdinalIgnoreCase) ? "Low"
+                : item.Title.Contains("Anomaly", StringComparison.OrdinalIgnoreCase) ? "High"
+                : "High";
+        }
+
+        if (item.Category == "Login")
+        {
+            return string.Equals(item.Message, "Failed", StringComparison.OrdinalIgnoreCase) ? "Medium" : "Low";
+        }
+
+        if (item.Category == "Audit")
+        {
+            if (item.Title.Contains("settings_restore", StringComparison.OrdinalIgnoreCase) ||
+                item.Title.Contains("member_role", StringComparison.OrdinalIgnoreCase) ||
+                item.Title.Contains("security_settings_update", StringComparison.OrdinalIgnoreCase))
+            {
+                return "Critical";
+            }
+
+            if (item.Title.Contains("notification_settings_update", StringComparison.OrdinalIgnoreCase) ||
+                item.Title.Contains("email_settings_update", StringComparison.OrdinalIgnoreCase) ||
+                item.Title.Contains("sql_target_update", StringComparison.OrdinalIgnoreCase) ||
+                item.Title.Contains("member_active", StringComparison.OrdinalIgnoreCase))
+            {
+                return "High";
+            }
+
+            return "Medium";
+        }
+
+        return "Low";
+    }
+
+    private static string GetSeverityBadge(string severity) => severity switch
+    {
+        "Critical" => "text-bg-danger",
+        "High" => "text-bg-warning",
+        "Medium" => "text-bg-primary",
+        _ => "text-bg-secondary"
+    };
+
+    private sealed class IncidentRow
+    {
+        public DateTime TimestampUtc { get; set; }
+        public string Category { get; set; } = string.Empty;
+        public string Subject { get; set; } = string.Empty;
+        public string Title { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public string Detail { get; set; } = string.Empty;
+        public string Severity { get; set; } = string.Empty;
+        public int Priority { get; set; }
+        public bool IsActive { get; set; }
+    }
+}

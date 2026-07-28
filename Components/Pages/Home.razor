@@ -1,0 +1,1949 @@
+@page "/"
+@attribute [Authorize]
+@implements IDisposable
+@inject Monitoring.Blazor.Services.MonitorStateService MonitorState
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+@inject IConfiguration Configuration
+@inject SlowQueryService SlowQueryService
+@inject ServerCatalogRepository ServerCatalogRepository
+@using System.Globalization
+@using Microsoft.EntityFrameworkCore
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+
+<PageTitle>OpsEye | Dashboard</PageTitle>
+
+<div class="dashboard-page-heading">
+    <div>
+        <div class="page-eyebrow">Overview</div>
+        <h1>Dashboard</h1>
+        <p>Monitor host health, alerts, and performance from one workspace.</p>
+    </div>
+    <div class="dashboard-page-status" role="status">
+        <span class="status-dot status-online" aria-hidden="true"></span>
+        Live monitoring
+    </div>
+</div>
+
+<div class="dashboard-toolbar mb-3">
+    <div class="dashboard-toolbar-primary">
+        <button class="btn @(CurrentHost == DashboardView ? "btn-primary" : "btn-outline-primary")" @onclick="ShowDashboard"><i class="bi bi-grid-1x2 me-1"></i>Dashboard</button>
+        <button class="btn btn-outline-secondary" @onclick="ToggleAutoRefresh">
+            <span class="status-dot @(AutoRefresh ? "status-online" : "status-offline")" aria-hidden="true"></span>Auto Refresh: @(AutoRefresh ? "On" : "Off")
+        </button>
+        <button class="btn btn-outline-primary" @onclick="ManualRefreshAsync"><i class="bi bi-arrow-clockwise me-1"></i>Refresh Now</button>
+        <div class="dashboard-menu">
+            <button type="button" class="btn btn-outline-secondary" aria-expanded="@ShowManageMenu" @onclick="ToggleManageMenu">Manage <i class="bi bi-chevron-down ms-1"></i></button>
+            @if (ShowManageMenu)
+            {
+                <div class="dashboard-menu-backdrop" @onclick="CloseManageMenu"></div>
+                <div class="dashboard-menu-popover" role="menu" aria-label="Manage menu" @onclick:stopPropagation="true">
+                    <AuthorizeView Roles="Admin">
+                        <Authorized>
+                            <button type="button" class="dashboard-menu-item" @onclick="ToggleAlertPanel">
+                                <i class="bi bi-bell me-2"></i>Alert Rules
+                            </button>
+                            <button type="button" class="dashboard-menu-item" @onclick="ToggleSqlAccessPanel">
+                                <i class="bi bi-database-lock me-2"></i>SQL Access
+                            </button>
+                        </Authorized>
+                    </AuthorizeView>
+                    <a class="dashboard-menu-item" href="/api/reports/dashboard" @onclick="CloseManageMenu"><i class="bi bi-download me-2"></i>Export Report</a>
+                    <a class="dashboard-menu-item" href="/server-groups" @onclick="CloseManageMenu"><i class="bi bi-tags me-2"></i>Server Groups</a>
+                    <a class="dashboard-menu-item" href="/events" @onclick="CloseManageMenu"><i class="bi bi-clock-history me-2"></i>Event Timeline</a>
+                    <a class="dashboard-menu-item" href="/dependencies" @onclick="CloseManageMenu"><i class="bi bi-diagram-3 me-2"></i>Dependencies</a>
+                </div>
+            }
+        </div>
+    </div>
+
+        <div class="dashboard-toolbar-hosts">
+        @foreach (var host in OrderedHosts)
+        {
+            <button class="btn dashboard-host-button @(CurrentHost == host.Info.Hostname ? "btn-primary" : "btn-outline-secondary") @(host.IsOnline ? "host-online" : "host-offline")"
+                    disabled="@(!host.IsOnline)"
+                    aria-label="@(host.Info.Hostname + (host.IsOnline ? " online" : " offline"))"
+                    @onclick="() => SelectHost(host.Info.Hostname)">
+                <span class="status-dot @(host.IsOnline ? "status-online" : "status-offline")" aria-hidden="true"></span>
+                <span class="host-name">@host.Info.Hostname</span>
+                <span class="host-state @(host.IsOnline ? "host-state-online" : "host-state-offline")">
+                    @(host.IsOnline ? "Online" : "Offline")
+                </span>
+            </button>
+        }
+    </div>
+</div>
+
+@if (CurrentHost == DashboardView)
+{
+    <div class="row g-2 mb-3 dashboard-mini-metrics">
+        <div class="col-6 col-lg-3">
+            <div class="card h-100 metric-card metric-card-compact">
+                <div class="card-body">
+                    <div class="metric-label">Hosts Online</div>
+                    <div class="metric-value">@Hosts.Count(x => x.IsOnline).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card h-100 metric-card metric-card-compact">
+                <div class="card-body">
+                    <div class="metric-label">Hosts Offline</div>
+                    <div class="metric-value">@Hosts.Count(x => !x.IsOnline).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card h-100 metric-card metric-card-compact" title="Warning: CPU is at or above 60%, memory is at or above 75%, or disk usage is at or above 85%." aria-label="Hosts Warning: CPU 60 percent or higher, memory 75 percent or higher, or disk 85 percent or higher.">
+                <div class="card-body">
+                    <div class="metric-label">Hosts Warning</div>
+                    <div class="metric-value">@Hosts.Count(x => IsWarning(x.Info)).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card h-100 metric-card metric-card-compact" title="Critical: CPU is at or above 85%, memory is at or above 90%, or disk usage is at or above 95%." aria-label="Hosts Critical: CPU 85 percent or higher, memory 90 percent or higher, or disk 95 percent or higher.">
+                <div class="card-body">
+                    <div class="metric-label">Hosts Critical</div>
+                    <div class="metric-value">@Hosts.Count(x => IsCritical(x.Info)).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-3">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history to inspect all recent alerts." @onclick="OpenAlertHistory">
+                <div class="card-body">
+                    <div class="metric-label">Recent Alerts</div>
+                    <div class="metric-value">@RecentAlerts.Count.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review threshold events." @onclick="OpenAlertHistory">
+                <div class="card-body">
+                    <div class="metric-label">Threshold Alerts</div>
+                    <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Threshold).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review recovery events." @onclick="OpenAlertHistory">
+                <div class="card-body">
+                    <div class="metric-label">Recovery Alerts</div>
+                    <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Recovery).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review anomaly events." @onclick="OpenAlertHistory">
+                <div class="card-body">
+                    <div class="metric-label">Anomaly Alerts</div>
+                    <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Anomaly).ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3 dashboard-data-card">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <strong class="dashboard-data-title">Recent Alerts</strong>
+            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent alerts" @onclick="LoadRecentAlertsAsync">Refresh</button>
+        </div>
+        <div class="card-body">
+            @if (RecentAlerts.Count == 0)
+            {
+                <div class="text-muted">No recent alerts.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>Host</th>
+                                <th>Metric</th>
+                                <th>Value</th>
+                                <th>Message</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var alert in RecentAlerts)
+                            {
+                                <tr>
+                                    <td>@alert.TimestampUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
+                                    <td>@alert.Hostname</td>
+                                    <td><span class="badge text-bg-warning">@alert.Metric</span></td>
+                                    <td>@alert.Value.ToString("0.0") / @alert.Threshold.ToString("0.0")</td>
+                                    <td class="text-break">@alert.Message</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card mb-3 dashboard-data-card">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2">
+            <strong class="dashboard-data-title">Recent Login Failures</strong>
+            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent failed sign-ins" @onclick="LoadRecentLoginFailuresAsync">Refresh</button>
+        </div>
+        <div class="card-body">
+            @if (RecentLoginFailures.Count == 0)
+            {
+                <div class="text-muted">No recent failed sign-ins.</div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0">
+                        <thead>
+                            <tr>
+                                <th>Time</th>
+                                <th>User</th>
+                                <th>Reason</th>
+                                <th>IP</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var attempt in RecentLoginFailures)
+                            {
+                                <tr>
+                                    <td>@attempt.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
+                                    <td>@attempt.UserName</td>
+                                    <td><span class="badge text-bg-danger">@attempt.Reason</span></td>
+                                    <td>@(attempt.IpAddress ?? "-")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (ShowAlertPanel)
+    {
+        <div class="alert-modal-backdrop" @onclick="ToggleAlertPanel">
+            <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alert-rules-title" @onclick:stopPropagation="true">
+                <div class="alert-modal-header">
+                    <div>
+                        <div class="settings-kicker">Configuration</div>
+                        <h2 id="alert-rules-title">Alert Rules</h2>
+                        <div class="text-muted small">Tune threshold, recovery, anomaly, and maintenance window rules here.</div>
+                    </div>
+                    <button type="button" class="modal-close-button" aria-label="Close" @onclick="ToggleAlertPanel">&times;</button>
+                </div>
+                <div class="alert-modal-body">
+                    <div class="row g-2">
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Enabled</label>
+                            <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.Enabled" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">CPU %</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.CpuThreshold" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">CPU Minutes</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">RAM %</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.RamThreshold" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Disk %</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Cooldown (min)</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Recovery</label>
+                            <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.RecoveryEnabled" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Recovery Cooldown</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Anomaly</label>
+                            <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.AnomalyEnabled" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Window</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.AnomalyWindow" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">StdDev</label>
+                            <input class="form-control" type="number" step="0.1" @bind="AlertSettings.AnomalyStdDev" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Min Delta</label>
+                            <input class="form-control" type="number" step="0.1" @bind="AlertSettings.AnomalyMinDelta" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Anomaly Cooldown</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.AnomalyCooldownMinutes" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Maintenance Window</label>
+                            <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.MaintenanceWindowEnabled" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Start</label>
+                            <input class="form-control" type="time" @bind="MaintenanceWindowStartValue" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">End</label>
+                            <input class="form-control" type="time" @bind="MaintenanceWindowEndValue" />
+                        </div>
+                    </div>
+                    <div class="mt-3 d-flex gap-2">
+                        <button class="btn btn-primary" @onclick="SaveAlertSettings">Save</button>
+                        <button class="btn btn-outline-secondary" @onclick="LoadAlertSettings">Reload</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+
+    <div class="row g-3">
+        @foreach (HostState host in OrderedHosts)
+        {
+            var cpu = host.Info.Dynamic.CpuInfo.Usage;
+            var mem = host.Info.Dynamic.MemoryInfo.Usage;
+
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="card h-100 host-card @(host.IsOnline ? "" : "host-offline")"
+                     role="button"
+                     tabindex="0"
+                     @onclick="() => SelectHost(host.Info.Hostname)">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">@host.Info.Hostname</h5>
+                            <span class="badge @(host.IsOnline ? "text-bg-success" : "text-bg-danger")">@(host.IsOnline ? "Online" : "Offline")</span>
+                        </div>
+                        <p class="text-muted mt-2 mb-1">@host.Info.Ip</p>
+                        <div class="d-flex flex-wrap gap-1 mb-2">
+                            @if (!string.IsNullOrWhiteSpace(GetServerGroup(host.Info.Hostname)))
+                            {
+                                <span class="badge text-bg-secondary">@GetServerGroup(host.Info.Hostname)</span>
+                            }
+                            @foreach (var tag in GetServerTags(host.Info.Hostname))
+                            {
+                                <span class="badge text-bg-light text-dark border">@tag</span>
+                            }
+                        </div>
+                        <div>CPU @cpu.ToString("0.0")%</div>
+                        <div class="progress mb-2"><div class="progress-bar bg-danger" style="width: @($"{cpu}%")"></div></div>
+                        <div>MEM @mem.ToString("0.0")%</div>
+                        <div class="progress"><div class="progress-bar bg-info" style="width: @($"{mem}%")"></div></div>
+                        <div class="mt-3 text-end">
+                            <span class="btn btn-sm btn-outline-primary">View Details</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else if (SelectedHost is not null)
+{
+    var info = SelectedHost.Info;
+    var history = Histories.GetValueOrDefault(info.Hostname);
+
+    <ul class="nav nav-tabs mb-3">
+        <li class="nav-item">
+            <button class="nav-link @(SelectedDetailTab == DetailTab.Overview ? "active" : "")" @onclick="() => SetDetailTab(DetailTab.Overview)">Overview</button>
+        </li>
+        <li class="nav-item">
+            <button class="nav-link @(SelectedDetailTab == DetailTab.SlowQueries ? "active" : "")" @onclick="() => SetDetailTab(DetailTab.SlowQueries)">Slow Queries</button>
+        </li>
+    </ul>
+
+    @if (SelectedDetailTab == DetailTab.SlowQueries)
+    {
+        <div class="card mb-3">
+            <div class="card-header"><strong>@info.Hostname</strong> Slow Queries</div>
+            <div class="card-body">
+                <div class="d-flex gap-2 mb-2 flex-wrap">
+                    <button class="btn btn-sm btn-outline-primary" @onclick="LoadSlowQueries" disabled="@IsLoadingSlowQueries">Refresh</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadBlockingQueries" disabled="@IsLoadingBlockingQueries">Blocking</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadTopIoQueries" disabled="@IsLoadingTopIoQueries">Top IO</button>
+                    @if (!string.IsNullOrWhiteSpace(SlowQueryError))
+                    {
+                        <span class="text-danger">@SlowQueryError</span>
+                    }
+                    else if (SlowQueries is not null)
+                    {
+                        <span class="text-muted">Rows: @SlowQueries.Count</span>
+                    }
+                </div>
+
+                @if (SlowQueries is null)
+                {
+                    <div class="text-muted">No data loaded yet.</div>
+                }
+                else if (SlowQueries.Count == 0)
+                {
+                    <div class="text-muted">No slow queries above threshold.</div>
+                }
+                else
+                {
+                    <div class="table-responsive">
+                        <table class="table table-sm detail-table">
+                            <thead>
+                                <tr>
+                                    <th>Session</th>
+                                    <th>DB</th>
+                                    <th>Status</th>
+                                    <th>Command</th>
+                                    <th class="text-end">Elapsed(ms)</th>
+                                    <th class="text-end">CPU(ms)</th>
+                                    <th class="text-end">Reads</th>
+                                    <th class="text-end">Writes</th>
+                                    <th>Wait</th>
+                                    <th>Blocking</th>
+                                    <th>Statement</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            @foreach (var row in SlowQueries)
+                            {
+                                <tr>
+                                    <td>@row.SessionId</td>
+                                    <td>@row.DatabaseName</td>
+                                    <td>@row.Status</td>
+                                    <td>@row.Command</td>
+                                    <td class="text-end">@row.ElapsedMs</td>
+                                    <td class="text-end">@row.CpuTimeMs</td>
+                                    <td class="text-end">@row.Reads</td>
+                                    <td class="text-end">@row.Writes</td>
+                                    <td>@row.WaitType</td>
+                                    <td>@row.BlockingSessionId</td>
+                                    <td class="text-truncate" style="max-width: 380px;" title="@row.StatementText">@row.StatementText</td>
+                                </tr>
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(BlockingQueryError))
+                {
+                    <div class="text-danger mt-3">@BlockingQueryError</div>
+                }
+                else if (BlockingQueries is not null)
+                {
+                    <div class="mt-3 mb-2"><strong>Blocking / Deadlock 후보</strong></div>
+                    @if (BlockingQueries.Count == 0)
+                    {
+                        <div class="text-muted">No blocking sessions.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm detail-table">
+                                <thead>
+                                    <tr>
+                                        <th>Session</th>
+                                        <th>DB</th>
+                                        <th>Status</th>
+                                        <th>Command</th>
+                                        <th class="text-end">Elapsed(ms)</th>
+                                        <th class="text-end">CPU(ms)</th>
+                                        <th>Wait</th>
+                                        <th>Blocking</th>
+                                        <th>Statement</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var row in BlockingQueries)
+                                {
+                                    <tr>
+                                        <td>@row.SessionId</td>
+                                        <td>@row.DatabaseName</td>
+                                        <td>@row.Status</td>
+                                        <td>@row.Command</td>
+                                        <td class="text-end">@row.ElapsedMs</td>
+                                        <td class="text-end">@row.CpuTimeMs</td>
+                                        <td>@row.WaitType</td>
+                                        <td>@row.BlockingSessionId</td>
+                                        <td class="text-truncate" style="max-width: 380px;" title="@row.StatementText">@row.StatementText</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+
+                @if (!string.IsNullOrWhiteSpace(TopIoError))
+                {
+                    <div class="text-danger mt-3">@TopIoError</div>
+                }
+                else if (TopIoQueries is not null)
+                {
+                    <div class="mt-3 mb-2"><strong>Top IO Queries</strong></div>
+                    @if (TopIoQueries.Count == 0)
+                    {
+                        <div class="text-muted">No heavy IO queries.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm detail-table">
+                                <thead>
+                                    <tr>
+                                        <th>DB</th>
+                                        <th class="text-end">Reads</th>
+                                        <th class="text-end">Writes</th>
+                                        <th class="text-end">CPU(ms)</th>
+                                        <th class="text-end">Elapsed(ms)</th>
+                                        <th class="text-end">Execs</th>
+                                        <th>Statement</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                @foreach (var row in TopIoQueries)
+                                {
+                                    <tr>
+                                        <td>@row.DatabaseName</td>
+                                        <td class="text-end">@row.TotalLogicalReads</td>
+                                        <td class="text-end">@row.TotalLogicalWrites</td>
+                                        <td class="text-end">@row.TotalCpuTimeMs</td>
+                                        <td class="text-end">@row.TotalElapsedMs</td>
+                                        <td class="text-end">@row.ExecutionCount</td>
+                                        <td class="text-truncate" style="max-width: 380px;" title="@row.StatementText">@row.StatementText</td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                }
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="card mb-3">
+            <div class="card-header"><strong>@info.Hostname</strong> Server Status</div>
+            <div class="card-body">
+                <div class="row text-center g-3">
+                    <div class="col-12 col-md-4">
+                        <div class="gauge-wrap"><canvas id="cpuGauge"></canvas></div>
+                        <div class="mt-2">CPU: <strong>@info.Dynamic.CpuInfo.Usage.ToString("0.0")%</strong></div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="gauge-wrap"><canvas id="memoryGauge"></canvas></div>
+                        <div class="mt-2">Memory: <strong>@info.Dynamic.MemoryInfo.Usage.ToString("0.0")%</strong></div>
+                    </div>
+                    <div class="col-12 col-md-4">
+                        <div class="gauge-wrap"><canvas id="diskGauge"></canvas></div>
+                        <div class="mt-2">Disk: <strong>@info.Dynamic.DiskInfo.Percent.ToString("0.0")%</strong></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-3 mt-0 align-items-stretch detail-split-row">
+            <div class="col-12 col-xl-4">
+                <div class="card detail-card">
+                    <div class="card-header"><strong>@info.Hostname</strong> Details</div>
+                    <div class="card-body p-0">
+                        <table class="table table-sm detail-table mb-0">
+                            <tbody>
+                            <tr><td>Status</td><td>@(info.Status?.ToString() ?? "-")</td></tr>
+                            <tr><td>Host</td><td>@info.Hostname</td></tr>
+                            <tr><td>IP</td><td>@info.Ip</td></tr>
+                            <tr><td>OS</td><td>@info.Os</td></tr>
+                            <tr><td>CPU</td><td>@info.Dynamic.CpuInfo.Usage.ToString("0.0")%</td></tr>
+                            <tr><td>Memory</td><td>@info.Dynamic.MemoryInfo.Usage.ToString("0.0")%</td></tr>
+                            <tr><td>Disk</td><td>@info.Dynamic.DiskInfo.Percent.ToString("0.0")%</td></tr>
+                            <tr><td>Disk Used</td><td>@ToGb((long)info.Dynamic.DiskInfo.Total - (long)info.Dynamic.DiskInfo.Free).ToString("0.00") GB</td></tr>
+                            <tr><td>Disk Total</td><td>@ToGb((long)info.Dynamic.DiskInfo.Total).ToString("0.00") GB</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+            <div class="col-12 col-xl-8">
+                <div class="card detail-history-card">
+                    <div class="card-header"><strong>@info.Hostname</strong> History</div>
+                    <div class="card-body p-0 detail-history-scroll">
+                        <table class="table table-sm detail-table mb-0">
+                            <thead><tr><th>Time</th><th>TX Mbps</th><th>RX Mbps</th><th>CPU</th><th>MEM</th></tr></thead>
+                            <tbody>
+                            @if (history is not null)
+                            {
+                                foreach (var point in history.Points.TakeLast(12).Reverse())
+                                {
+                                    <tr>
+                                        <td>@point.TimeLabel</td>
+                                        <td>@point.Tx.ToString("0.000")</td>
+                                        <td>@point.Rx.ToString("0.000")</td>
+                                        <td>@point.Cpu.ToString("0.0")%</td>
+                                        <td>@point.Memory.ToString("0.0")%</td>
+                                    </tr>
+                                }
+                            }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="row g-3 mt-0">
+            <div class="col-12">
+                <div class="card dashboard-chart-card">
+                    <div class="card-header dashboard-chart-header">
+                        <div>
+                            <strong>Performance Charts</strong>
+                            <div class="text-muted small">Switch between network traffic and system resource trends without leaving the page.</div>
+                        </div>
+                        <div class="dashboard-chart-tabs" role="tablist" aria-label="Chart views">
+                            <button type="button"
+                                    class="btn btn-sm @(SelectedChartPanel == ChartPanel.Network ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick="() => SelectChartPanel(ChartPanel.Network)">
+                                Network
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm @(SelectedChartPanel == ChartPanel.Resource ? "btn-primary" : "btn-outline-secondary")"
+                                    @onclick="() => SelectChartPanel(ChartPanel.Resource)">
+                                Resource
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="card-body border-bottom dashboard-chart-summary">
+                        <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+                            <div>
+                                <div class="metric-label">Current focus</div>
+                                <div class="dashboard-chart-title">@GetSelectedChartTitle()</div>
+                            </div>
+                            <div class="text-muted small text-end">
+                                @GetSelectedChartSummaryText()
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card-body chart-wrap dashboard-chart-panel @(SelectedChartPanel == ChartPanel.Network ? "" : "d-none")">
+                        <div class="chart-surface">
+                            <canvas id="networkChart"></canvas>
+                            <div id="networkChartOverlay" class="chart-overlay"></div>
+                            @if (IsChartLoading)
+                            {
+                                <div class="chart-state-overlay">
+                                    <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                                    <div class="mt-2">Loading network chart...</div>
+                                </div>
+                            }
+                        </div>
+                        <div class="dashboard-chart-toolbar">
+                            <div>
+                                <label class="form-label mb-1">Range</label>
+                                <select class="form-select" @bind="NetworkRangePreset" @bind:after="ApplyNetworkPresetAsync">
+                                    <option value="realtime">Real-time</option>
+                                    <option value="day">Last 24h</option>
+                                    <option value="week">Last 7 days</option>
+                                    <option value="month">Last 30 days</option>
+                                    <option value="year">Last 12 months</option>
+                                </select>
+                            </div>
+                            <div class="chart-range-note">@GetRangeDisplay(NetworkRangeStartLocal, NetworkRangeEndLocal)</div>
+                            <button class="btn btn-outline-secondary" @onclick="ResetNetworkZoom">Reset Zoom</button>
+                        </div>
+                        @if (!NetworkHasData)
+                        {
+                            <div class="text-warning mt-2">No network data is available for this range. Try a wider range or wait for the next refresh.</div>
+                        }
+                    </div>
+                    <div class="card-body chart-wrap dashboard-chart-panel @(SelectedChartPanel == ChartPanel.Resource ? "" : "d-none")">
+                        <div class="chart-surface">
+                            <canvas id="resourceChart"></canvas>
+                            <div id="resourceChartOverlay" class="chart-overlay"></div>
+                            @if (IsChartLoading)
+                            {
+                                <div class="chart-state-overlay">
+                                    <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                                    <div class="mt-2">Loading resource chart...</div>
+                                </div>
+                            }
+                        </div>
+                        <div class="dashboard-chart-toolbar">
+                            <div>
+                                <label class="form-label mb-1">Range</label>
+                                <select class="form-select" @bind="ResourceRangePreset" @bind:after="ApplyResourcePresetAsync">
+                                    <option value="realtime">Real-time</option>
+                                    <option value="day">Last 24h</option>
+                                    <option value="week">Last 7 days</option>
+                                    <option value="month">Last 30 days</option>
+                                    <option value="year">Last 12 months</option>
+                                </select>
+                            </div>
+                            <div class="chart-range-note">@GetRangeDisplay(ResourceRangeStartLocal, ResourceRangeEndLocal)</div>
+                            <button class="btn btn-outline-secondary" @onclick="ResetResourceZoom">Reset Zoom</button>
+                        </div>
+                        @if (!ResourceHasData)
+                        {
+                            <div class="text-warning mt-2">No resource data is available for this range. Try a wider range or wait for the next refresh.</div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+}
+else
+{
+    <p>Host data not found.</p>
+}
+
+@if (ShowSqlAccessPanel)
+{
+    <div class="sql-modal-backdrop" @onclick="CloseSqlAccessPanel">
+        <div class="sql-modal" role="dialog" aria-modal="true" aria-labelledby="sql-access-title" @onclick:stopPropagation="true">
+            <div class="sql-modal-header">
+                <div>
+                    <div class="settings-kicker">Configuration</div>
+                    <h2 id="sql-access-title">DB Access</h2>
+                    <div class="text-muted small">Manage SQL connection credentials per server from one place.</div>
+                </div>
+                <button type="button" class="modal-close-button" aria-label="Close" @onclick="CloseSqlAccessPanel">&times;</button>
+            </div>
+            <div class="sql-modal-body">
+                <div class="row g-3">
+                    <div class="col-12 col-xl-4">
+                        <div class="list-group sql-host-list">
+                            @foreach (var host in OrderedHosts)
+                            {
+                                <button type="button"
+                                        class="list-group-item list-group-item-action d-flex justify-content-between align-items-center @(string.Equals(SelectedSqlHost, host.Info.Hostname, StringComparison.OrdinalIgnoreCase) ? "active" : "")"
+                                        @onclick="() => SelectSqlHost(host.Info.Hostname)">
+                                    <span class="text-start">
+                                        <span class="d-block">@host.Info.Hostname</span>
+                                        <small class="opacity-75">@host.Info.Ip</small>
+                                    </span>
+                                    <span class="badge sql-status-badge @(host.IsOnline ? "sql-status-online" : "sql-status-offline")">
+                                        @(host.IsOnline ? "Online" : "Offline")
+                                    </span>
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    <div class="col-12 col-xl-8">
+                        @if (SelectedSqlHost is null)
+                        {
+                            <div class="text-muted">Select a server on the left.</div>
+                        }
+                        else
+                        {
+                            <div class="row g-2">
+                                <div class="col-12">
+                                    <label class="form-label">Server</label>
+                                    <input class="form-control" @bind="SqlTargetSettings.Server" placeholder="127.0.0.1" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Port</label>
+                                    <input class="form-control" type="number" @bind="SqlTargetSettings.Port" />
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Database</label>
+                                    <input class="form-control" @bind="SqlTargetSettings.Database" placeholder="master" />
+                                </div>
+                                <div class="col-12">
+                                    <label class="form-label">Authentication</label>
+                                    <select class="form-select" @bind="SqlIntegratedSecurityChoice">
+                                        <option value="N">SQL Authentication</option>
+                                        <option value="Y">Windows / Integrated</option>
+                                    </select>
+                                </div>
+                                @if (!SqlTargetSettings.IntegratedSecurity)
+                                {
+                                    <div class="col-12">
+                                        <label class="form-label">Username</label>
+                                        <input class="form-control" @bind="SqlTargetSettings.Username" autocomplete="off" />
+                                    </div>
+                                    <div class="col-12">
+                                        <label class="form-label">Password</label>
+                                        <input class="form-control" type="password" @bind="SqlTargetSettings.Password" autocomplete="new-password" />
+                                    </div>
+                                }
+                                <div class="col-6">
+                                    <label class="form-label">Encrypt</label>
+                                    <select class="form-select" @bind="SqlEncryptChoice">
+                                        <option value="Y">Y</option>
+                                        <option value="N">N</option>
+                                    </select>
+                                </div>
+                                <div class="col-6">
+                                    <label class="form-label">Trust Cert</label>
+                                    <select class="form-select" @bind="SqlTrustCertificateChoice">
+                                        <option value="Y">Y</option>
+                                        <option value="N">N</option>
+                                    </select>
+                                </div>
+                                <div class="col-12">
+                                    <div class="text-muted small">This host uses its own SQL target config for slow query, blocking, and top IO cards.</div>
+                                </div>
+                                @if (!string.IsNullOrWhiteSpace(SqlTargetStatusMessage))
+                                {
+                                    <div class="col-12">
+                                        <div class="alert alert-secondary mb-0">@SqlTargetStatusMessage</div>
+                                    </div>
+                                }
+                            </div>
+                            <div class="mt-3 d-flex gap-2 flex-wrap">
+                                <button class="btn btn-outline-secondary" @onclick="LoadSqlTargetSettingsAsync">Reload</button>
+                                <button class="btn btn-outline-warning" @onclick="ResetSqlTargetSettingsAsync">Reset to Default</button>
+                                <button class="btn btn-primary" @onclick="SaveSqlTargetSettingsAsync" disabled="@IsSavingSqlTarget">Save</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private const string DashboardView = "DASHBOARD";
+    private const string DashboardHostSettingKey = "dashboard.currentHost";
+    private const string DashboardChartPanelSettingKey = "dashboard.chartPanel";
+    private const string DashboardNetworkRangeSettingKey = "dashboard.networkRangePreset";
+    private const string DashboardResourceRangeSettingKey = "dashboard.resourceRangePreset";
+    private const int DefaultHistoryWindowMinutes = 180;
+    private const int ChartWindowPoints = 120;
+    private readonly TimeSpan _offlineThreshold = TimeSpan.FromSeconds(15);
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _timerCts;
+    private List<HostState> Hosts { get; set; } = [];
+    private Dictionary<string, HistorySeries> Histories { get; } = new(StringComparer.OrdinalIgnoreCase);
+    private Dictionary<string, HistorySeries> ChartHistories { get; } = new(StringComparer.OrdinalIgnoreCase);
+    private string CurrentHost { get; set; } = DashboardView;
+    private DetailTab SelectedDetailTab { get; set; } = DetailTab.Overview;
+    private bool AutoRefresh { get; set; } = true;
+    private bool ShowAlertPanel { get; set; } = false;
+    private bool ShowSqlAccessPanel { get; set; } = false;
+    private bool ShowManageMenu { get; set; } = false;
+    private bool IsLoadingSlowQueries { get; set; }
+    private bool IsLoadingBlockingQueries { get; set; }
+    private bool IsLoadingTopIoQueries { get; set; }
+    private List<SlowQueryRow>? SlowQueries { get; set; }
+    private List<BlockingQueryRow>? BlockingQueries { get; set; }
+    private List<TopIoQueryRow>? TopIoQueries { get; set; }
+    private string? SlowQueryError { get; set; }
+    private string? BlockingQueryError { get; set; }
+    private string? TopIoError { get; set; }
+    private string? SqlTargetStatusMessage { get; set; }
+    private bool IsSavingSqlTarget { get; set; }
+    private SqlTargetSettings SqlTargetSettings { get; set; } = new();
+    private string? SelectedSqlHost { get; set; }
+    private int _currentHistoryWindowMinutes = DefaultHistoryWindowMinutes;
+    private string NetworkRangePreset { get; set; } = "realtime";
+    private DateTime? NetworkRangeStartLocal { get; set; }
+    private DateTime? NetworkRangeEndLocal { get; set; }
+    private bool NetworkHasData { get; set; } = true;
+
+    private string ResourceRangePreset { get; set; } = "realtime";
+    private DateTime? ResourceRangeStartLocal { get; set; }
+    private DateTime? ResourceRangeEndLocal { get; set; }
+    private bool ResourceHasData { get; set; } = true;
+    private AlertSettings AlertSettings { get; set; } = new();
+    private Dictionary<string, ServerMetadata> ServerCatalog { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    private List<AlertEventEntity> RecentAlerts { get; set; } = [];
+    private List<MemberLoginAttemptEntity> RecentLoginFailures { get; set; } = [];
+    private HttpClient? _http;
+    private bool _settingsLoaded;
+    private bool _uiPreferencesLoaded;
+    private bool _pendingNetworkChartUpdate;
+    private bool _pendingResourceChartUpdate;
+    private bool IsChartLoading { get; set; }
+    private ChartPanel SelectedChartPanel { get; set; } = ChartPanel.Network;
+    private HostState? SelectedHost =>
+        Hosts.FirstOrDefault(x => string.Equals(x.Info.Hostname, CurrentHost, StringComparison.OrdinalIgnoreCase));
+    private IEnumerable<HostState> OrderedHosts => Hosts
+        .OrderBy(x => GetServerGroup(x.Info.Hostname), StringComparer.OrdinalIgnoreCase)
+        .ThenByDescending(GetHostSeverity)
+        .ThenBy(x => x.Info.Hostname, StringComparer.OrdinalIgnoreCase);
+    private TimeOnly? MaintenanceWindowStartValue
+    {
+        get => TryParseTimeOnly(AlertSettings.MaintenanceWindowStart, out var value) ? value : null;
+        set => AlertSettings.MaintenanceWindowStart = value?.ToString("HH:mm") ?? string.Empty;
+    }
+
+    private TimeOnly? MaintenanceWindowEndValue
+    {
+        get => TryParseTimeOnly(AlertSettings.MaintenanceWindowEnd, out var value) ? value : null;
+        set => AlertSettings.MaintenanceWindowEnd = value?.ToString("HH:mm") ?? string.Empty;
+    }
+
+    private static bool TryParseTimeOnly(string? value, out TimeOnly time)
+    {
+        if (TimeOnly.TryParse(value, out time))
+        {
+            return true;
+        }
+
+        time = default;
+        return false;
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        MonitorState.Changed += OnStateChanged;
+        _http = new HttpClient { BaseAddress = new Uri(NavigationManager.BaseUri) };
+        await LoadAlertSettings();
+        await LoadRecentAlertsAsync();
+        await LoadRecentLoginFailuresAsync();
+        RefreshSnapshot();
+        StartRefreshLoop();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_settingsLoaded)
+        {
+            try
+            {
+                AutoRefresh = await JS.InvokeAsync<bool>("monitorSettings.get", "autoRefresh", true);
+                _settingsLoaded = true;
+                StateHasChanged();
+            }
+            catch
+            {
+                return;
+            }
+        }
+
+        if (!_uiPreferencesLoaded)
+        {
+            try
+            {
+                var savedPanel = await JS.InvokeAsync<string>("monitorSettings.get", DashboardChartPanelSettingKey, SelectedChartPanel.ToString()) ?? SelectedChartPanel.ToString();
+                var savedNetworkPreset = await JS.InvokeAsync<string>("monitorSettings.get", DashboardNetworkRangeSettingKey, NetworkRangePreset) ?? NetworkRangePreset;
+                var savedResourcePreset = await JS.InvokeAsync<string>("monitorSettings.get", DashboardResourceRangeSettingKey, ResourceRangePreset) ?? ResourceRangePreset;
+
+                if (Enum.TryParse(savedPanel, true, out ChartPanel chartPanel))
+                {
+                    SelectedChartPanel = chartPanel;
+                }
+
+                NetworkRangePreset = string.IsNullOrWhiteSpace(savedNetworkPreset) ? NetworkRangePreset : savedNetworkPreset;
+                ResourceRangePreset = string.IsNullOrWhiteSpace(savedResourcePreset) ? ResourceRangePreset : savedResourcePreset;
+                _uiPreferencesLoaded = true;
+
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+            catch
+            {
+                _uiPreferencesLoaded = true;
+            }
+        }
+
+        if (CurrentHost == DashboardView || SelectedHost is null)
+        {
+            IsChartLoading = false;
+            return;
+        }
+
+        if (SelectedDetailTab == DetailTab.SlowQueries)
+        {
+            IsChartLoading = false;
+            return;
+        }
+
+        bool initialized;
+        try
+        {
+            initialized = await JS.InvokeAsync<bool>("monitorCharts.init");
+        }
+        catch
+        {
+            return;
+        }
+        if (!initialized)
+        {
+            return;
+        }
+
+        // 각 차트별로 realtime 모드이거나 명시적 업데이트 요청 시 갱신
+        var info = SelectedHost.Info;
+        await JS.InvokeVoidAsync("monitorCharts.updateGauges", new
+        {
+            cpu    = info.Dynamic.CpuInfo.Usage,
+            memory = info.Dynamic.MemoryInfo.Usage,
+            disk   = info.Dynamic.DiskInfo.Percent
+        });
+
+        if (_pendingNetworkChartUpdate || NetworkRangePreset == "realtime")
+        {
+            _pendingNetworkChartUpdate = false;
+            await PushNetworkChartAsync(SelectedHost.Info.Hostname);
+        }
+        if (_pendingResourceChartUpdate || ResourceRangePreset == "realtime")
+        {
+            _pendingResourceChartUpdate = false;
+            await PushResourceChartAsync(SelectedHost.Info.Hostname);
+        }
+
+        IsChartLoading = false;
+    }
+
+    private void OnStateChanged()
+    {
+        InvokeAsync(() =>
+        {
+            RefreshSnapshot();
+            StateHasChanged();
+        });
+    }
+
+    private void StartRefreshLoop()
+    {
+        _timerCts = new CancellationTokenSource();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+
+        _ = Task.Run(async () =>
+        {
+            while (_refreshTimer is not null && await _refreshTimer.WaitForNextTickAsync(_timerCts.Token))
+            {
+                if (!AutoRefresh)
+                {
+                    continue;
+                }
+
+                await InvokeAsync(async () =>
+                {
+                    RefreshSnapshot();
+                    StateHasChanged();
+
+                    // 각 차트별로 realtime 모드일 때만 자동 갱신
+                    if (CurrentHost != DashboardView && SelectedHost is not null
+                        && SelectedDetailTab != DetailTab.SlowQueries)
+                    {
+                        try
+                        {
+                            var initialized = await JS.InvokeAsync<bool>("monitorCharts.init");
+                            if (initialized)
+                            {
+                                if (NetworkRangePreset == "realtime")
+                                    await PushNetworkChartAsync(SelectedHost.Info.Hostname);
+                                if (ResourceRangePreset == "realtime")
+                                    await PushResourceChartAsync(SelectedHost.Info.Hostname);
+                            }
+                        }
+                        catch { }
+                    }
+                });
+            }
+        });
+    }
+
+    private void RefreshSnapshot()
+    {
+        Hosts = MonitorState.GetSnapshot(_offlineThreshold).ToList();
+        ServerCatalog = ServerCatalogRepository.LoadAll();
+        foreach (var host in Hosts)
+        {
+            if (!Histories.TryGetValue(host.Info.Hostname, out var history))
+            {
+                history = new HistorySeries();
+                Histories[host.Info.Hostname] = history;
+            }
+
+            if (!ChartHistories.TryGetValue(host.Info.Hostname, out var chartHistory))
+            {
+                chartHistory = new HistorySeries();
+                ChartHistories[host.Info.Hostname] = chartHistory;
+            }
+
+            var point = new HistoryPoint
+            {
+                TimestampUtc = DateTime.UtcNow,
+                TimeLabel = DateTime.Now.ToString("MM-dd HH:mm"),
+                Tx = host.Info.Dynamic.NetworkInfo.SentMbps,
+                Rx = host.Info.Dynamic.NetworkInfo.RecvMbps,
+                Cpu = host.Info.Dynamic.CpuInfo.Usage,
+                Memory = host.Info.Dynamic.MemoryInfo.Usage,
+                Disk = host.Info.Dynamic.DiskInfo.Percent
+            };
+
+            history.Points.Add(new HistoryPoint
+            {
+                TimestampUtc = point.TimestampUtc,
+                TimeLabel = DateTime.Now.ToString("HH:mm:ss"),
+                Tx = point.Tx,
+                Rx = point.Rx,
+                Cpu = point.Cpu,
+                Memory = point.Memory,
+                Disk = point.Disk
+            });
+
+            chartHistory.Points.Add(point);
+
+            TrimLiveHistory(history);
+            TrimHistory(chartHistory);
+        }
+
+        if (CurrentHost != DashboardView && Hosts.All(x => !string.Equals(x.Info.Hostname, CurrentHost, StringComparison.OrdinalIgnoreCase)))
+        {
+            CurrentHost = DashboardView;
+        }
+    }
+
+    private async Task PushChartDataAsync(string host)
+    {
+        if (!TryGetChartHistory(host, out var history))
+        {
+            return;
+        }
+
+        var info = Hosts.FirstOrDefault(x => string.Equals(x.Info.Hostname, host, StringComparison.OrdinalIgnoreCase))?.Info;
+        if (info is null)
+        {
+            return;
+        }
+
+        var networkPoints = GetChartPoints(history, ChartKind.Network);
+        var resourcePoints = GetChartPoints(history, ChartKind.Resource);
+
+        NetworkHasData = networkPoints.Count > 0;
+        ResourceHasData = resourcePoints.Count > 0;
+
+        var networkPayloadPoints = networkPoints.Count > 0 ? networkPoints : history.Points.TakeLast(1).ToList();
+        var resourcePayloadPoints = resourcePoints.Count > 0 ? resourcePoints : history.Points.TakeLast(1).ToList();
+        await JS.InvokeVoidAsync("monitorCharts.update", new
+        {
+            cpu = info.Dynamic.CpuInfo.Usage,
+            memory = info.Dynamic.MemoryInfo.Usage,
+            disk = info.Dynamic.DiskInfo.Percent,
+            networkLabels = networkPayloadPoints.Select(x => x.TimeLabel).ToList(),
+            tx = networkPayloadPoints.Select(x => x.Tx).ToList(),
+            rx = networkPayloadPoints.Select(x => x.Rx).ToList(),
+            resourceLabels = resourcePayloadPoints.Select(x => x.TimeLabel).ToList(),
+            cpuSeries = resourcePayloadPoints.Select(x => x.Cpu).ToList(),
+            memorySeries = resourcePayloadPoints.Select(x => x.Memory).ToList()
+        });
+    }
+
+    private async Task PushNetworkChartAsync(string host)
+    {
+        if (!TryGetChartHistory(host, out var history)) return;
+        var points = GetChartPoints(history, ChartKind.Network);
+        NetworkHasData = points.Count > 0;
+        var payload = points.Count > 0 ? points : history.Points.TakeLast(1).ToList();
+        await JS.InvokeVoidAsync("monitorCharts.updateNetwork", new
+        {
+            labels = payload.Select(x => x.TimeLabel).ToList(),
+            tx = payload.Select(x => x.Tx).ToList(),
+            rx = payload.Select(x => x.Rx).ToList()
+        });
+    }
+
+    private async Task PushResourceChartAsync(string host)
+    {
+        if (!TryGetChartHistory(host, out var history)) return;
+        var points = GetChartPoints(history, ChartKind.Resource);
+        ResourceHasData = points.Count > 0;
+        var payload = points.Count > 0 ? points : history.Points.TakeLast(1).ToList();
+        await JS.InvokeVoidAsync("monitorCharts.updateResource", new
+        {
+            labels = payload.Select(x => x.TimeLabel).ToList(),
+            cpuSeries = payload.Select(x => x.Cpu).ToList(),
+            memorySeries = payload.Select(x => x.Memory).ToList()
+        });
+    }
+
+    private async Task PushChartIfReadyAsync(string host)
+    {
+        try
+        {
+            var initialized = await JS.InvokeAsync<bool>("monitorCharts.init");
+            if (initialized)
+            {
+                await PushChartDataAsync(host);
+            }
+        }
+        catch { }
+    }
+
+    private static double ToGb(long bytes) => bytes / 1024d / 1024d / 1024d;
+
+    private void ShowDashboard()
+    {
+        CurrentHost = DashboardView;
+        SelectedDetailTab = DetailTab.Overview;
+        ShowSqlAccessPanel = false;
+        SelectedSqlHost = null;
+        SqlTargetStatusMessage = null;
+        IsChartLoading = false;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", DashboardHostSettingKey, DashboardView);
+    }
+
+    private void OpenAlertHistory()
+    {
+        NavigationManager.NavigateTo("/alerts/history");
+    }
+
+    private async Task SelectChartPanel(ChartPanel panel)
+    {
+        if (SelectedChartPanel == panel)
+        {
+            return;
+        }
+
+        SelectedChartPanel = panel;
+        IsChartLoading = true;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", DashboardChartPanelSettingKey, panel.ToString());
+        if (panel == ChartPanel.Network)
+        {
+            _pendingNetworkChartUpdate = true;
+        }
+        else
+        {
+            _pendingResourceChartUpdate = true;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SelectHost(string host)
+    {
+        IsChartLoading = true;
+        try
+        {
+            CurrentHost = host;
+            SelectedDetailTab = DetailTab.Overview;
+            ShowSqlAccessPanel = false;
+            _ = JS.InvokeVoidAsync("monitorSettings.set", DashboardHostSettingKey, host);
+            SqlTargetSettings = SlowQueryService.GetSqlTargetSettings(host);
+            SqlTargetStatusMessage = null;
+            await LoadHistoryAsync(host);
+            await ApplyNetworkPresetAsync();
+            await ApplyResourcePresetAsync();
+            await InvokeAsync(StateHasChanged);
+        }
+        finally
+        {
+            IsChartLoading = false;
+        }
+    }
+
+    private void ToggleAutoRefresh()
+    {
+        AutoRefresh = !AutoRefresh;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", "autoRefresh", AutoRefresh);
+    }
+
+    private void ToggleAlertPanel()
+    {
+        ShowAlertPanel = !ShowAlertPanel;
+        ShowManageMenu = false;
+    }
+
+    private void ToggleSqlAccessPanel()
+    {
+        ShowSqlAccessPanel = !ShowSqlAccessPanel;
+        ShowManageMenu = false;
+        if (ShowSqlAccessPanel && SelectedSqlHost is null && Hosts.Count > 0)
+        {
+            _ = SelectSqlHost(OrderedHosts.First().Info.Hostname);
+        }
+    }
+
+    private void CloseSqlAccessPanel()
+    {
+        ShowSqlAccessPanel = false;
+    }
+
+    private void ToggleManageMenu()
+    {
+        ShowManageMenu = !ShowManageMenu;
+    }
+
+    private void CloseManageMenu()
+    {
+        ShowManageMenu = false;
+    }
+
+    private string SqlIntegratedSecurityChoice
+    {
+        get => SqlTargetSettings.IntegratedSecurity ? "Y" : "N";
+        set => SqlTargetSettings.IntegratedSecurity = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string SqlEncryptChoice
+    {
+        get => SqlTargetSettings.Encrypt ? "Y" : "N";
+        set => SqlTargetSettings.Encrypt = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string SqlTrustCertificateChoice
+    {
+        get => SqlTargetSettings.TrustServerCertificate ? "Y" : "N";
+        set => SqlTargetSettings.TrustServerCertificate = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task SelectSqlHost(string host)
+    {
+        SelectedSqlHost = host;
+        SqlTargetSettings = SlowQueryService.GetSqlTargetSettings(host);
+        SqlTargetStatusMessage = $"Loaded SQL access for {host}.";
+        ShowSqlAccessPanel = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ApplyNetworkPresetAsync()
+    {
+        if (SelectedHost is null) return;
+
+        IsChartLoading = true;
+        var (startLocal, endLocal) = GetPresetRange(NetworkRangePreset);
+        NetworkRangeStartLocal = startLocal;
+        NetworkRangeEndLocal = endLocal;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", DashboardNetworkRangeSettingKey, NetworkRangePreset);
+        if (startLocal is not null)
+            await EnsureHistoryWindowForRangeAsync(SelectedHost.Info.Hostname, startLocal.Value);
+
+        // StateHasChanged 후 OnAfterRenderAsync에서 처리되도록 플래그 설정
+        _pendingNetworkChartUpdate = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ApplyResourcePresetAsync()
+    {
+        if (SelectedHost is null) return;
+
+        IsChartLoading = true;
+        var (startLocal, endLocal) = GetPresetRange(ResourceRangePreset);
+        ResourceRangeStartLocal = startLocal;
+        ResourceRangeEndLocal = endLocal;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", DashboardResourceRangeSettingKey, ResourceRangePreset);
+        if (startLocal is not null)
+            await EnsureHistoryWindowForRangeAsync(SelectedHost.Info.Hostname, startLocal.Value);
+
+        // StateHasChanged 후 OnAfterRenderAsync에서 처리되도록 플래그 설정
+        _pendingResourceChartUpdate = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ResetNetworkZoom()
+    {
+        _ = JS.InvokeVoidAsync("monitorCharts.resetZoom", "network");
+    }
+
+    private void ResetResourceZoom()
+    {
+        _ = JS.InvokeVoidAsync("monitorCharts.resetZoom", "resource");
+    }
+
+    private (DateTime? startLocal, DateTime? endLocal) GetPresetRange(string preset)
+    {
+        if (preset == "realtime")
+        {
+            return (null, null);
+        }
+
+        var endLocal = DateTime.Now;
+        var startLocal = preset switch
+        {
+            "day" => endLocal.AddDays(-1),
+            "week" => endLocal.AddDays(-7),
+            "month" => endLocal.AddDays(-30),
+            "year" => endLocal.AddYears(-1),
+            _ => endLocal.AddMinutes(-15)
+        };
+        return (startLocal, endLocal);
+    }
+
+    private string GetRangeDisplay(DateTime? startLocal, DateTime? endLocal)
+    {
+        if (startLocal is null || endLocal is null)
+        {
+            return "Real-time";
+        }
+
+        var culture = CultureInfo.GetCultureInfo("ko-KR");
+        return $"{startLocal.Value.ToString("yyyy. MM. dd. tt h:mm:ss", culture)} - {endLocal.Value.ToString("yyyy. MM. dd. tt h:mm:ss", culture)}";
+    }
+
+    private string GetSelectedChartTitle()
+    {
+        return SelectedChartPanel == ChartPanel.Network ? "Network traffic" : "Resource usage";
+    }
+
+    private string GetSelectedChartSummary()
+    {
+        if (SelectedHost is null)
+        {
+            return "Select a host to view chart details.";
+        }
+
+        var info = SelectedHost.Info;
+        return SelectedChartPanel == ChartPanel.Network
+            ? $"TX {info.Dynamic.NetworkInfo.SentMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps · RX {info.Dynamic.NetworkInfo.RecvMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps"
+            : $"CPU {info.Dynamic.CpuInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · MEM {info.Dynamic.MemoryInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · DISK {info.Dynamic.DiskInfo.Percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
+    }
+
+    private string GetSelectedChartSummaryText()
+    {
+        if (SelectedHost is null)
+        {
+            return "Select a host to view chart details.";
+        }
+
+        var info = SelectedHost.Info;
+        return SelectedChartPanel == ChartPanel.Network
+            ? $"TX {info.Dynamic.NetworkInfo.SentMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps · RX {info.Dynamic.NetworkInfo.RecvMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps"
+            : $"CPU {info.Dynamic.CpuInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · MEM {info.Dynamic.MemoryInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · DISK {info.Dynamic.DiskInfo.Percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
+    }
+
+    private async Task LoadHistoryAsync(string host, int? windowMinutesOverride = null)
+    {
+        if (_http is null)
+        {
+            return;
+        }
+
+        var windowMinutes = windowMinutesOverride ?? Configuration.GetValue<int?>("Monitoring:History:WindowMinutes") ?? DefaultHistoryWindowMinutes;
+        if (windowMinutes <= 0)
+        {
+            windowMinutes = DefaultHistoryWindowMinutes;
+        }
+
+        try
+        {
+            var url = $"api/monitor/history?hostname={Uri.EscapeDataString(host)}&minutes={windowMinutes}";
+            var response = await _http.GetFromJsonAsync<HistoryResponse>(url);
+            if (response?.Data is null)
+            {
+                return;
+            }
+
+            var history = new HistorySeries();
+            foreach (var row in response.Data)
+            {
+                history.Points.Add(new HistoryPoint
+                {
+                    TimestampUtc = row.CreatedUtc,
+                    TimeLabel = row.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm"),
+                    Tx = row.SentMbps,
+                    Rx = row.RecvMbps,
+                    Cpu = row.CpuUsage,
+                    Memory = row.MemoryUsage,
+                    Disk = row.DiskUsage
+                });
+            }
+
+            ChartHistories[host] = history;
+            _currentHistoryWindowMinutes = windowMinutes;
+        }
+        catch
+        {
+            // ignore history load failures
+        }
+    }
+
+    private void TrimHistory(HistorySeries history)
+    {
+        // 현재 선택된 범위 중 가장 넓은 것을 기준으로 trim
+        var configMinutes = Configuration.GetValue<int?>("Monitoring:History:WindowMinutes") ?? DefaultHistoryWindowMinutes;
+        if (configMinutes <= 0) configMinutes = DefaultHistoryWindowMinutes;
+
+        var windowMinutes = Math.Max(configMinutes, _currentHistoryWindowMinutes);
+
+        var cutoff = DateTime.UtcNow.AddMinutes(-windowMinutes);
+        while (history.Points.Count > 0 && history.Points[0].TimestampUtc < cutoff)
+        {
+            history.Points.RemoveAt(0);
+        }
+    }
+
+    private static void TrimLiveHistory(HistorySeries history)
+    {
+        const int maxLivePoints = 60;
+        while (history.Points.Count > maxLivePoints)
+        {
+            history.Points.RemoveAt(0);
+        }
+    }
+
+    private bool TryGetChartHistory(string host, out HistorySeries history)
+    {
+        if (ChartHistories.TryGetValue(host, out var chartHistory) && chartHistory is not null)
+        {
+            history = chartHistory;
+            return true;
+        }
+
+        if (Histories.TryGetValue(host, out var liveHistory) && liveHistory is not null)
+        {
+            history = liveHistory;
+            return true;
+        }
+
+        history = new HistorySeries();
+        return false;
+    }
+
+    private List<HistoryPoint> GetChartPoints(HistorySeries history, ChartKind kind)
+    {
+        var startLocal = kind == ChartKind.Network ? NetworkRangeStartLocal : ResourceRangeStartLocal;
+        var endLocal = kind == ChartKind.Network ? NetworkRangeEndLocal : ResourceRangeEndLocal;
+
+        if (startLocal is not null && endLocal is not null)
+        {
+            var startUtc = DateTime.SpecifyKind(startLocal.Value, DateTimeKind.Local).ToUniversalTime();
+            var endUtc = DateTime.SpecifyKind(endLocal.Value, DateTimeKind.Local).ToUniversalTime();
+            return history.Points
+                .Where(x => x.TimestampUtc >= startUtc && x.TimestampUtc <= endUtc)
+                .ToList();
+        }
+
+        // realtime: show last ChartWindowPoints
+        return history.Points.TakeLast(ChartWindowPoints).ToList();
+    }
+
+    private async Task EnsureHistoryWindowForRangeAsync(string host, DateTime startLocal)
+    {
+        var startUtc = DateTime.SpecifyKind(startLocal, DateTimeKind.Local).ToUniversalTime();
+        var minutesNeeded = (int)Math.Ceiling((DateTime.UtcNow - startUtc).TotalMinutes);
+        if (minutesNeeded <= 0) return;
+
+        if (minutesNeeded > _currentHistoryWindowMinutes)
+        {
+            await LoadHistoryAsync(host, minutesNeeded);
+        }
+        else
+        {
+            // 더 좁은 범위로 전환 시에도 _currentHistoryWindowMinutes 갱신
+            // (TrimHistory가 필요 이상으로 데이터를 유지하지 않도록)
+            _currentHistoryWindowMinutes = minutesNeeded;
+        }
+    }
+
+    private void SetDetailTab(DetailTab tab)
+    {
+        SelectedDetailTab = tab;
+        _ = InvokeAsync(StateHasChanged);
+        if (tab == DetailTab.SlowQueries)
+        {
+            _ = LoadSlowQueries();
+            _ = LoadBlockingQueries();
+            _ = LoadTopIoQueries();
+        }
+    }
+
+    private async Task LoadAlertSettings()
+    {
+        if (_http is null)
+        {
+            return;
+        }
+
+        var settings = await _http.GetFromJsonAsync<AlertSettings>("api/alerts/settings");
+        if (settings is not null)
+        {
+            AlertSettings = settings;
+        }
+    }
+
+    private async Task SaveAlertSettings()
+    {
+        if (_http is null)
+        {
+            return;
+        }
+
+        await _http.PostAsJsonAsync("api/alerts/settings", AlertSettings);
+    }
+
+    private async Task LoadRecentAlertsAsync()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            RecentAlerts = await db.AlertEvents
+                .OrderByDescending(x => x.TimestampUtc)
+                .Take(5)
+                .ToListAsync();
+        }
+        catch
+        {
+            RecentAlerts = [];
+        }
+        finally
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadRecentLoginFailuresAsync()
+    {
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            RecentLoginFailures = await db.MemberLoginAttempts
+                .Where(x => !x.Success)
+                .OrderByDescending(x => x.CreatedUtc)
+                .Take(5)
+                .ToListAsync();
+        }
+        catch
+        {
+            RecentLoginFailures = [];
+        }
+        finally
+        {
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task LoadSqlTargetSettingsAsync()
+    {
+        if (SelectedHost is null)
+        {
+            SqlTargetStatusMessage = "Select a host first.";
+            return Task.CompletedTask;
+        }
+
+        SqlTargetSettings = SlowQueryService.GetSqlTargetSettings(SelectedHost.Info.Hostname);
+        SqlTargetStatusMessage = $"Loaded SQL access for {SelectedHost.Info.Hostname}.";
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveSqlTargetSettingsAsync()
+    {
+        if (SelectedHost is null)
+        {
+            SqlTargetStatusMessage = "Select a host first.";
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(SqlTargetSettings.Server))
+        {
+            SqlTargetStatusMessage = "SQL Server host is required.";
+            return;
+        }
+
+        IsSavingSqlTarget = true;
+        try
+        {
+            SlowQueryService.SaveSqlTargetSettings(SelectedHost.Info.Hostname, SqlTargetSettings);
+            SqlTargetStatusMessage = $"Saved SQL access for {SelectedHost.Info.Hostname}.";
+        }
+        finally
+        {
+            IsSavingSqlTarget = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ResetSqlTargetSettingsAsync()
+    {
+        if (SelectedHost is null)
+        {
+            SqlTargetStatusMessage = "Select a host first.";
+            return;
+        }
+
+        SlowQueryService.RemoveSqlTargetSettings(SelectedHost.Info.Hostname);
+        SqlTargetSettings = SlowQueryService.GetSqlTargetSettings(SelectedHost.Info.Hostname);
+        SqlTargetStatusMessage = $"Reset SQL access for {SelectedHost.Info.Hostname} to the default configuration.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadSlowQueries()
+    {
+        if (_http is null || SelectedHost is null)
+        {
+            return;
+        }
+
+        IsLoadingSlowQueries = true;
+        SlowQueryError = null;
+        try
+        {
+            var host = SelectedHost.Info.Hostname;
+            var result = await FetchListAsync<SlowQueryRow>($"api/sql/slow-queries?hostname={Uri.EscapeDataString(host)}");
+            if (result.Error is not null)
+            {
+                SlowQueryError = result.Error;
+                SlowQueries = [];
+            }
+            else
+            {
+                SlowQueries = result.Data ?? [];
+            }
+        }
+        finally
+        {
+            IsLoadingSlowQueries = false;
+        }
+    }
+
+    private async Task LoadBlockingQueries()
+    {
+        if (_http is null || SelectedHost is null)
+        {
+            return;
+        }
+
+        IsLoadingBlockingQueries = true;
+        BlockingQueryError = null;
+        try
+        {
+            var host = SelectedHost.Info.Hostname;
+            var result = await FetchListAsync<BlockingQueryRow>($"api/sql/blocking-queries?hostname={Uri.EscapeDataString(host)}");
+            if (result.Error is not null)
+            {
+                BlockingQueryError = result.Error;
+                BlockingQueries = [];
+            }
+            else
+            {
+                BlockingQueries = result.Data ?? [];
+            }
+        }
+        finally
+        {
+            IsLoadingBlockingQueries = false;
+        }
+    }
+
+    private async Task LoadTopIoQueries()
+    {
+        if (_http is null || SelectedHost is null)
+        {
+            return;
+        }
+
+        IsLoadingTopIoQueries = true;
+        TopIoError = null;
+        try
+        {
+            var host = SelectedHost.Info.Hostname;
+            var result = await FetchListAsync<TopIoQueryRow>($"api/sql/top-io-queries?hostname={Uri.EscapeDataString(host)}");
+            if (result.Error is not null)
+            {
+                TopIoError = result.Error;
+                TopIoQueries = [];
+            }
+            else
+            {
+                TopIoQueries = result.Data ?? [];
+            }
+        }
+        finally
+        {
+            IsLoadingTopIoQueries = false;
+        }
+    }
+
+    private async Task<(List<T>? Data, string? Error)> FetchListAsync<T>(string url)
+    {
+        if (_http is null)
+        {
+            return (null, "HTTP client not ready.");
+        }
+
+        try
+        {
+            using var response = await _http.GetAsync(url);
+            if (!response.IsSuccessStatusCode)
+            {
+                var body = await response.Content.ReadAsStringAsync();
+                var message = string.IsNullOrWhiteSpace(body)
+                    ? $"Request failed: {(int)response.StatusCode}"
+                    : body;
+                return (null, message);
+            }
+
+            var data = await response.Content.ReadFromJsonAsync<List<T>>();
+            return (data ?? [], null);
+        }
+        catch (Exception ex)
+        {
+            return (null, ex.Message);
+        }
+    }
+
+    private static bool IsWarning(MonitoringInfo info)
+    {
+        return info.Dynamic.CpuInfo.Usage >= 60 || info.Dynamic.MemoryInfo.Usage >= 75 || info.Dynamic.DiskInfo.Percent >= 85;
+    }
+
+    private static bool IsCritical(MonitoringInfo info)
+    {
+        return info.Dynamic.CpuInfo.Usage >= 85 || info.Dynamic.MemoryInfo.Usage >= 90 || info.Dynamic.DiskInfo.Percent >= 95;
+    }
+
+    private async Task ManualRefreshAsync()
+    {
+        RefreshSnapshot();
+        await LoadRecentAlertsAsync();
+        await LoadRecentLoginFailuresAsync();
+        StateHasChanged();
+    }
+
+    private static int GetHostSeverity(HostState host)
+    {
+        if (!host.IsOnline)
+        {
+            return 3;
+        }
+
+        if (IsCritical(host.Info))
+        {
+            return 2;
+        }
+
+        if (IsWarning(host.Info))
+        {
+            return 1;
+        }
+
+        return 0;
+    }
+
+    private string GetServerGroup(string hostname)
+    {
+        return ServerCatalog.TryGetValue(hostname, out var metadata) ? metadata.Group : string.Empty;
+    }
+
+    private IReadOnlyList<string> GetServerTags(string hostname)
+    {
+        if (!ServerCatalog.TryGetValue(hostname, out var metadata) || string.IsNullOrWhiteSpace(metadata.Tags))
+        {
+            return Array.Empty<string>();
+        }
+
+        return metadata.Tags
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(tag => !string.IsNullOrWhiteSpace(tag))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .ToList();
+    }
+
+    public void Dispose()
+    {
+        MonitorState.Changed -= OnStateChanged;
+        _timerCts?.Cancel();
+        _refreshTimer?.Dispose();
+        _timerCts?.Dispose();
+    }
+
+    private sealed class HistorySeries
+    {
+        public List<HistoryPoint> Points { get; } = [];
+    }
+
+    private sealed class HistoryPoint
+    {
+        public DateTime TimestampUtc { get; set; }
+        public string TimeLabel { get; set; } = string.Empty;
+        public double Tx { get; set; }
+        public double Rx { get; set; }
+        public double Cpu { get; set; }
+        public double Memory { get; set; }
+        public double Disk { get; set; }
+    }
+
+    private sealed class HistoryResponse
+    {
+        public string Hostname { get; set; } = string.Empty;
+        public int WindowMinutes { get; set; }
+        public List<HistoryRow> Data { get; set; } = [];
+    }
+
+    private sealed class HistoryRow
+    {
+        public DateTime CreatedUtc { get; set; }
+        public double CpuUsage { get; set; }
+        public double MemoryUsage { get; set; }
+        public double DiskUsage { get; set; }
+        public double SentMbps { get; set; }
+        public double RecvMbps { get; set; }
+        public int? Status { get; set; }
+    }
+
+    private enum DetailTab
+    {
+        Overview,
+        SlowQueries
+    }
+
+    private enum ChartPanel
+    {
+        Network,
+        Resource
+    }
+
+    private enum ChartKind
+    {
+        Network,
+        Resource
+    }
+
+    private sealed class OllamaAnalysisEntry
+    {
+        public DateTime TimestampUtc { get; set; }
+        public string Source { get; set; } = string.Empty;
+        public double Status5xxRatio { get; set; }
+        public string Response { get; set; } = string.Empty;
+    }
+
+    private sealed class SlowQueryRow
+    {
+        public short SessionId { get; set; }
+        public string? DatabaseName { get; set; }
+        public string? Status { get; set; }
+        public string? Command { get; set; }
+        public int ElapsedMs { get; set; }
+        public int CpuTimeMs { get; set; }
+        public long Reads { get; set; }
+        public long Writes { get; set; }
+        public string? WaitType { get; set; }
+        public short? BlockingSessionId { get; set; }
+        public string? StatementText { get; set; }
+    }
+
+    private sealed class BlockingQueryRow
+    {
+        public short SessionId { get; set; }
+        public string? Status { get; set; }
+        public string? Command { get; set; }
+        public int CpuTimeMs { get; set; }
+        public int ElapsedMs { get; set; }
+        public string? WaitType { get; set; }
+        public int WaitTimeMs { get; set; }
+        public short BlockingSessionId { get; set; }
+        public string? DatabaseName { get; set; }
+        public string? StatementText { get; set; }
+    }
+
+    private sealed class TopIoQueryRow
+    {
+        public long TotalLogicalReads { get; set; }
+        public long TotalLogicalWrites { get; set; }
+        public long TotalCpuTimeMs { get; set; }
+        public long TotalElapsedMs { get; set; }
+        public long ExecutionCount { get; set; }
+        public string? DatabaseName { get; set; }
+        public string? StatementText { get; set; }
+    }
+}

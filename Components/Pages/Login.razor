@@ -1,0 +1,137 @@
+@page "/login"
+@attribute [AllowAnonymous]
+@layout LoginLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using Monitoring.Blazor.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IConfiguration Configuration
+@inject EmailSettingsRepository EmailSettingsRepository
+@inject NavigationManager NavigationManager
+
+<PageTitle>OpsEye | Login</PageTitle>
+
+<div class="login-page">
+    <section class="login-shell" aria-label="Login form">
+        <div class="login-brand">
+            <div class="login-brand-mark" aria-hidden="true">
+                <i class="bi bi-eye-fill"></i>
+            </div>
+            <div>
+                <div class="login-brand-name">OpsEye</div>
+                <div class="login-brand-sub">Operations Dashboard</div>
+            </div>
+        </div>
+
+        <div class="login-card card">
+            <div class="card-body p-4 p-md-5">
+                <div class="mb-4">
+                    <h1 class="h3 mb-2">Sign in</h1>
+                    <p class="text-secondary mb-0">
+                        Sign in with your account. If you do not have one yet, create a new account first.
+                    </p>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div class="alert alert-warning" role="alert">@_message</div>
+                }
+
+                <form method="post" action="/auth/login" class="d-grid gap-3">
+                    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+
+                    <div>
+                        <label class="form-label" for="login-user">User ID</label>
+                        <input id="login-user" name="userName" class="form-control" autocomplete="username" required value="@_lastUserName" />
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="login-password">Password</label>
+                        <input id="login-password" name="password" type="password" class="form-control" autocomplete="current-password" required />
+                    </div>
+
+                    <div class="form-check">
+                        <input id="login-remember" name="rememberMe" type="checkbox" class="form-check-input" value="true" checked />
+                        <label class="form-check-label" for="login-remember">Remember me</label>
+                    </div>
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                        </button>
+                        @if (_passwordResetEnabled)
+                        {
+                            <a class="btn btn-link text-decoration-none" href="/forgot-password">Forgot password?</a>
+                        }
+                        else
+                        {
+                            <span class="text-secondary small">Password reset is managed by an administrator.</span>
+                        }
+                        <a class="btn btn-outline-secondary" href="/register?returnUrl=@Uri.EscapeDataString(_returnUrl)">Create an account</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="login-footnote">
+            <span>OpsEye</span>
+            <span aria-hidden="true">&middot;</span>
+            <span>Local member authentication</span>
+        </div>
+    </section>
+</div>
+
+@code {
+    private string _returnUrl = "/";
+    private string _lastUserName = string.Empty;
+    private string? _message;
+    private bool _passwordResetEnabled;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("returnUrl", out var returnUrl) && !string.IsNullOrWhiteSpace(returnUrl))
+        {
+            _returnUrl = returnUrl.ToString();
+        }
+
+        if (query.TryGetValue("error", out var error) && !string.IsNullOrWhiteSpace(error))
+        {
+            _message = error.ToString() switch
+            {
+                "invalid" => "Invalid username or password.",
+                "inactive" => "This account is inactive.",
+                "locked" => "This account is temporarily locked because of repeated failed sign-in attempts.",
+                "duplicate" => "This user name already exists.",
+                "password_mismatch" => "Passwords do not match.",
+                "password_policy" => "Password policy was not met.",
+                "required" => "Required fields are missing.",
+                "email_unverified" => "Please verify your email address before signing in.",
+                _ => error.ToString()
+            };
+        }
+
+        if (query.TryGetValue("success", out var success) && success.ToString() == "registered")
+        {
+            _message = "Account created. Please sign in.";
+        }
+
+        if (query.TryGetValue("success", out var emailSuccess) && emailSuccess.ToString() == "verification_sent")
+        {
+            _message = "Account created. Please check your email to verify your address before signing in.";
+        }
+
+        var baseSettings = Configuration.GetSection("Monitoring:Email").Get<EmailSettings>() ?? new EmailSettings();
+        var emailSettings = EmailSettingsRepository.Load(baseSettings);
+        _passwordResetEnabled = emailSettings.Enabled && emailSettings.PasswordResetEnabled;
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            NavigationManager.NavigateTo(_returnUrl, forceLoad: true);
+        }
+    }
+}
+
+

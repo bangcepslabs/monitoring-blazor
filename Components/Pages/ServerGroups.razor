@@ -1,0 +1,127 @@
+@page "/server-groups"
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject MonitorStateService MonitorState
+@inject ServerCatalogRepository ServerCatalogRepository
+
+<PageTitle>OpsEye | Server Groups</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Infrastructure</div>
+            <h1 class="h3 mb-1">Server groups and tags</h1>
+            <p class="text-secondary mb-0">Assign a group and tags to each server card.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+    }
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table align-middle">
+                    <thead>
+                        <tr>
+                            <th>Host</th>
+                            <th>IP</th>
+                            <th>Group</th>
+                            <th>Tags</th>
+                            <th>Status</th>
+                            <th class="text-end">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td>@row.Hostname</td>
+                                <td>@row.Ip</td>
+                                <td>
+                                    <input class="form-control form-control-sm" @bind="row.Group" placeholder="Prod / Web / DB" />
+                                </td>
+                                <td>
+                                    <input class="form-control form-control-sm" @bind="row.Tags" placeholder="iis,linux,critical" />
+                                </td>
+                                <td>
+                                    <span class="badge @(row.IsOnline ? "text-bg-success" : "text-bg-danger")">@(row.IsOnline ? "Online" : "Offline")</span>
+                                </td>
+                                <td class="text-end">
+                                    <button class="btn btn-sm btn-primary" @onclick="() => SaveAsync(row)">Save</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<RowModel> _rows = [];
+    private string? _message;
+    private bool _isError;
+
+    protected override void OnInitialized()
+    {
+        Reload();
+    }
+
+    private void Reload()
+    {
+        _rows.Clear();
+        var hosts = MonitorState.GetSnapshot(TimeSpan.FromSeconds(15));
+        var catalog = ServerCatalogRepository.LoadAll();
+
+        foreach (var host in hosts)
+        {
+            catalog.TryGetValue(host.Info.Hostname, out var metadata);
+            _rows.Add(new RowModel
+            {
+                Hostname = host.Info.Hostname,
+                Ip = host.Info.Ip,
+                IsOnline = host.IsOnline,
+                Group = metadata?.Group ?? string.Empty,
+                Tags = metadata?.Tags ?? string.Empty
+            });
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        Reload();
+        _message = "Server group data refreshed.";
+        _isError = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private Task SaveAsync(RowModel row)
+    {
+        ServerCatalogRepository.Save(row.Hostname, new ServerMetadata
+        {
+            Group = row.Group?.Trim() ?? string.Empty,
+            Tags = row.Tags?.Trim() ?? string.Empty
+        });
+
+        _message = $"Saved metadata for {row.Hostname}.";
+        _isError = false;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private sealed class RowModel
+    {
+        public string Hostname { get; set; } = string.Empty;
+        public string Ip { get; set; } = string.Empty;
+        public bool IsOnline { get; set; }
+        public string Group { get; set; } = string.Empty;
+        public string Tags { get; set; } = string.Empty;
+    }
+}

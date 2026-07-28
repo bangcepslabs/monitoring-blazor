@@ -1,0 +1,168 @@
+@page "/register"
+@attribute [AllowAnonymous]
+@layout LoginLayout
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.EntityFrameworkCore
+@using Monitoring.Blazor.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+@inject EmailSettingsRepository EmailSettingsRepository
+@inject IConfiguration Configuration
+@inject NavigationManager NavigationManager
+
+<PageTitle>OpsEye | Register</PageTitle>
+
+<div class="login-page">
+    <section class="login-shell" aria-label="Register form">
+        <div class="login-brand">
+            <div class="login-brand-mark" aria-hidden="true">
+                <i class="bi bi-person-plus-fill"></i>
+            </div>
+            <div>
+                <div class="login-brand-name">OpsEye</div>
+                <div class="login-brand-sub">Operations Dashboard</div>
+            </div>
+        </div>
+
+        <div class="login-card card">
+            <div class="card-body p-4 p-md-5">
+                <div class="mb-4">
+                    <h1 class="h3 mb-2">Sign up</h1>
+                    <p class="text-secondary mb-0">
+                        Create a new account, or create the first administrator if this is the first run.
+                    </p>
+                </div>
+
+                <div class="alert alert-info small" role="note">
+                    Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.
+                </div>
+
+                @if (_emailAddressRequired)
+                {
+                    <div class="alert alert-warning small" role="note">
+                        Email is required for account verification or password reset.
+                    </div>
+                }
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div class="alert alert-warning" role="alert">@_message</div>
+                }
+
+                <form method="post" action="/auth/register" class="d-grid gap-3">
+                    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+                    <input type="hidden" name="isBootstrap" value="@(_isBootstrap ? "true" : "false")" />
+
+                    <div>
+                        <label class="form-label" for="register-user">User ID</label>
+                        <input id="register-user" name="userName" class="form-control" autocomplete="username" required />
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="register-display">Display Name</label>
+                        <input id="register-display" name="displayName" class="form-control" autocomplete="nickname" required />
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="register-email">Email address</label>
+                        <input id="register-email" name="email" type="email" class="form-control" autocomplete="email" required="@_emailAddressRequired" />
+                        <div class="form-text">
+                            @(_emailAddressRequired ? "A verification or reset link will be sent here." : "Optional, but recommended for recovery flows.")
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="register-password">Password</label>
+                        <input id="register-password" name="password" type="password" class="form-control" autocomplete="new-password" required />
+                    </div>
+
+                    <div>
+                        <label class="form-label" for="register-confirm">Confirm Password</label>
+                        <input id="register-confirm" name="confirmPassword" type="password" class="form-control" autocomplete="new-password" required />
+                    </div>
+
+                    @if (_isBootstrap)
+                    {
+                        <input type="hidden" name="role" value="Admin" />
+                        <div class="text-secondary small">
+                            The first account will be created as an administrator.
+                        </div>
+                    }
+
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-person-check-fill me-2"></i>@(_isBootstrap ? "Create Admin" : "Create Account")
+                        </button>
+                        <a class="btn btn-outline-secondary" href="/login">Back to login</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="login-footnote">
+            <span>OpsEye</span>
+            <span aria-hidden="true">&middot;</span>
+            <span>Local member authentication</span>
+        </div>
+    </section>
+</div>
+
+@code {
+    private bool _isBootstrap;
+    private string _returnUrl = "/";
+    private string? _message;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        if (query.TryGetValue("returnUrl", out var returnUrl) && !string.IsNullOrWhiteSpace(returnUrl))
+        {
+            _returnUrl = returnUrl.ToString();
+        }
+
+        if (query.TryGetValue("error", out var error) && !string.IsNullOrWhiteSpace(error))
+        {
+            _message = error.ToString() switch
+            {
+                "invalid" => "Invalid username or password.",
+                "duplicate" => "This user name already exists.",
+                "password_mismatch" => "Passwords do not match.",
+                "password_policy" => "Password policy was not met.",
+                "required" => "Required fields are missing.",
+                "email_required" => "Please enter an email address to receive the verification link.",
+                "email_send_failed" => "We could not send the verification email. Please check SMTP settings.",
+                "configured" => "Members already exist, so bootstrap mode is no longer available.",
+                _ => error.ToString()
+            };
+        }
+
+        if (query.TryGetValue("success", out var success) && success.ToString() == "verification_sent")
+        {
+            _message = "Account created. Please check your email and verify your address before signing in.";
+        }
+
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        if (authState.User.Identity?.IsAuthenticated == true)
+        {
+            NavigationManager.NavigateTo(_returnUrl, forceLoad: true);
+            return;
+        }
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _isBootstrap = !await db.Members.AnyAsync();
+        if (_isBootstrap)
+        {
+            _message ??= "No members exist yet. Create the first admin account.";
+        }
+
+        var baseSettings = Configuration.GetSection("Monitoring:Email").Get<EmailSettings>() ?? new EmailSettings();
+        var emailSettings = EmailSettingsRepository.Load(baseSettings);
+        _emailAddressRequired = emailSettings.Enabled && (emailSettings.VerificationEnabled || emailSettings.PasswordResetEnabled);
+    }
+
+    private bool _emailAddressRequired;
+}
+
+

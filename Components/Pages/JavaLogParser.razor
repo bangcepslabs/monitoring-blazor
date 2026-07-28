@@ -1,0 +1,273 @@
+@page "/java-log-parser"
+@attribute [Authorize]
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject JavaLogParserService JavaParser
+
+<PageTitle>Java Log Parser</PageTitle>
+
+<div class="log-analyzer-page">
+    <h1>Java Log Analyzer</h1>
+    <p class="text-muted mb-3">Upload Java, Spring Boot, or Tomcat logs and inspect levels, loggers, and messages.</p>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-md-5">
+                    <label class="form-label">Upload Logs</label>
+                    <InputFile OnChange="HandleFiles" multiple class="form-control" />
+                </div>
+                <div class="col-12 col-md-3">
+                    <label class="form-label">Level Filter</label>
+                    <select class="form-select" @bind="LevelFilter">
+                        <option value="">All</option>
+                        <option value="TRACE">TRACE</option>
+                        <option value="DEBUG">DEBUG</option>
+                        <option value="INFO">INFO</option>
+                        <option value="WARN">WARN</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="FATAL">FATAL</option>
+                    </select>
+                </div>
+                <div class="col-12 col-md-4">
+                    <label class="form-label">Search</label>
+                    <input class="form-control" @bind="SearchText" @bind:event="oninput" placeholder="logger, message, thread..." />
+                </div>
+            </div>
+            <div class="d-flex flex-wrap gap-2 mt-3">
+                <button class="btn btn-primary" @onclick="ParseAsync" disabled="@(!SelectedFiles.Any() || IsParsing)">
+                    @(IsParsing ? "Parsing..." : "Parse")
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="ClearAsync" disabled="@IsParsing">Clear</button>
+            </div>
+
+            @if (!string.IsNullOrWhiteSpace(StatusMessage))
+            {
+                <div class="alert alert-info mt-3 mb-0" role="alert">
+                    @StatusMessage
+                </div>
+            }
+        </div>
+    </div>
+
+    @{
+        var filtered = GetFilteredRows();
+        var levelSummary = GetLevelSummary(filtered);
+        var loggerSummary = GetLoggerSummary(filtered, 8);
+        var totalLines = ParsedRows.Count;
+    }
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="metric-label">Parsed Lines</div>
+                    <div class="metric-value">@totalLines.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="metric-label">Visible Rows</div>
+                    <div class="metric-value">@filtered.Count.ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card h-100">
+                <div class="card-body">
+                    <div class="metric-label">Loggers</div>
+                    <div class="metric-value">@filtered.Select(x => x.Logger).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString("N0")</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-xl-5">
+            <div class="card h-100">
+                <div class="card-header"><strong>Level Summary</strong></div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Level</th><th class="text-end">Count</th></tr></thead>
+                        <tbody>
+                        @foreach (var item in levelSummary)
+                        {
+                            <tr>
+                                <td>@item.Key</td>
+                                <td class="text-end">@item.Value.ToString("N0")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-xl-7">
+            <div class="card h-100">
+                <div class="card-header"><strong>Top Loggers</strong></div>
+                <div class="card-body">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Logger</th><th class="text-end">Count</th></tr></thead>
+                        <tbody>
+                        @foreach (var item in loggerSummary)
+                        {
+                            <tr>
+                                <td class="text-truncate" style="max-width: 520px;" title="@item.Key">@item.Key</td>
+                                <td class="text-end">@item.Value.ToString("N0")</td>
+                            </tr>
+                        }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header"><strong>Log Entries</strong></div>
+        <div class="table-responsive">
+            <table class="table table-sm table-striped mb-0">
+                <thead>
+                    <tr>
+                        <th>Timestamp</th>
+                        <th>Level</th>
+                        <th>Thread</th>
+                        <th>Logger</th>
+                        <th>Message</th>
+                        <th>Source</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var row in filtered.Take(500))
+                {
+                    <tr>
+                        <td>@row.Timestamp</td>
+                        <td><span class="badge @GetLevelBadgeClass(row.Level)">@row.Level</span></td>
+                        <td>@row.Thread</td>
+                        <td>@row.Logger</td>
+                        <td class="text-break">@row.Message</td>
+                        <td>@row.SourceFile</td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<IBrowserFile> SelectedFiles = [];
+    private readonly List<JavaLogEntry> ParsedRows = [];
+    private string? StatusMessage { get; set; }
+    private string LevelFilter { get; set; } = string.Empty;
+    private string SearchText { get; set; } = string.Empty;
+    private bool IsParsing { get; set; }
+
+    private void HandleFiles(InputFileChangeEventArgs args)
+    {
+        SelectedFiles.Clear();
+        SelectedFiles.AddRange(args.GetMultipleFiles());
+        StatusMessage = SelectedFiles.Count == 0
+            ? "Select one or more Java log files."
+            : $"{SelectedFiles.Count} file(s) selected.";
+    }
+
+    private async Task ParseAsync()
+    {
+        if (!SelectedFiles.Any())
+        {
+            StatusMessage = "Select one or more Java log files first.";
+            return;
+        }
+
+        IsParsing = true;
+        ParsedRows.Clear();
+        try
+        {
+            foreach (var file in SelectedFiles)
+            {
+                await using var stream = file.OpenReadStream(maxAllowedSize: 250L * 1024 * 1024);
+                using var reader = new StreamReader(stream);
+                var text = await reader.ReadToEndAsync();
+                var lines = text.Split(Environment.NewLine, StringSplitOptions.None);
+                ParsedRows.AddRange(JavaParser.ParseLines(lines, file.Name));
+            }
+
+            StatusMessage = $"Parsed {ParsedRows.Count:N0} line(s) from {SelectedFiles.Count} file(s).";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"Java log parse failed: {ex.Message}";
+        }
+        finally
+        {
+            IsParsing = false;
+        }
+    }
+
+    private Task ClearAsync()
+    {
+        SelectedFiles.Clear();
+        ParsedRows.Clear();
+        StatusMessage = null;
+        LevelFilter = string.Empty;
+        SearchText = string.Empty;
+        return Task.CompletedTask;
+    }
+
+    private List<JavaLogEntry> GetFilteredRows()
+    {
+        IEnumerable<JavaLogEntry> query = ParsedRows;
+
+        if (!string.IsNullOrWhiteSpace(LevelFilter))
+        {
+            query = query.Where(x => string.Equals(x.Level, LevelFilter, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(SearchText))
+        {
+            var term = SearchText.Trim();
+            query = query.Where(x =>
+                x.Timestamp.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.Level.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.Thread.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.Logger.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.Message.Contains(term, StringComparison.OrdinalIgnoreCase) ||
+                x.SourceFile.Contains(term, StringComparison.OrdinalIgnoreCase));
+        }
+
+        return query.ToList();
+    }
+
+    private static List<KeyValuePair<string, int>> GetLevelSummary(List<JavaLogEntry> rows)
+        => rows
+            .GroupBy(x => string.IsNullOrWhiteSpace(x.Level) ? "UNKNOWN" : x.Level.ToUpperInvariant())
+            .Select(g => new KeyValuePair<string, int>(g.Key, g.Count()))
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key)
+            .ToList();
+
+    private static List<KeyValuePair<string, int>> GetLoggerSummary(List<JavaLogEntry> rows, int take)
+        => rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Logger))
+            .GroupBy(x => x.Logger)
+            .Select(g => new KeyValuePair<string, int>(g.Key, g.Count()))
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key)
+            .Take(take)
+            .ToList();
+
+    private static string GetLevelBadgeClass(string? level)
+    {
+        return (level ?? string.Empty).ToUpperInvariant() switch
+        {
+            "ERROR" or "FATAL" => "text-bg-danger",
+            "WARN" => "text-bg-warning",
+            "DEBUG" => "text-bg-secondary",
+            "TRACE" => "text-bg-dark",
+            _ => "text-bg-info"
+        };
+    }
+}

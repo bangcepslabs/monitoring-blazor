@@ -1,0 +1,3044 @@
+﻿@page "/log-parser"
+@attribute [Authorize]
+@implements IDisposable
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@using Microsoft.EntityFrameworkCore
+@using System.Net.Http.Json
+@using System.Text.Json
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+@inject IConfiguration Configuration
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<PageTitle>IIS Log Parser</PageTitle>
+
+<div class="log-analyzer-page">
+<h1>IIS Log Parser</h1>
+<p class="text-muted mb-3">Upload `iis.log` files and analyze by status, URL, method, and IP.</p>
+
+@if (IsAnalyzing)
+{
+    <div class="ai-analysis-overlay" aria-live="polite" aria-busy="true">
+        <div class="ai-analysis-overlay__panel">
+            <div class="spinner-border text-light" role="status" aria-hidden="true"></div>
+            <div class="ai-analysis-overlay__title">AI 분석 중</div>
+            <div class="ai-analysis-overlay__text">결과를 준비하는 중입니다. 잠시만 기다려 주세요.</div>
+            <button class="btn btn-light btn-sm mt-3" @onclick="CancelAnalyzeAsync">분석 취소</button>
+        </div>
+    </div>
+}
+
+<div class="card mb-3">
+    <div class="card-body">
+        <div class="row g-2 mb-3">
+            <div class="col-12 col-md-4">
+                <label class="form-label">Server Name</label>
+                <input class="form-control" @bind="ServerName" placeholder="HOST-01" />
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label">Ollama</label>
+                <select class="form-select" @bind="OllamaEnabledChoice">
+                    <option value="Y">Y</option>
+                    <option value="N">N</option>
+                </select>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-2 align-items-center mb-3">
+            <InputFile OnChange="HandleFiles" multiple class="form-control" style="max-width: 420px;" />
+            <button class="btn btn-primary" @onclick="UpdateToServerAsync" disabled="@(IsPreviewing || IsSaving || AllRows.Count == 0)">
+                Update to Server
+            </button>
+            <button class="btn btn-warning" @onclick="CancelUploadAsync" disabled="@(!(IsPreviewing || IsSaving))">
+                Cancel Upload
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="ClearSelectedFiles" disabled="@((IsPreviewing || IsSaving) || SelectedFiles.Count == 0)">
+                Clear Files
+            </button>
+        </div>
+        @if (SelectedFiles.Count > 0)
+        {
+            <div class="text-muted mb-2">Selected files: @SelectedFiles.Count | Preview rows: @AllRows.Count</div>
+        }
+        @if (IsPreviewing)
+        {
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted">@PreviewStage</span>
+                    <span class="text-muted">@PreviewProgress.ToString("0")%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar" role="progressbar" style="width: @($"{PreviewProgress:0}%")"></div>
+                </div>
+            </div>
+        }
+        @if (IsSaving)
+        {
+            <div class="mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-1">
+                    <span class="text-muted">@SaveStage</span>
+                    <span class="text-muted">@SaveProgress.ToString("0")%</span>
+                </div>
+                <div class="progress" style="height: 8px;">
+                    <div class="progress-bar bg-warning" role="progressbar" style="width: @($"{SaveProgress:0}%")"></div>
+                </div>
+            </div>
+        }
+        <div class="row g-2">
+            <div class="col-12 col-md-2">
+                <label class="form-label">Status Group</label>
+                <select class="form-select" @bind="StatusGroup">
+                    <option value="">All</option>
+                    <option value="2">2xx</option>
+                    <option value="3">3xx</option>
+                    <option value="4">4xx</option>
+                    <option value="5">5xx</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label">Status Code</label>
+                <input class="form-control" @bind="StatusCode" @bind:event="oninput" placeholder="ex) 404" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">URL Contains</label>
+                <input class="form-control" @bind="UrlQuery" @bind:event="oninput" placeholder="/api/users" />
+            </div>
+            <div class="col-12 col-md-2">
+                <label class="form-label">Method</label>
+                <input class="form-control" @bind="MethodQuery" @bind:event="oninput" placeholder="GET" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">IP / Text Search</label>
+                <input class="form-control" @bind="TextQuery" @bind:event="oninput" placeholder="192.168 or keyword" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Exclude IPs</label>
+                <input class="form-control" @bind="ExcludeIpQuery" @bind:event="oninput" placeholder="192.168.0.1, 10.0.0.2" />
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Presets</label>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button class="btn btn-sm btn-outline-secondary" @onclick='() => ApplyPreset("5xx")'>5xx</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick='() => ApplyPreset("/api")'>/api</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick='() => ApplyPreset("POST")'>POST</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <label class="form-label">Render</label>
+                <div class="d-flex align-items-center gap-2">
+                    <input type="checkbox" class="form-check-input" @bind="UseVirtualize" />
+                    <span class="text-muted">Virtual scroll</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@{
+    var filtered = GetFilteredRows();
+    var statusSummary = GetStatusSummary(filtered);
+    var topUrls = GetTopUrls(filtered, 8);
+    var pageRows = UseVirtualize ? filtered : GetPagedRows(filtered);
+    var totalPages = GetTotalPages(filtered.Count);
+}
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="metric-label">Total Requests</div>
+                <div class="metric-value">@filtered.Count.ToString("N0")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="metric-label">Unique IPs</div>
+                <div class="metric-value">@filtered.Select(x => x.Ip).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString("N0")</div>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-md-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <div class="metric-label">Detected URLs</div>
+                <div class="metric-value">@filtered.Select(x => x.Uri).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString("N0")</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mb-3">
+    <div class="col-12 col-xl-6">
+        <div class="card h-100">
+            <div class="card-header"><strong>Status Analysis</strong></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead>
+                    <tr><th>Status</th><th class="text-end">Count</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in statusSummary)
+                    {
+                        <tr>
+                            <td>@item.Key</td>
+                            <td class="text-end">@item.Value.ToString("N0")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    <div class="col-12 col-xl-6">
+        <div class="card h-100">
+            <div class="card-header"><strong>Top URLs</strong></div>
+            <div class="card-body">
+                <table class="table table-sm mb-0">
+                    <thead>
+                    <tr><th>URL</th><th class="text-end">Hits</th></tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var item in topUrls)
+                    {
+                        <tr>
+                            <td class="text-truncate" style="max-width: 420px;" title="@item.Key">@item.Key</td>
+                            <td class="text-end">@item.Value.ToString("N0")</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card log-entries-card">
+    <div class="card-header log-entries-header">
+        <div class="log-entries-header__title">
+            <strong>Log Entries</strong>
+            <div class="text-muted small">Filter, analyze, and export the currently visible log set.</div>
+        </div>
+        <div class="log-entries-actions">
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">Run Export Now</button>
+            <button class="btn btn-sm btn-outline-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)">AI 분석</button>
+            <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">AI 분석 취소</button>
+            <input class="form-control form-control-sm log-question-input" placeholder="추가 질문을 작성하실 수 있습니다." @bind="AiQuestion" />
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze || string.IsNullOrWhiteSpace(AiQuestion))">질문 반영</button>
+            <label class="form-label mb-0">Multi-sort</label>
+            <input type="checkbox" class="form-check-input" @bind="MultiSort" />
+            <span class="badge @(UseOllama ? "text-bg-success" : "text-bg-secondary")">Ollama: @(UseOllama ? "Y" : "N")</span>
+            <span class="badge text-bg-info">제외 IP 필터 적용됨</span>
+            <label class="form-label mb-0">Rows</label>
+            <select class="form-select form-select-sm w-auto" value="@PageSize" @onchange="OnPageSizeChanged" disabled="@(UseVirtualize)">
+                <option value="10">10</option>
+                <option value="25">25</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+            </select>
+            <button class="btn btn-sm btn-outline-primary" @onclick="ExportToExcel">Export Excel</button>
+        </div>
+    </div>
+    <div class="card-body log-entries-body">
+        @if (!string.IsNullOrWhiteSpace(ExportMessage))
+        {
+            <div class="analysis-inline-message mb-3">
+                <div class="analysis-inline-message__label">Export</div>
+                <div class="analysis-inline-message__text">@ExportMessage</div>
+            </div>
+        }
+        @if (!string.IsNullOrWhiteSpace(AnalyzeMessage))
+        {
+            <section class="analysis-inline-report mb-3" aria-label="AI analysis report">
+                <div class="analysis-inline-report__header">
+                    <div class="analysis-inline-report__eyebrow">AI 분석 리포트</div>
+                    <div class="analysis-inline-report__accent" aria-hidden="true"></div>
+                </div>
+                <pre class="analysis-pre">@AnalyzeMessage</pre>
+            </section>
+        }
+    </div>
+    <div class="table-responsive log-entries-table">
+        <table class="table table-sm table-striped mb-0">
+            <thead>
+            <tr>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Date))">Date <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Date))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Time))">Time <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Time))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Ip))">IP <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Ip))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Method))">Method <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Method))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Uri))">URI <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Uri))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Status))">Status <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Status))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Referrer))">Referer <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Referrer))"></i></span></button></th>
+                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.UserAgent))">User-Agent <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.UserAgent))"></i></span></button></th>
+            </tr>
+            <tr class="table-filter-row">
+                <th><input class="form-control form-control-sm" @bind="DateFilter" @bind:event="oninput" placeholder="yyyy-mm-dd" /></th>
+                <th><input class="form-control form-control-sm" @bind="TimeFilter" @bind:event="oninput" placeholder="hh:mm" /></th>
+                <th><input class="form-control form-control-sm" @bind="IpFilter" @bind:event="oninput" placeholder="IP" /></th>
+                <th><input class="form-control form-control-sm" @bind="MethodFilter" @bind:event="oninput" placeholder="GET" /></th>
+                <th><input class="form-control form-control-sm" @bind="UriFilter" @bind:event="oninput" placeholder="/api" /></th>
+                <th><input class="form-control form-control-sm" @bind="StatusFilter" @bind:event="oninput" placeholder="200" /></th>
+                <th><input class="form-control form-control-sm" @bind="ReferrerFilter" @bind:event="oninput" placeholder="ref" /></th>
+                <th><input class="form-control form-control-sm" @bind="AgentFilter" @bind:event="oninput" placeholder="agent" /></th>
+            </tr>
+            </thead>
+            <tbody @key="CurrentPage">
+            @if (UseVirtualize)
+            {
+                <Virtualize Items="filtered" Context="row" ItemSize="36" OverscanCount="12">
+                    <tr @key="row" class="@GetRowClass(row)">
+                        <td>@row.Date</td>
+                        <td>@row.Time</td>
+                        <td>@row.Ip</td>
+                        <td>@row.Method</td>
+                        <td class="text-truncate" style="max-width: 380px;" title="@row.Uri">@row.Uri</td>
+                        <td>@row.Status</td>
+                        <td class="text-truncate" style="max-width: 220px;" title="@row.Referrer">@row.Referrer</td>
+                        <td class="text-truncate" style="max-width: 260px;" title="@row.UserAgent">@row.UserAgent</td>
+                    </tr>
+                </Virtualize>
+            }
+            else
+            {
+                @foreach (var row in pageRows)
+                {
+                    <tr @key="row" class="@GetRowClass(row)">
+                        <td>@row.Date</td>
+                        <td>@row.Time</td>
+                        <td>@row.Ip</td>
+                        <td>@row.Method</td>
+                        <td class="text-truncate" style="max-width: 380px;" title="@row.Uri">@row.Uri</td>
+                        <td>@row.Status</td>
+                        <td class="text-truncate" style="max-width: 220px;" title="@row.Referrer">@row.Referrer</td>
+                        <td class="text-truncate" style="max-width: 260px;" title="@row.UserAgent">@row.UserAgent</td>
+                    </tr>
+                }
+            }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
+        @if (!UseVirtualize)
+        {
+            <div class="text-muted">Showing @GetStartIndex(filtered.Count)-@GetEndIndex(filtered.Count) of @filtered.Count rows | Page @CurrentPage / @totalPages</div>
+            <div class="d-flex align-items-center gap-2">
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="GoToFirstPage" disabled="@(CurrentPage <= 1)">First</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="PrevPage" disabled="@(CurrentPage <= 1)">Prev</button>
+                @if (ShouldShowLeadingEllipsis(filtered.Count))
+                {
+                    <span class="text-muted px-1">...</span>
+                }
+                @foreach (var pageNumber in GetVisiblePages(filtered.Count))
+                {
+                    <button type="button" class="btn btn-sm @(pageNumber == CurrentPage ? "btn-primary" : "btn-outline-secondary")" @onclick="() => GoToPage(pageNumber)">@pageNumber</button>
+                }
+                @if (ShouldShowTrailingEllipsis(filtered.Count))
+                {
+                    <span class="text-muted px-1">...</span>
+                }
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => NextPage(filtered.Count)" disabled="@(CurrentPage >= totalPages)">Next</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => GoToLastPage(filtered.Count)" disabled="@(CurrentPage >= totalPages)">Last</button>
+            </div>
+        }
+    </div>
+</div>
+
+<button class="scroll-top-btn" title="Top" @onclick="ScrollToTop">↑</button>
+</div>
+
+@code {
+    private HttpClient? _http;
+    private bool IsRunningExport { get; set; }
+    private string? ExportMessage { get; set; }
+    private bool IsAnalyzing { get; set; }
+    private string? AnalyzeMessage { get; set; }
+    private string ServerName { get; set; } = string.Empty;
+    private List<IBrowserFile> SelectedFiles { get; set; } = [];
+    private List<ParsedLogRow> AllRows { get; set; } = [];
+    private List<ParsedLogRow> FilteredRows { get; set; } = [];
+    private int CurrentPage { get; set; } = 1;
+    private int PageSize { get; set; } = 25;
+    private bool UseVirtualize { get; set; } = false;
+    private bool IsPreviewing { get; set; }
+    private bool IsSaving { get; set; }
+    private bool IsCancelling { get; set; }
+    private double PreviewProgress { get; set; }
+    private double SaveProgress { get; set; }
+    private string PreviewStage { get; set; } = "Idle";
+    private string SaveStage { get; set; } = "Idle";
+    private bool FilterDirty { get; set; } = true;
+    private string AiQuestion { get; set; } = string.Empty;
+    private bool UseOllama { get; set; } = true;
+    private bool CanRunAnalyze => UseOllama && !IsAnalyzing;
+    private DotNetObjectReference<LogParser>? _settingsRef;
+    private CancellationTokenSource? _uploadCts;
+    private CancellationTokenSource? _analysisCts;
+    private static readonly JsonSerializerOptions AnalysisJsonOptions = new()
+    {
+        WriteIndented = false,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+    };
+    private static readonly string[] AnalysisExcludedIpPatterns =
+    [
+        "121.131.195.*"
+    ];
+    private static readonly string[] AnalysisExcludedIpPrefixes =
+    [
+        "121.131.195."
+    ];
+    private const int MaxUploadFiles = 10;
+    private const long MaxUploadBytes = 500L * 1024 * 1024;
+    private string OllamaEnabledChoice
+    {
+        get => UseOllama ? "Y" : "N";
+        set
+        {
+            var next = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+            if (UseOllama == next)
+            {
+                return;
+            }
+
+            UseOllama = next;
+            _ = SaveOllamaPreferenceAsync();
+        }
+    }
+
+    private string _statusGroup = string.Empty;
+    private string _statusCode = string.Empty;
+    private string _urlQuery = string.Empty;
+    private string _methodQuery = string.Empty;
+    private string _textQuery = string.Empty;
+    private string _excludeIpQuery = string.Empty;
+
+    private string StatusGroup
+    {
+        get => _statusGroup;
+        set => SetFilter(ref _statusGroup, value);
+    }
+
+    private string StatusCode
+    {
+        get => _statusCode;
+        set => SetFilter(ref _statusCode, value);
+    }
+
+    private string UrlQuery
+    {
+        get => _urlQuery;
+        set => SetFilter(ref _urlQuery, value);
+    }
+
+    private string MethodQuery
+    {
+        get => _methodQuery;
+        set => SetFilter(ref _methodQuery, value);
+    }
+
+    private string TextQuery
+    {
+        get => _textQuery;
+        set => SetFilter(ref _textQuery, value);
+    }
+
+    private string ExcludeIpQuery
+    {
+        get => _excludeIpQuery;
+        set => SetFilter(ref _excludeIpQuery, value);
+    }
+    private string _dateFilter = string.Empty;
+    private string _timeFilter = string.Empty;
+    private string _ipFilter = string.Empty;
+    private string _methodFilter = string.Empty;
+    private string _uriFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+    private string _referrerFilter = string.Empty;
+    private string _agentFilter = string.Empty;
+
+    private string DateFilter
+    {
+        get => _dateFilter;
+        set { _dateFilter = value; FilterDirty = true; }
+    }
+
+    private string TimeFilter
+    {
+        get => _timeFilter;
+        set { _timeFilter = value; FilterDirty = true; }
+    }
+
+    private string IpFilter
+    {
+        get => _ipFilter;
+        set { _ipFilter = value; FilterDirty = true; }
+    }
+
+    private string MethodFilter
+    {
+        get => _methodFilter;
+        set { _methodFilter = value; FilterDirty = true; }
+    }
+
+    private string UriFilter
+    {
+        get => _uriFilter;
+        set { _uriFilter = value; FilterDirty = true; }
+    }
+
+    private string StatusFilter
+    {
+        get => _statusFilter;
+        set { _statusFilter = value; FilterDirty = true; }
+    }
+
+    private string ReferrerFilter
+    {
+        get => _referrerFilter;
+        set { _referrerFilter = value; FilterDirty = true; }
+    }
+
+    private string AgentFilter
+    {
+        get => _agentFilter;
+        set { _agentFilter = value; FilterDirty = true; }
+    }
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            try
+            {
+                UseOllama = await JS.InvokeAsync<bool>("monitorSettings.get", "ollamaEnabled", true);
+                _settingsRef = DotNetObjectReference.Create(this);
+                await JS.InvokeVoidAsync("monitorSettings.watch", "ollamaEnabled", _settingsRef, nameof(OnOllamaPreferenceChanged));
+                await InvokeAsync(StateHasChanged);
+            }
+            catch
+            {
+                UseOllama = true;
+            }
+        }
+    }
+    private bool MultiSort { get; set; } = false;
+    private List<SortSpec> Sorts { get; } = new()
+    {
+        new SortSpec(nameof(ParsedLogRow.Date), true)
+    };
+
+    private async Task<List<ParsedLogRow>> ReadAndParseFile(IBrowserFile file, long bytesBefore, long totalBytes, CancellationToken token)
+    {
+        var result = new List<ParsedLogRow>();
+
+        long readBytes = 0;
+        int lastProgress = -1;
+
+        const int batchSize = 500;
+        var bufferLines = new List<string>(batchSize);
+
+        await using var stream = file.OpenReadStream(300 * 1024 * 1024);
+        using var reader = new StreamReader(stream);
+
+        string? line;
+
+        while (true)
+        {
+            token.ThrowIfCancellationRequested();
+            line = await reader.ReadLineAsync();
+            if (line is null)
+            {
+                break;
+            }
+
+            bufferLines.Add(line);
+
+            readBytes = stream.Position;
+            if (totalBytes > 0)
+            {
+                var current = (int)(((bytesBefore + readBytes) / (double)totalBytes) * 100);
+                if (current != lastProgress)
+                {
+                    lastProgress = current;
+                    PreviewProgress = current;
+                    await InvokeAsync(StateHasChanged);
+                }
+            }
+
+            if (bufferLines.Count >= batchSize)
+            {
+                result.AddRange(ApacheLogParser.ParseLines(bufferLines));
+                bufferLines.Clear();
+            }
+        }
+
+        if (bufferLines.Count > 0)
+        {
+            result.AddRange(ApacheLogParser.ParseLines(bufferLines));
+        }
+
+        return result;
+    }
+
+    private async Task HandleFiles(InputFileChangeEventArgs args)
+    {
+        var files = args.GetMultipleFiles().ToList();
+        if (files.Count > MaxUploadFiles)
+        {
+            AnalyzeMessage = $"You selected {files.Count} files. The upload limit is {MaxUploadFiles} files per batch.";
+            return;
+        }
+
+        var totalBytes = files.Sum(x => (long)x.Size);
+        if (totalBytes > MaxUploadBytes)
+        {
+            AnalyzeMessage = $"The selected files total {FormatBytes(totalBytes)}. The batch limit is {FormatBytes(MaxUploadBytes)}.";
+            return;
+        }
+
+        SelectedFiles = files;
+        AnalyzeMessage = $"Selected {files.Count} file(s), {FormatBytes(totalBytes)} total.";
+
+        await ParseSelectedFilesAsync();
+    }
+
+    private async Task ParseSelectedFilesAsync()
+    {
+        if (SelectedFiles.Count == 0)
+        {
+            AnalyzeMessage = "Please select one or more log files first.";
+            return;
+        }
+
+        IsPreviewing = true;
+        IsCancelling = false;
+        _uploadCts?.Dispose();
+        _uploadCts = new CancellationTokenSource();
+        var token = _uploadCts.Token;
+        PreviewProgress = 0;
+        PreviewStage = "Preparing preview";
+        AnalyzeMessage = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var totalFiles = Math.Max(SelectedFiles.Count, 1);
+            var fileIndex = 0;
+            var totalBytes = SelectedFiles.Sum(x => (long)x.Size);
+            var processedBytes = 0L;
+            var parsedRows = new List<ParsedLogRow>();
+
+            foreach (var file in SelectedFiles)
+            {
+                token.ThrowIfCancellationRequested();
+                fileIndex++;
+                PreviewStage = $"Parsing {file.Name}";
+                PreviewProgress = 5 + ((fileIndex - 1) * 90.0 / totalFiles);
+                await InvokeAsync(StateHasChanged);
+
+                var parsed = await ReadAndParseFile(file, processedBytes, totalBytes, token);
+                processedBytes += (long)file.Size;
+                parsedRows.AddRange(parsed);
+            }
+
+            AllRows = parsedRows;
+            FilteredRows = [];
+            FilterDirty = true;
+            ResetPage();
+
+            PreviewStage = "Finalizing";
+            PreviewProgress = 100;
+            await InvokeAsync(StateHasChanged);
+            AnalyzeMessage = $"Preview ready: {SelectedFiles.Count} file(s), {AllRows.Count:N0} rows parsed.";
+        }
+        catch (OperationCanceledException)
+        {
+            AnalyzeMessage = "Parsing cancelled by user.";
+        }
+        catch (Exception ex)
+        {
+            AnalyzeMessage = $"Log parse failed: {ex.Message}";
+        }
+        finally
+        {
+            PreviewProgress = 100;
+            PreviewStage = IsCancelling ? "Cancelling..." : "Done";
+            IsPreviewing = false;
+            IsCancelling = false;
+            _uploadCts?.Dispose();
+            _uploadCts = null;
+        }
+    }
+
+    private async Task UpdateToServerAsync()
+    {
+        if (AllRows.Count == 0)
+        {
+            AnalyzeMessage = "No parsed rows available. Select files first.";
+            return;
+        }
+
+        IsSaving = true;
+        IsCancelling = false;
+        _uploadCts?.Dispose();
+        _uploadCts = new CancellationTokenSource();
+        var token = _uploadCts.Token;
+        SaveProgress = 0;
+        SaveStage = "Preparing database save";
+        AnalyzeMessage = null;
+        await InvokeAsync(StateHasChanged);
+
+        try
+        {
+            var serverName = string.IsNullOrWhiteSpace(ServerName) ? "unknown" : ServerName.Trim();
+            var nowUtc = DateTime.UtcNow;
+            var aggregateMap = AllRows
+                .Select(row => new
+                {
+                    LogDate = TryParseLogDate(row.Date, nowUtc),
+                    row.Ip,
+                    row.Status
+                })
+                .GroupBy(x => new { x.LogDate, x.Ip })
+                .Select(g => new LogIpAggregate
+                {
+                    LogDate = g.Key.LogDate,
+                    Ip = g.Key.Ip,
+                    RequestCount = g.LongCount(),
+                    Status2xxCount = g.LongCount(x => IsStatusInRange(x.Status, 200, 299)),
+                    Status3xxCount = g.LongCount(x => IsStatusInRange(x.Status, 300, 399)),
+                    Status4xxCount = g.LongCount(x => IsStatusInRange(x.Status, 400, 499)),
+                    Status5xxCount = g.LongCount(x => IsStatusInRange(x.Status, 500, 599))
+                })
+                .ToList();
+
+            await using var db = await DbFactory.CreateDbContextAsync();
+            var existingRows = await db.LogIpDailyStats
+                .Where(x => x.ServerName == serverName)
+                .ToListAsync(token);
+
+            var aggregateIndex = 0;
+            foreach (var aggregate in aggregateMap)
+            {
+                token.ThrowIfCancellationRequested();
+                aggregateIndex++;
+                SaveStage = $"Saving aggregate {aggregateIndex:N0}/{aggregateMap.Count:N0}";
+                SaveProgress = aggregateMap.Count == 0 ? 100 : aggregateIndex * 100.0 / aggregateMap.Count;
+                await InvokeAsync(StateHasChanged);
+
+                var existing = existingRows.FirstOrDefault(x =>
+                    x.LogDate == aggregate.LogDate &&
+                    x.Ip == aggregate.Ip);
+
+                if (existing is null)
+                {
+                    db.LogIpDailyStats.Add(new LogIpDailyStatEntity
+                    {
+                        ServerName = serverName,
+                        LogDate = aggregate.LogDate,
+                        Ip = aggregate.Ip,
+                        RequestCount = aggregate.RequestCount,
+                        Status2xxCount = aggregate.Status2xxCount,
+                        Status3xxCount = aggregate.Status3xxCount,
+                        Status4xxCount = aggregate.Status4xxCount,
+                        Status5xxCount = aggregate.Status5xxCount,
+                        FirstSeenUtc = nowUtc,
+                        LastSeenUtc = nowUtc
+                    });
+                }
+                else
+                {
+                    existing.RequestCount += aggregate.RequestCount;
+                    existing.Status2xxCount += aggregate.Status2xxCount;
+                    existing.Status3xxCount += aggregate.Status3xxCount;
+                    existing.Status4xxCount += aggregate.Status4xxCount;
+                    existing.Status5xxCount += aggregate.Status5xxCount;
+                    existing.LastSeenUtc = nowUtc;
+                }
+            }
+
+            await db.SaveChangesAsync(token);
+            AnalyzeMessage = $"Database update completed: {aggregateMap.Count:N0} aggregate rows saved.";
+        }
+        catch (OperationCanceledException)
+        {
+            AnalyzeMessage = "Database update cancelled by user.";
+        }
+        catch (Exception ex)
+        {
+            AnalyzeMessage = $"DB update failed: {ex.Message}";
+        }
+        finally
+        {
+            SaveProgress = 100;
+            SaveStage = IsCancelling ? "Cancelling..." : "Done";
+            IsSaving = false;
+            IsCancelling = false;
+            _uploadCts?.Dispose();
+            _uploadCts = null;
+        }
+    }
+
+    private Task CancelUploadAsync()
+    {
+        if (!(IsPreviewing || IsSaving))
+        {
+            return Task.CompletedTask;
+        }
+
+        IsCancelling = true;
+        PreviewStage = "Cancelling...";
+        SaveStage = "Cancelling...";
+        _uploadCts?.Cancel();
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearSelectedFiles()
+    {
+        SelectedFiles = [];
+        AllRows = [];
+        FilteredRows = [];
+        FilterDirty = true;
+        ResetPage();
+        PreviewProgress = 0;
+        PreviewStage = "Idle";
+        SaveStage = "Idle";
+        AnalyzeMessage = null;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        double value = bytes;
+        var unitIndex = 0;
+
+        while (value >= 1024 && unitIndex < units.Length - 1)
+        {
+            value /= 1024;
+            unitIndex++;
+        }
+
+        return $"{value:0.##} {units[unitIndex]}";
+    }
+
+    private static DateOnly TryParseLogDate(string value, DateTime fallbackUtc)
+    {
+        return DateOnly.TryParse(value, out var parsed) ? parsed : DateOnly.FromDateTime(fallbackUtc);
+    }
+
+    private static bool IsStatusInRange(string value, int minInclusive, int maxInclusive)
+    {
+        if (!int.TryParse(value, out var status))
+        {
+            return false;
+        }
+
+        return status >= minInclusive && status <= maxInclusive;
+    }
+
+
+    private List<ParsedLogRow> GetFilteredRows()
+    {
+        if (!FilterDirty)
+        {
+            return FilteredRows;
+        }
+
+        IEnumerable<ParsedLogRow> query = AllRows;
+
+        if (!string.IsNullOrWhiteSpace(StatusGroup))
+        {
+            query = query.Where(x => !string.IsNullOrWhiteSpace(x.Status) && x.Status.StartsWith(StatusGroup, StringComparison.Ordinal));
+        }
+
+        if (!string.IsNullOrWhiteSpace(StatusCode))
+        {
+            query = query.Where(x => string.Equals(x.Status, StatusCode.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(UrlQuery))
+        {
+            query = query.Where(x => x.Uri.Contains(UrlQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(MethodQuery))
+        {
+            query = query.Where(x => x.Method.Contains(MethodQuery.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(TextQuery))
+        {
+            var key = TextQuery.Trim();
+            query = query.Where(x =>
+                x.Ip.Contains(key, StringComparison.OrdinalIgnoreCase) ||
+                x.Uri.Contains(key, StringComparison.OrdinalIgnoreCase) ||
+                x.Referrer.Contains(key, StringComparison.OrdinalIgnoreCase) ||
+                x.UserAgent.Contains(key, StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ExcludeIpQuery))
+        {
+            var exclude = ParseIpList(ExcludeIpQuery);
+            if (exclude.Count > 0)
+            {
+                query = query.Where(x => !exclude.Contains(x.Ip));
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(DateFilter))
+        {
+            query = query.Where(x => x.Date.Contains(DateFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(TimeFilter))
+        {
+            query = query.Where(x => x.Time.Contains(TimeFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(IpFilter))
+        {
+            query = query.Where(x => x.Ip.Contains(IpFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(MethodFilter))
+        {
+            query = query.Where(x => x.Method.Contains(MethodFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(UriFilter))
+        {
+            query = query.Where(x => x.Uri.Contains(UriFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(StatusFilter))
+        {
+            query = query.Where(x => x.Status.Contains(StatusFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(ReferrerFilter))
+        {
+            query = query.Where(x => x.Referrer.Contains(ReferrerFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (!string.IsNullOrWhiteSpace(AgentFilter))
+        {
+            query = query.Where(x => x.UserAgent.Contains(AgentFilter.Trim(), StringComparison.OrdinalIgnoreCase));
+        }
+
+        var filtered = query.ToList();
+        FilteredRows = ApplySort(filtered);
+        FilterDirty = false;
+        return FilteredRows;
+    }
+
+    private List<ParsedLogRow> GetPagedRows(List<ParsedLogRow> filtered)
+    {
+        var totalPages = GetTotalPages(filtered.Count);
+        if (CurrentPage > totalPages)
+        {
+            CurrentPage = totalPages;
+        }
+
+        if (CurrentPage < 1)
+        {
+            CurrentPage = 1;
+        }
+
+        return filtered
+            .Skip((CurrentPage - 1) * PageSize)
+            .Take(PageSize)
+            .ToList();
+    }
+
+    private static List<KeyValuePair<string, int>> GetStatusSummary(List<ParsedLogRow> filtered)
+    {
+        return filtered
+            .Where(x => !string.IsNullOrWhiteSpace(x.Status))
+            .GroupBy(x => x.Status)
+            .Select(g => new KeyValuePair<string, int>(g.Key, g.Count()))
+            .OrderByDescending(x => x.Value)
+            .ThenBy(x => x.Key, StringComparer.Ordinal)
+            .ToList();
+    }
+
+    private static List<KeyValuePair<string, int>> GetTopUrls(List<ParsedLogRow> filtered, int take)
+    {
+        return filtered
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri)
+            .Select(g => new KeyValuePair<string, int>(g.Key, g.Count()))
+            .OrderByDescending(x => x.Value)
+            .Take(take)
+            .ToList();
+    }
+
+    private int GetTotalPages(int count)
+    {
+        if (count == 0)
+        {
+            return 1;
+        }
+
+        return (int)Math.Ceiling(count / (double)PageSize);
+    }
+
+    private int GetStartIndex(int count) => count == 0 ? 0 : ((CurrentPage - 1) * PageSize) + 1;
+
+    private int GetEndIndex(int count) => Math.Min(CurrentPage * PageSize, count);
+
+    private IEnumerable<int> GetVisiblePages(int count)
+    {
+        var totalPages = GetTotalPages(count);
+        if (totalPages <= 0)
+        {
+            yield break;
+        }
+        
+        var start = Math.Max(1, CurrentPage - 2);
+        var end = Math.Min(totalPages, start + 4);
+
+        if (end - start < 4)
+        {
+            start = Math.Max(1, end - 4);
+        }
+
+        for (var i = start; i <= end; i++)
+        {
+            yield return i;
+        }
+    }
+
+    private bool ShouldShowLeadingEllipsis(int count)
+    {
+        var totalPages = GetTotalPages(count);
+        if (totalPages <= 0) return false;
+
+        var start = Math.Max(1, CurrentPage - 2);
+        var end = Math.Min(totalPages, start + 4);
+        
+        if (end - start < 4)
+        {
+            start = Math.Max(1, end - 4);
+        }
+        
+        return start > 1; 
+    }
+
+    private bool ShouldShowTrailingEllipsis(int count)
+    {
+        var totalPages = GetTotalPages(count);
+        if (totalPages <= 0) return false;
+
+        var start = Math.Max(1, CurrentPage - 2);
+        var end = Math.Min(totalPages, start + 4);
+
+        return end < totalPages; 
+    }
+
+    private void PrevPage()
+    {
+        if (CurrentPage > 1)
+        {
+            CurrentPage--;
+        }
+    }
+
+    private void GoToFirstPage() => CurrentPage = 1;
+
+    private void NextPage(int count)
+    {
+        var totalPages = GetTotalPages(count);
+        if (CurrentPage < totalPages)
+        {
+            CurrentPage++;
+        }
+    }
+
+    private void GoToLastPage(int count) => CurrentPage = GetTotalPages(count);
+
+    private void GoToPage(int page) => CurrentPage = page;
+
+    private void OnPageSizeChanged(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (int.TryParse(value, out var parsed) && parsed > 0)
+        {
+            PageSize = parsed;
+            ResetPage();
+        }
+    }
+
+    private void ResetPage() => CurrentPage = 1;
+
+    private void SetFilter(ref string field, string? value)
+    {
+        field = value ?? string.Empty;
+        FilterDirty = true;
+        ResetPage();
+    }
+
+    private static string GetRowClass(ParsedLogRow row)
+    {
+        if (row.Status.StartsWith("5", StringComparison.Ordinal))
+        {
+            return "table-danger";
+        }
+
+        if (row.Status.StartsWith("4", StringComparison.Ordinal))
+        {
+            return "table-warning";
+        }
+
+        return string.Empty;
+    }
+
+    private List<ParsedLogRow> ApplySort(List<ParsedLogRow> rows)
+    {
+        if (Sorts.Count == 0)
+        {
+            return rows;
+        }
+
+        IOrderedEnumerable<ParsedLogRow>? ordered = null;
+        foreach (var spec in Sorts)
+        {
+            Func<ParsedLogRow, string> selector = spec.Column switch
+            {
+                nameof(ParsedLogRow.Time) => r => r.Time ?? string.Empty,
+                nameof(ParsedLogRow.Ip) => r => r.Ip ?? string.Empty,
+                nameof(ParsedLogRow.Method) => r => r.Method ?? string.Empty,
+                nameof(ParsedLogRow.Uri) => r => r.Uri ?? string.Empty,
+                nameof(ParsedLogRow.Status) => r => r.Status ?? string.Empty,
+                nameof(ParsedLogRow.Referrer) => r => r.Referrer ?? string.Empty,
+                nameof(ParsedLogRow.UserAgent) => r => r.UserAgent ?? string.Empty,
+                _ => r => r.Date ?? string.Empty
+            };
+
+            ordered = ordered is null
+                ? (spec.Ascending
+                    ? rows.OrderBy(selector, StringComparer.OrdinalIgnoreCase)
+                    : rows.OrderByDescending(selector, StringComparer.OrdinalIgnoreCase))
+                : (spec.Ascending
+                    ? ordered.ThenBy(selector, StringComparer.OrdinalIgnoreCase)
+                    : ordered.ThenByDescending(selector, StringComparer.OrdinalIgnoreCase));
+        }
+
+        return ordered?.ToList() ?? rows;
+    }
+
+    private void ToggleSort(string column)
+    {
+        var existing = Sorts.FirstOrDefault(x => x.Column == column);
+        if (existing is not null)
+        {
+            existing.Ascending = !existing.Ascending;
+        }
+        else
+        {
+            if (!MultiSort)
+            {
+                Sorts.Clear();
+            }
+            Sorts.Add(new SortSpec(column, true));
+        }
+
+        FilterDirty = true;
+        ResetPage();
+    }
+
+    private string SortIconClass(string column)
+    {
+        var existing = Sorts.FirstOrDefault(x => x.Column == column);
+        if (existing is null)
+        {
+            return "bi bi-arrow-down-up";
+        }
+
+        return existing.Ascending ? "bi bi-caret-up-fill" : "bi bi-caret-down-fill";
+    }
+
+    private void ApplyPreset(string preset)
+    {
+        ResetPage();
+        switch (preset)
+        {
+            case "5xx":
+                StatusGroup = "5";
+                StatusFilter = "5";
+                break;
+            case "/api":
+                UriFilter = "/api";
+                break;
+            case "POST":
+                MethodFilter = "POST";
+                break;
+        }
+    }
+
+    private void ClearFilters()
+    {
+        StatusGroup = string.Empty;
+        StatusCode = string.Empty;
+        UrlQuery = string.Empty;
+        MethodQuery = string.Empty;
+        TextQuery = string.Empty;
+        ExcludeIpQuery = string.Empty;
+        DateFilter = string.Empty;
+        TimeFilter = string.Empty;
+        IpFilter = string.Empty;
+        MethodFilter = string.Empty;
+        UriFilter = string.Empty;
+        StatusFilter = string.Empty;
+        ReferrerFilter = string.Empty;
+        AgentFilter = string.Empty;
+        ResetPage();
+    }
+
+    private static HashSet<string> ParseIpList(string input)
+    {
+        return input
+            .Split([',', ';', ' ', '\n', '\r', '\t'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(x => x.Length > 0)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class SortSpec
+    {
+        public SortSpec(string column, bool ascending)
+        {
+            Column = column;
+            Ascending = ascending;
+        }
+
+        public string Column { get; }
+        public bool Ascending { get; set; }
+    }
+
+    private async Task ExportToExcel()
+    {
+        var rows = GetFilteredRows();
+        var header = "date,time,ip,method,uri,status,referrer,user_agent";
+        var lines = new List<string> { header };
+
+        foreach (var row in rows)
+        {
+            lines.Add(string.Join(separator: ",", new[]
+            {
+                Csv(row.Date),
+                Csv(row.Time),
+                Csv(row.Ip),
+                Csv(row.Method),
+                Csv(row.Uri),
+                Csv(row.Status),
+                Csv(row.Referrer),
+                Csv(row.UserAgent)
+            }));
+        }
+
+        var csv = "\uFEFF" + string.Join("\n", lines);
+        await JS.InvokeVoidAsync("exporter.download", "log-export.csv", csv);
+    }
+
+    private async Task RunExportNow()
+    {
+        if (IsRunningExport)
+        {
+            return;
+        }
+
+        IsRunningExport = true;
+        ExportMessage = null;
+        try
+        {
+            _http ??= new HttpClient { BaseAddress = new Uri(NavigationManager.BaseUri) };
+            var response = await _http.PostAsync("api/log-export/run", null);
+            var payload = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+            ExportMessage = payload?.GetValueOrDefault("message");
+        }
+        catch (Exception ex)
+        {
+            ExportMessage = ex.Message;
+        }
+        finally
+        {
+            IsRunningExport = false;
+        }
+    }
+
+    private async Task RunAnalyze()
+    {
+        if (IsAnalyzing)
+        {
+            return;
+        }
+
+        if (!UseOllama)
+        {
+            AnalyzeMessage = "Ollama is disabled. Set Ollama to Y to enable AI analysis.";
+            return;
+        }
+
+        IsAnalyzing = true;
+        AnalyzeMessage = "AI 분석을 실행 중입니다. 완료되면 결과가 한 번에 표시됩니다.";
+        _analysisCts?.Dispose();
+        _analysisCts = new CancellationTokenSource();
+        var ct = _analysisCts.Token;
+        try
+        {
+            var filtered = GetFilteredRows();
+            var question = AiQuestion.Trim();
+            var analysisPayload = BuildAnalysisPayload(filtered, question);
+            var analysisJson = BuildAnalysisJson(analysisPayload, question);
+            var status5xxCount = filtered.Count(x => x.Status.StartsWith("5", StringComparison.Ordinal));
+            var ratio = filtered.Count == 0 ? 0 : status5xxCount / (double)filtered.Count;
+            var logDate = GetLogDate(filtered);
+            string systemPrompt =
+    "너는 IIS/ASP.NET 보안 로그를 분석하는 SOC 분석가다. " +
+    "반드시 한국어로만 답변하라. " +
+    "입력은 압축된 IIS 로그 분석 JSON이다. " +
+    "일반 통계 설명, 브라우저/OS/User-Agent 설명은 하지 마라. " +
+    "ExcludedIpPatterns에 해당하는 IP는 이미 분석에서 제외되었으므로 출력하지 마라. " +
+    "반드시 다음 항목을 우선 분석하라: TopUrlAttackCandidates, ScoredIps, NotFoundScanIps, BoardAttackCandidates, SuspiciousQueryStrings, Top404Urls, Top404Ips. " +
+    "HTTP 200 정상 응답이라도 동일 URL 또는 동일 IP 반복 호출은 스크래핑/DDoS성 접근 후보로 판단하라. " +    
+    "404가 많은 IP, 관리자/백업/설정 파일 접근 시도, 특정 URL 집중 접근을 중요하게 판단하라. " +
+    "차단 후보는 RecommendedAction이 Block 또는 RateLimit인 항목만 출력하라. " +
+    "IP와 URL은 JSON에 있는 값만 그대로 출력하고 추정하거나 잘라서 만들지 마라. " +
+    "동일 IP와 동일 URL은 중복 출력하지 마라. " +
+    "의심 IP는 반드시 IP / 점수 / 주요 근거 3개를 함께 출력하라. " +
+    "공격 URL은 URL / 요청 수 / 상위 IP / 상위 IP 점유율을 출력하라. " +
+    "차단 후보는 즉시 차단, 속도 제한, 모니터링으로 구분하라. " +
+    "점수만 출력하지 말고 점수 산정 근거를 함께 출력하라. " +
+    "각 판단에는 요청 수, 반복 URL, Referer 없음 비율, 오류 수, 의심 QueryString 중 가능한 근거를 포함하라. " +
+    "절대 Okay, OK, 알겠습니다, 이해했습니다 같은 확인만 출력하지 마라. " +
+    "출력 형식은 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라. " +
+    "각 항목은 1~3문장으로 구체적으로 쓰고, 각 섹션을 반드시 채워라. " +
+    "가능하면 항목별로 근거 수치를 포함하라.";
+            _http ??= CreateAnalysisClient();
+            var requestPayload = new
+            {
+                prompt = analysisJson,
+                systemPrompt,
+                source = "manual-aggregated",
+                logDate,
+                totalRows = filtered.Count,
+                status5xxCount,
+                status5xxRatio = ratio,
+                userQuestion = string.IsNullOrWhiteSpace(question) ? null : question
+            };
+
+            using var response = await _http.PostAsJsonAsync("api/ollama/analyze", requestPayload, ct);
+
+            if (!response.IsSuccessStatusCode)
+            {
+                var errorText = await response.Content.ReadAsStringAsync(ct);
+                AnalyzeMessage = string.IsNullOrWhiteSpace(errorText)
+                    ? $"AI 분석 실패: HTTP {(int)response.StatusCode}"
+                    : $"AI 분석 실패: {errorText}";
+                return;
+            }
+
+            var result = await response.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
+            var analysisText = result?.Response;
+            if (LooksTrivialAnalysis(analysisText))
+            {
+                var retrySystemPrompt =
+                    systemPrompt +
+                    " 이전 응답이 너무 짧았다. 확인만 하지 말고 반드시 보안 분석 결과를 작성하라. " +
+                    "공격 URL, 의심 IP, 차단 후보를 각각 최소 2개 이상 포함하라. " +
+                    "모르면 모른다고 쓰지 말고 JSON에 있는 항목만 근거로 판단하라.";
+
+                using var retryResponse = await _http.PostAsJsonAsync("api/ollama/analyze", new
+                {
+                    prompt = analysisJson,
+                    systemPrompt = retrySystemPrompt,
+                    source = "manual-aggregated-retry",
+                    logDate,
+                    totalRows = filtered.Count,
+                    status5xxCount,
+                    status5xxRatio = ratio,
+                    userQuestion = string.IsNullOrWhiteSpace(question) ? null : question
+                }, ct);
+
+                if (retryResponse.IsSuccessStatusCode)
+                {
+                    var retryResult = await retryResponse.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
+                    analysisText = retryResult?.Response;
+                }
+            }
+
+            AnalyzeMessage = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
+            if (LooksTrivialAnalysis(AnalyzeMessage))
+            {
+                AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload);
+            }
+        }
+        catch (TaskCanceledException)
+        {
+            IsAnalyzing = false;
+            AnalyzeMessage = "AI 분석 요청이 시간 초과되었습니다. 로그 양이 많으면 시간이 오래 걸릴 수 있어요. 잠시 후 다시 시도해주세요.";
+        }
+        catch (Exception ex)
+        {
+            AnalyzeMessage = ex.Message;
+        }
+        finally
+        {
+            IsAnalyzing = false;
+            _analysisCts?.Dispose();
+            _analysisCts = null;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private HttpClient CreateAnalysisClient()
+    {
+        var timeoutSeconds = Configuration.GetValue("Monitoring:Ollama:TimeoutSeconds", 300);
+        var timeout = TimeSpan.FromSeconds(Math.Max(timeoutSeconds + 120, 600));
+        return new HttpClient
+        {
+            BaseAddress = new Uri(NavigationManager.BaseUri),
+            Timeout = timeout
+        };
+    }
+
+    private async Task SaveOllamaPreferenceAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("monitorSettings.set", "ollamaEnabled", UseOllama);
+        }
+        catch
+        {
+            // ignore local storage failures
+        }
+    }
+
+    [JSInvokable]
+    public Task OnOllamaPreferenceChanged(bool enabled)
+    {
+        UseOllama = enabled;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CancelAnalyzeAsync()
+    {
+        if (!IsAnalyzing)
+        {
+            return;
+        }
+
+        _analysisCts?.Cancel();
+        _analysisCts?.Dispose();
+        _analysisCts = null;
+        IsAnalyzing = false;
+        AnalyzeMessage = "AI 분석이 취소되었습니다.";
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private static string BuildAnalysisJson(CompactLogAnalysisPayload payload, string? question)
+    {
+        var json = JsonSerializer.Serialize(payload, AnalysisJsonOptions);
+        var hasQuestion = !string.IsNullOrWhiteSpace(question);
+        var questionBlock = hasQuestion
+            ? """
+
+추가 질문:
+""" + question!.Trim() + """
+
+이 질문이 있으면 기본 보안 분석 외에 반드시 질문에 직접 답하라.
+기본 형식은 유지하되, 마지막에 [추가 질문 답변] 섹션을 넣고 질문에 대한 결론을 명확히 작성하라.
+"""
+            : string.Empty;
+        return """
+아래는 IIS 로그를 압축한 보안 분석 JSON이다.
+이 JSON만 근거로 SOC 분석 보고서를 작성하라.
+반드시 한국어로 답변하라.
+브라우저/OS/User-Agent 일반 설명은 하지 마라.
+확인문구(Okay, OK, 알겠습니다, 이해했습니다)만 출력하지 마라.
+반드시 AttackSummary, UrlAttackDetails, TopUrlAttackCandidates, ScoredIps, NotFoundScanIps 순서로 먼저 검토하라.
+제외 IP 패턴과 제외 건수도 함께 확인하라.
+특히 UrlAttackDetails의 Top3IpRatio, Top10IpRatio, Top30IpRatio, RemainingIpCount, RemainingRequestCount, DistributedAccessScore, IsDistributedAccess, IsDistributedCrawler, IsDistributedDdosCandidate를 반드시 확인하라.
+분석 결과에서는 단일 IP 공격, 분산 크롤링, 분산 DDoS 의심을 명확히 구분하라.
+출력 형식은 반드시 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라.
+각 섹션에는 JSON에 있는 항목과 수치를 근거로 최소 1문장 이상 작성하라.
+""" + questionBlock + """
+
+JSON:
+```json
+""" + json + """
+```
+""";
+    }
+
+    private static bool IsExcludedAnalysisIp(string? ip)
+    {
+        if (string.IsNullOrWhiteSpace(ip))
+        {
+            return false;
+        }
+
+        var value = ip.Trim();
+        return AnalysisExcludedIpPrefixes.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static CompactLogAnalysisPayload BuildAnalysisPayload(List<ParsedLogRow> rows, string? question)
+    {
+        var total = rows.Count;
+        var analyzedRows = rows
+            .Where(row => !IsExcludedAnalysisIp(row.Ip))
+            .ToList();
+        var analyzedCount = analyzedRows.Count;
+        var excludedCount = total - analyzedCount;
+        var excludedPatterns = AnalysisExcludedIpPatterns.ToArray();
+
+        var ipStats = analyzedRows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => BuildScoredIp(g.Key, g.ToList(), analyzedCount))
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.RequestCount)
+            .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(50)
+            .ToList();
+
+        var urlAttackDetails = BuildUrlAttackDetails(analyzedRows, 30);
+        var attackSummary = BuildAttackSummary(urlAttackDetails, 10);
+        var top404Urls = GetStatusUrlCounts(analyzedRows, "404", 30);
+        var top404Ips = GetStatusIpCounts(analyzedRows, "404", 30);
+        var notFoundScanIps = GetNotFoundScanIps(analyzedRows, 50);
+        var topUrlAttackCandidates = urlAttackDetails
+            .Where(x => x.RecommendedAction is "Block" or "RateLimit")
+            .DistinctBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
+            .Take(15)
+            .ToList();
+        var boardAttackCandidates = urlAttackDetails
+            .Where(x => x.IsBoardUrl && x.RecommendedAction is "Block" or "RateLimit")
+            .DistinctBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
+            .Take(15)
+            .ToList();
+        var compactScoredIps = ipStats
+            .Where(x => x.RecommendedAction is "Block" or "RateLimit" or "Monitor")
+            .DistinctBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(15)
+            .ToList();
+        var compactNotFoundScanIps = notFoundScanIps
+            .DistinctBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(15)
+            .ToList();
+        var compactTop404Urls = top404Urls.Take(15).ToList();
+        var compactTop404Ips = top404Ips.Take(15).ToList();
+        var compactSuspiciousQueryStrings = GetSuspiciousQueryStrings(analyzedRows, 15);
+        var compactTopUrlAttackCandidates = topUrlAttackCandidates
+            .DistinctBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
+            .Take(15)
+            .ToList();
+        var compactBoardAttackCandidates = boardAttackCandidates
+            .DistinctBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
+            .Take(15)
+            .ToList();
+
+        return new CompactLogAnalysisPayload
+        {
+            GeneratedUtc = DateTime.UtcNow,
+            TotalRequestCount = total,
+            AnalyzedRequestCount = analyzedCount,
+            ExcludedRequestCount = excludedCount,
+            ExcludedIpPatterns = excludedPatterns,
+            UniqueIpCount = rows.Select(x => x.Ip)
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Select(x => x.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count(),
+            RefererMissingRatio = analyzedCount == 0 ? 0 : GetMissingRefererCount(analyzedRows) / (double)analyzedCount,
+            AttackSummary = attackSummary,
+            UrlAttackDetails = urlAttackDetails,
+            ScoredIps = compactScoredIps,
+            NotFoundScanIps = compactNotFoundScanIps,
+            TopUrlAttackCandidates = compactTopUrlAttackCandidates,
+            BoardAttackCandidates = compactBoardAttackCandidates,
+            SuspiciousQueryStrings = compactSuspiciousQueryStrings,
+            Top404Urls = compactTop404Urls,
+            Top404Ips = compactTop404Ips,
+            Question = string.IsNullOrWhiteSpace(question) ? null : question.Trim()
+        };
+    }
+
+    private static ScoredIpItem BuildScoredIp(string ip, List<ParsedLogRow> rows, int totalCount)
+    {
+        var requestCount = rows.Count;
+        var refererMissingCount = rows.Count(x => IsMissingField(x.Referrer));
+        var errorCount = rows.Count(x => IsErrorStatus(x.Status));
+        var suspiciousQueryCount = rows.Count(x => ExtractSuspiciousQueryString(x.Uri) is not null);
+        var http200Rows = rows.Where(x => string.Equals(x.Status?.Trim(), "200", StringComparison.OrdinalIgnoreCase)).ToList();
+        var http200Count = http200Rows.Count;
+        var http200RefererMissingCount = http200Rows.Count(x => IsMissingField(x.Referrer));
+
+        var urlCounts = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new { Url = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        var http200UrlCounts = http200Rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new { Url = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        var board200Rows = http200Rows
+            .Where(x => IsBoardUrl(x.Uri))
+            .ToList();
+        var board200Count = board200Rows.Count;
+        var board200UrlCounts = board200Rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new { Url = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        var uaCounts = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserAgent) && !string.Equals(x.UserAgent.Trim(), "-", StringComparison.Ordinal))
+            .GroupBy(x => x.UserAgent.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new { UserAgent = g.Key, Count = g.Count() })
+            .OrderByDescending(x => x.Count)
+            .ToList();
+
+        var repeatUrlCount = urlCounts.FirstOrDefault()?.Count ?? 0;
+        var http200RepeatUrlCount = http200UrlCounts.FirstOrDefault()?.Count ?? 0;
+        var repeatUaCount = uaCounts.FirstOrDefault()?.Count ?? 0;
+        var topUrl = urlCounts.FirstOrDefault();
+        var topUrlValue = topUrl?.Url ?? string.Empty;
+        var topUrlCount = topUrl?.Count ?? 0;
+        var top200Url = http200UrlCounts.FirstOrDefault();
+        var top200UrlValue = top200Url?.Url ?? string.Empty;
+        var top200UrlCount = top200Url?.Count ?? 0;
+        var topBoardUrl = board200UrlCounts.FirstOrDefault();
+        var topBoardUrlValue = topBoardUrl?.Url ?? string.Empty;
+        var topBoardUrlCount = topBoardUrl?.Count ?? 0;
+        var dominantUrlRatio = requestCount == 0 ? 0 : topUrlCount / (double)requestCount;
+        var boardUrlRatio = requestCount == 0 ? 0 : board200Count / (double)requestCount;
+
+        var reasons = new List<string>();
+        var score = 0;
+
+        var requestRatio = totalCount == 0 ? 0 : requestCount / (double)totalCount;
+        if (requestCount >= 100)
+        {
+            score += 25;
+            reasons.Add($"요청 수 과다 ({requestCount:N0})");
+        }
+        else if (requestCount >= 50)
+        {
+            score += 15;
+            reasons.Add($"요청 수 증가 ({requestCount:N0})");
+        }
+
+        var refererMissingRatio = requestCount == 0 ? 0 : refererMissingCount / (double)requestCount;
+        if (refererMissingRatio >= 0.8 && requestCount >= 20)
+        {
+            score += 15;
+            reasons.Add($"Referer 없음 비율 높음 ({refererMissingRatio:P0})");
+        }
+        else if (refererMissingRatio >= 0.5 && requestCount >= 10)
+        {
+            score += 8;
+            reasons.Add($"Referer 없음 비율 높음 ({refererMissingRatio:P0})");
+        }
+
+        if (repeatUrlCount >= 20)
+        {
+            score += 20;
+            reasons.Add($"동일 URL 반복 호출 ({urlCounts[0].Url} x{repeatUrlCount})");
+        }
+        else if (repeatUrlCount >= 10)
+        {
+            score += 10;
+            reasons.Add($"동일 URL 반복 호출 ({urlCounts[0].Url} x{repeatUrlCount})");
+        }
+
+        if (http200RepeatUrlCount >= 20)
+        {
+            score += 30;
+            reasons.Add($"HTTP 200 동일 URL 반복 호출 ({top200UrlValue} x{http200RepeatUrlCount})");
+        }
+        else if (http200RepeatUrlCount >= 10)
+        {
+            score += 15;
+            reasons.Add($"HTTP 200 동일 URL 반복 호출 ({top200UrlValue} x{http200RepeatUrlCount})");
+        }
+
+        if (board200Count >= 20 && (boardUrlRatio >= 0.5 || topBoardUrlCount >= 10))
+        {
+            score += 30;
+            reasons.Add($"게시판 URL 집중 접근 ({topBoardUrlValue} x{topBoardUrlCount}, {boardUrlRatio:P0})");
+        }
+        else if (board200Count >= 10)
+        {
+            score += 15;
+            reasons.Add($"게시판 URL 접근 다수 ({board200Count:N0})");
+        }
+
+        if (http200RefererMissingCount >= 20)
+        {
+            var http200NoRefererRatio = http200Count == 0 ? 0 : http200RefererMissingCount / (double)http200Count;
+            score += 20;
+            reasons.Add($"Referer 없는 200 요청 다수 ({http200RefererMissingCount:N0}, {http200NoRefererRatio:P0})");
+        }
+        else if (http200RefererMissingCount >= 10)
+        {
+            score += 10;
+            reasons.Add($"Referer 없는 200 요청 다수 ({http200RefererMissingCount:N0})");
+        }
+
+        if (dominantUrlRatio >= 0.7 && requestCount >= 20)
+        {
+            score += 20;
+            reasons.Add($"전체 요청 중 특정 URL 비율 높음 ({topUrlValue}, {dominantUrlRatio:P0})");
+        }
+
+        if (errorCount >= 20)
+        {
+            score += 20;
+            reasons.Add($"4xx/5xx 오류 다수 ({errorCount:N0})");
+        }
+        else if (errorCount >= 10)
+        {
+            score += 10;
+            reasons.Add($"4xx/5xx 오류 다수 ({errorCount:N0})");
+        }
+
+        if (suspiciousQueryCount >= 10)
+        {
+            score += 20;
+            reasons.Add($"의심 QueryString 포함 ({suspiciousQueryCount:N0})");
+        }
+        else if (suspiciousQueryCount >= 3)
+        {
+            score += 10;
+            reasons.Add($"의심 QueryString 포함 ({suspiciousQueryCount:N0})");
+        }
+
+        if (requestRatio >= 0.2 && requestCount >= 20)
+        {
+            score += 5;
+            reasons.Add($"전체 트래픽 비중 높음 ({requestRatio:P0})");
+        }
+
+        if (repeatUaCount >= 10)
+        {
+            score += 5;
+            reasons.Add($"동일 User-Agent 반복 ({uaCounts[0].UserAgent} x{repeatUaCount})");
+        }
+
+        var botMatch = rows
+            .Select(x => ClassifyBot(x.UserAgent))
+            .Count(x => x is not null);
+        var isBot = botMatch > 0;
+
+        var recommendedAction = GetRecommendedAction(score, requestCount, refererMissingRatio, errorCount, suspiciousQueryCount, isBot);
+        if (board200Count >= 20 && (boardUrlRatio >= 0.5 || dominantUrlRatio >= 0.7))
+        {
+            recommendedAction = score >= 80 ? "Block" : "RateLimit";
+        }
+        else if (http200RepeatUrlCount >= 20 && dominantUrlRatio >= 0.7)
+        {
+            recommendedAction = score >= 80 ? "Block" : "RateLimit";
+        }
+
+        if (score == 0 && requestCount > 0)
+        {
+            score = Math.Min(5, requestCount);
+            reasons.Add("기본 관찰 대상");
+            recommendedAction = "Allow";
+        }
+
+        return new ScoredIpItem(
+            ip,
+            requestCount,
+            score,
+            reasons.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            topUrlValue,
+            topUrlCount,
+            refererMissingRatio,
+            errorCount,
+            suspiciousQueryCount,
+            uaCounts.Count,
+            isBot,
+            recommendedAction,
+            urlCounts.Take(5).Select(x => new CountItem(x.Url, x.Count)).ToList(),
+            uaCounts.Take(5).Select(x => new CountItem(x.UserAgent, x.Count)).ToList())
+        {
+            RefererMissingRatio = refererMissingRatio,
+            Http200Count = http200Count,
+            Top200Url = top200UrlValue,
+            Top200UrlCount = top200UrlCount,
+            DominantUrl = topUrlValue,
+            BoardAccessCount = board200Count,
+            NoReferer200Count = http200RefererMissingCount,
+            DominantUrlRatio = dominantUrlRatio
+        };
+    }
+
+    private static List<IpRepeatItem> BuildIpRepeats(List<ParsedLogRow> rows, Func<ParsedLogRow, string> selector, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var values = g
+                    .Select(selector)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .Select(value => value.Trim())
+                    .GroupBy(value => value, StringComparer.OrdinalIgnoreCase)
+                    .Select(valueGroup => new CountItem(valueGroup.Key, valueGroup.Count()))
+                    .OrderByDescending(x => x.Count)
+                    .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+                    .Take(5)
+                    .ToList();
+
+                return new IpRepeatItem(g.Key, values);
+            })
+            .Where(x => x.Repeats.Count > 0)
+            .OrderByDescending(x => x.TotalCount)
+            .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<IpUrlStatusRepeatItem> BuildIpUrlStatusRepeats(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g =>
+            {
+                var repeats = g
+                    .Where(x => !string.IsNullOrWhiteSpace(x.Uri) || !string.IsNullOrWhiteSpace(x.Status))
+                    .GroupBy(x => new
+                    {
+                        Uri = (x.Uri ?? string.Empty).Trim(),
+                        Status = (x.Status ?? string.Empty).Trim()
+                    })
+                    .Select(pair => new CountItem($"{pair.Key.Uri} | {pair.Key.Status}", pair.Count()))
+                    .OrderByDescending(x => x.Count)
+                    .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+                    .Take(5)
+                    .ToList();
+
+                return new IpUrlStatusRepeatItem(g.Key, repeats);
+            })
+            .Where(x => x.Repeats.Count > 0)
+            .OrderByDescending(x => x.TotalCount)
+            .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetStatusIpUrlRepeats(List<ParsedLogRow> rows, string statusCode, int take)
+    {
+        return rows
+            .Where(x => string.Equals(x.Status?.Trim(), statusCode, StringComparison.OrdinalIgnoreCase))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip) && !string.IsNullOrWhiteSpace(x.Uri))
+            .Select(x => new { Key = $"{x.Ip.Trim()} | {x.Uri.Trim()}", Value = x })
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .Where(x => x.Count >= 3)
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetStatusUrlCounts(List<ParsedLogRow> rows, string statusCode, int take)
+    {
+        return rows
+            .Where(x => string.Equals(x.Status?.Trim(), statusCode, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetStatusIpCounts(List<ParsedLogRow> rows, string statusCode, int take)
+    {
+        return rows
+            .Where(x => string.Equals(x.Status?.Trim(), statusCode, StringComparison.OrdinalIgnoreCase) && !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetRepeatedUrlAccess(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .Where(x => x.Count >= 5)
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetRepeatedIpUrlAccess(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip) && !string.IsNullOrWhiteSpace(x.Uri))
+            .Select(x => new { Key = $"{x.Ip.Trim()} | {x.Uri.Trim()}", Value = x })
+            .GroupBy(x => x.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .Where(x => x.Count >= 3)
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetNoRefererIps(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new
+            {
+                Ip = g.Key,
+                Count = g.Count(),
+                NoRefererCount = g.Count(x => IsMissingField(x.Referrer))
+            })
+            .Where(x => x.Count >= 5 && x.NoRefererCount > 0)
+            .Select(x => new CountItem(x.Ip, x.NoRefererCount))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetStatusNoRefererIps(List<ParsedLogRow> rows, string statusCode, int take)
+    {
+        return rows
+            .Where(x => string.Equals(x.Status?.Trim(), statusCode, StringComparison.OrdinalIgnoreCase))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count(x => IsMissingField(x.Referrer))))
+            .Where(x => x.Count > 0)
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetHighFrequencyIps(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .Where(x => x.Count >= 50)
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetBoardAccessIpCounts(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => string.Equals(x.Status?.Trim(), "200", StringComparison.OrdinalIgnoreCase))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip) && IsBoardUrl(x.Uri))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .Where(x => x.Count >= 5)
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<NotFoundScanIpItem> GetNotFoundScanIps(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase))
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => BuildNotFoundScanIp(g.Key, g.ToList()))
+            .Where(x => x.RecommendedAction is not "Allow")
+            .OrderByDescending(x => x.NotFoundCount)
+            .ThenByDescending(x => x.SensitiveProbeCount)
+            .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static NotFoundScanIpItem BuildNotFoundScanIp(string ip, List<ParsedLogRow> rows)
+    {
+        var notFoundCount = rows.Count;
+        var refererMissingCount = rows.Count(x => IsMissingField(x.Referrer));
+        var refererMissingRatio = notFoundCount == 0 ? 0 : refererMissingCount / (double)notFoundCount;
+
+        var urlCounts = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(5)
+            .ToList();
+
+        var userAgent = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserAgent) && !string.Equals(x.UserAgent.Trim(), "-", StringComparison.Ordinal))
+            .GroupBy(x => x.UserAgent.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault()?.Value ?? string.Empty;
+
+        var adminCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, AdminProbeTokens));
+        var backupCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, BackupProbeTokens));
+        var configCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, ConfigProbeTokens));
+        var sensitiveProbeCount = adminCount + backupCount + configCount;
+
+        var reasons = new List<string>();
+        var score = 0;
+
+        if (notFoundCount >= 20)
+        {
+            score += 25;
+            reasons.Add($"404 총 건수 과다 ({notFoundCount:N0})");
+        }
+        else if (notFoundCount >= 10)
+        {
+            score += 15;
+            reasons.Add($"404 접근 다수 ({notFoundCount:N0})");
+        }
+        else if (notFoundCount >= 5)
+        {
+            score += 8;
+            reasons.Add($"404 접근 관찰 ({notFoundCount:N0})");
+        }
+
+        if (adminCount > 0)
+        {
+            score += 10;
+            reasons.Add($"관리자 경로 탐색 ({adminCount:N0})");
+        }
+
+        if (backupCount > 0)
+        {
+            score += 10;
+            reasons.Add($"백업 파일 탐색 ({backupCount:N0})");
+        }
+
+        if (configCount > 0)
+        {
+            score += 10;
+            reasons.Add($"설정 파일 탐색 ({configCount:N0})");
+        }
+
+        if (refererMissingRatio >= 0.8 && notFoundCount >= 5)
+        {
+            score += 10;
+            reasons.Add($"Referer 없음 비율 높음 ({refererMissingRatio:P0})");
+        }
+        else if (refererMissingRatio >= 0.5 && notFoundCount >= 5)
+        {
+            score += 5;
+            reasons.Add($"Referer 없음 비율 높음 ({refererMissingRatio:P0})");
+        }
+
+        var recommendedAction =
+            notFoundCount >= 20 || sensitiveProbeCount >= 3 ? "Block" :
+            notFoundCount >= 10 || sensitiveProbeCount > 0 ? "RateLimit" :
+            notFoundCount >= 5 ? "Monitor" :
+            "Allow";
+
+        if (recommendedAction is "Block" && score < 60)
+        {
+            score = 60;
+        }
+        else if (recommendedAction is "RateLimit" && score < 35)
+        {
+            score = 35;
+        }
+        else if (recommendedAction is "Monitor" && score < 15)
+        {
+            score = 15;
+        }
+
+        if (!string.IsNullOrWhiteSpace(userAgent))
+        {
+            reasons.Add($"User-Agent: {userAgent}");
+        }
+
+        return new NotFoundScanIpItem(
+            ip,
+            notFoundCount,
+            urlCounts,
+            adminCount > 0,
+            backupCount > 0,
+            configCount > 0,
+            userAgent,
+            refererMissingRatio,
+            recommendedAction,
+            reasons.Distinct(StringComparer.OrdinalIgnoreCase).ToList())
+        {
+            SensitiveProbeCount = sensitiveProbeCount,
+            Score = score
+        };
+    }
+
+    private static List<CountItem> GetTopErrorUrls(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri) && IsErrorStatus(x.Status))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<UrlAttackDetailItem> BuildUrlAttackDetails(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => BuildUrlAttackDetail(g.Key, g.ToList()))
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.TotalRequests)
+            .ThenBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static AttackSummaryItem BuildAttackSummary(List<UrlAttackDetailItem> details, int take)
+    {
+        var attackUrls = details
+            .Where(x => x.RecommendedAction is "Block" or "RateLimit" or "Monitor")
+            .OrderByDescending(x => x.Score)
+            .ThenByDescending(x => x.TotalRequests)
+            .Take(take)
+            .ToList();
+
+        var topAttack = attackUrls.FirstOrDefault();
+        var actionRanks = attackUrls
+            .GroupBy(x => x.RecommendedAction, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return new AttackSummaryItem(
+            topAttack?.Url ?? string.Empty,
+            topAttack?.TotalRequests ?? 0,
+            topAttack?.UniqueIpCount ?? 0,
+            topAttack?.TopIp ?? string.Empty,
+            topAttack?.TopIpRequestCount ?? 0,
+            topAttack?.TopIpRatio ?? 0,
+            topAttack?.NoRefererRatio ?? 0,
+            topAttack?.RecommendedAction ?? string.Empty,
+            actionRanks);
+    }
+
+    private static UrlAttackDetailItem BuildUrlAttackDetail(string url, List<ParsedLogRow> rows)
+    {
+        var totalRequestCount = rows.Count;
+        var http200RequestCount = rows.Count(x => string.Equals(x.Status?.Trim(), "200", StringComparison.OrdinalIgnoreCase));
+        var http404Count = rows.Count(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase));
+        var uniqueIpCount = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .Select(x => x.Ip!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var refererMissingCount = rows.Count(x => IsMissingField(x.Referrer));
+        var refererMissingRatio = totalRequestCount == 0 ? 0 : refererMissingCount / (double)totalRequestCount;
+        var errorCount = rows.Count(x => IsErrorStatus(x.Status));
+        var averageRequestsPerIp = uniqueIpCount == 0 ? 0 : totalRequestCount / (double)uniqueIpCount;
+
+        var ipCounts = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var top3IpRequestCount = ipCounts.Take(3).Sum(x => x.Count);
+        var top10IpRequestCount = ipCounts.Take(10).Sum(x => x.Count);
+        var top30IpRequestCount = ipCounts.Take(30).Sum(x => x.Count);
+        var top3IpRatio = totalRequestCount == 0 ? 0 : top3IpRequestCount / (double)totalRequestCount;
+        var top10IpRatio = totalRequestCount == 0 ? 0 : top10IpRequestCount / (double)totalRequestCount;
+        var top30IpRatio = totalRequestCount == 0 ? 0 : top30IpRequestCount / (double)totalRequestCount;
+        var remainingIpCount = Math.Max(0, uniqueIpCount - Math.Min(uniqueIpCount, 30));
+        var remainingRequestCount = Math.Max(0, totalRequestCount - top30IpRequestCount);
+        var distributedAccessScore = 0;
+
+        if (uniqueIpCount >= 20 && top3IpRatio <= 0.4)
+        {
+            distributedAccessScore += 30;
+        }
+        else if (uniqueIpCount >= 10 && top3IpRatio <= 0.55)
+        {
+            distributedAccessScore += 15;
+        }
+
+        if (top10IpRatio <= 0.6 && uniqueIpCount >= 20)
+        {
+            distributedAccessScore += 20;
+        }
+
+        if (top30IpRatio <= 0.75 && remainingIpCount >= 10)
+        {
+            distributedAccessScore += 20;
+        }
+
+        var isBoardUrl = IsBoardUrl(url);
+        var priorityUrl = IsPriorityAttackUrl(url);
+        var isDistributedAccess = distributedAccessScore >= 30 && uniqueIpCount >= 15 && totalRequestCount >= 20;
+        var isDistributedCrawler = isDistributedAccess && http200RequestCount >= 10 && refererMissingRatio >= 0.5;
+        var isDistributedDdosCandidate = isDistributedAccess && totalRequestCount >= 50 && top10IpRatio <= 0.6;
+        var isDistributedAttackCandidate = isDistributedCrawler || isDistributedDdosCandidate;
+
+        var topIps = ipCounts
+            .Take(3)
+            .Select(x => new UrlIpShareItem(x.Value, x.Count, totalRequestCount == 0 ? 0 : x.Count / (double)totalRequestCount))
+            .ToList();
+
+        var uaCount = rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserAgent) && !string.Equals(x.UserAgent.Trim(), "-", StringComparison.Ordinal))
+            .Select(x => x.UserAgent!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        var topIp = ipCounts.FirstOrDefault();
+        var topIpValue = topIp?.Value ?? string.Empty;
+        var topIpCount = topIp?.Count ?? 0;
+        var topIpRatio = totalRequestCount == 0 ? 0 : topIpCount / (double)totalRequestCount;
+        var reasons = new List<string>();
+        var score = 0;
+
+        if (totalRequestCount >= 200)
+        {
+            score += 25;
+            reasons.Add($"URL 요청 수 과다 ({totalRequestCount:N0})");
+        }
+        else if (totalRequestCount >= 50)
+        {
+            score += 15;
+            reasons.Add($"URL 요청 수 증가 ({totalRequestCount:N0})");
+        }
+        else if (totalRequestCount >= 20)
+        {
+            score += 8;
+            reasons.Add($"URL 접근 다수 ({totalRequestCount:N0})");
+        }
+
+        if (http200RequestCount >= 20)
+        {
+            score += 10;
+            reasons.Add($"HTTP 200 요청 다수 ({http200RequestCount:N0})");
+        }
+
+        if (refererMissingRatio >= 0.8 && totalRequestCount >= 10)
+        {
+            score += 15;
+            reasons.Add($"Referer 없음 비율 높음 ({refererMissingRatio:P0})");
+        }
+        else if (refererMissingRatio >= 0.5 && totalRequestCount >= 10)
+        {
+            score += 8;
+            reasons.Add($"Referer 없음 비율 높음 ({refererMissingRatio:P0})");
+        }
+
+        if (topIpRatio >= 0.7 && totalRequestCount >= 20)
+        {
+            score += 20;
+            reasons.Add($"상위 IP 집중도 높음 ({topIpValue} x{topIpCount}, {topIpRatio:P0})");
+        }
+        else if (topIpRatio >= 0.5 && totalRequestCount >= 10)
+        {
+            score += 10;
+            reasons.Add($"상위 IP 집중도 높음 ({topIpValue} x{topIpCount}, {topIpRatio:P0})");
+        }
+
+        if (errorCount >= 20)
+        {
+            score += 15;
+            reasons.Add($"4xx/5xx 오류 다수 ({errorCount:N0})");
+        }
+        else if (errorCount >= 5)
+        {
+            score += 8;
+            reasons.Add($"4xx/5xx 오류 관찰 ({errorCount:N0})");
+        }
+
+        if (isBoardUrl)
+        {
+            if (totalRequestCount >= 50)
+            {
+                score += 20;
+                reasons.Add("게시판 URL 집중 접근");
+            }
+            else if (totalRequestCount >= 10)
+            {
+                score += 10;
+                reasons.Add("게시판 URL 접근");
+            }
+
+            if (topIpRatio >= 0.5 && totalRequestCount >= 20)
+            {
+                score += 10;
+                reasons.Add("게시판 URL에 특정 IP 집중");
+            }
+        }
+
+        if (priorityUrl)
+        {
+            score += 10;
+            reasons.Add("우선 분석 대상 URL");
+        }
+
+        if (isDistributedAttackCandidate)
+        {
+            reasons.Add($"분산 접근 가능성 높음 (Top3={top3IpRatio:P0}, Top10={top10IpRatio:P0}, Top30={top30IpRatio:P0}, 분산점수={distributedAccessScore})");
+            score += isDistributedDdosCandidate ? 25 : 15;
+        }
+        else if (topIpRatio >= 0.7 && totalRequestCount >= 20)
+        {
+            reasons.Add("단일 IP 집중형 접근");
+        }
+
+        var recommendedAction =
+            (isDistributedAttackCandidate && topIpRatio < 0.01) || (isBoardUrl && (totalRequestCount >= 100 || topIpRatio >= 0.7)) || totalRequestCount >= 300 || (refererMissingRatio >= 0.8 && totalRequestCount >= 20)
+                ? "Block"
+                : (isDistributedAttackCandidate || (isBoardUrl && totalRequestCount >= 20) || totalRequestCount >= 80 || topIpRatio >= 0.5 || refererMissingRatio >= 0.5 || (priorityUrl && totalRequestCount >= 30))
+                    ? "RateLimit"
+                    : totalRequestCount >= 20
+                        ? "Monitor"
+                        : "Allow";
+
+        if (topIpRatio < 0.01 && totalRequestCount >= 50 && recommendedAction is "Block")
+        {
+            recommendedAction = "RateLimit";
+            reasons.Add("상위 IP 비율 1% 미만으로 IP 차단보다 URL RateLimit/WAF 우선");
+        }
+
+        if (recommendedAction is "Block" && score < 60)
+        {
+            score = 60;
+        }
+        else if (recommendedAction is "RateLimit" && score < 35)
+        {
+            score = 35;
+        }
+        else if (recommendedAction is "Monitor" && score < 15)
+        {
+            score = 15;
+        }
+
+        return new UrlAttackDetailItem(
+            url,
+            totalRequestCount,
+            http200RequestCount,
+            http404Count,
+            uniqueIpCount,
+            null,
+            refererMissingRatio,
+            topIpValue,
+            topIpCount,
+            topIpRatio,
+            top10IpRequestCount,
+            top10IpRatio,
+            top30IpRequestCount,
+            top30IpRatio,
+            remainingIpCount,
+            remainingRequestCount,
+            averageRequestsPerIp,
+            distributedAccessScore,
+            isDistributedAccess,
+            isDistributedCrawler,
+            isDistributedDdosCandidate,
+            uaCount,
+            recommendedAction,
+            reasons.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            topIps)
+        {
+            Score = score,
+            IsBoardUrl = isBoardUrl,
+            Top3IpRequestCount = top3IpRequestCount,
+            Top3IpRatio = top3IpRatio,
+            Top10IpRequestCount = top10IpRequestCount,
+            Top10IpRatio = top10IpRatio,
+            Top30IpRequestCount = top30IpRequestCount,
+            Top30IpRatio = top30IpRatio,
+            RemainingIpCount = remainingIpCount,
+            RemainingRequestCount = remainingRequestCount,
+            DistributedAccessScore = distributedAccessScore,
+            IsDistributedAttackCandidate = isDistributedAttackCandidate,
+            IsDistributedAccess = isDistributedAccess,
+            IsDistributedCrawler = isDistributedCrawler,
+            IsDistributedDdosCandidate = isDistributedDdosCandidate
+        };
+    }
+
+    private static bool IsPriorityAttackUrl(string url)
+    {
+        return ContainsAny(url, ["board", "search", "view", "download", "inform.aspx", "list.aspx", "bbs", "article", "notice", "read"]);
+    }
+
+    private static List<CountItem> GetProbeUrls(List<ParsedLogRow> rows, string[] tokens, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .Select(x => x.Uri.Trim())
+            .Where(uri => ContainsAny(uri, tokens))
+            .GroupBy(uri => uri, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static bool ContainsAny(string value, IEnumerable<string> tokens)
+    {
+        return tokens.Any(token => value.Contains(token, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool IsBoardUrl(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+        {
+            return false;
+        }
+
+        return uri.Contains("/board/", StringComparison.OrdinalIgnoreCase)
+            || uri.Contains("/Board/", StringComparison.OrdinalIgnoreCase)
+            || (uri.Contains("inform.aspx", StringComparison.OrdinalIgnoreCase) && uri.Contains("board", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static List<CountItem> GetStatusCodeCounts(List<ParsedLogRow> rows)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Status))
+            .Select(x => x.Status.Trim())
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<CountItem> GetTopUrlsAnalysis(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+            .Select(x => x.Uri.Trim())
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetTopUserAgents(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.UserAgent) && !string.Equals(x.UserAgent.Trim(), "-", StringComparison.Ordinal))
+            .Select(x => x.UserAgent.Trim())
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<CountItem> GetTopReferers(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !IsMissingField(x.Referrer))
+            .Select(x => x.Referrer.Trim())
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new CountItem(g.Key, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static int GetMissingRefererCount(List<ParsedLogRow> rows)
+    {
+        return rows.Count(x => IsMissingField(x.Referrer));
+    }
+
+    private static bool IsErrorStatus(string? value)
+    {
+        if (!int.TryParse(value, out var status))
+        {
+            return false;
+        }
+
+        return status is >= 400 and <= 599;
+    }
+
+    private static string GetRecommendedAction(
+        int score,
+        int requestCount,
+        double refererMissingRatio,
+        int errorCount,
+        int suspiciousQueryCount,
+        bool isBot)
+    {
+        if (isBot && score < 30)
+        {
+            return "Allow";
+        }
+
+        var errorRate = requestCount == 0 ? 0 : errorCount / (double)requestCount;
+        if (score >= 80 || suspiciousQueryCount >= 10 || errorRate >= 0.6)
+        {
+            return "Block";
+        }
+
+        if (score >= 50 || suspiciousQueryCount >= 5 || errorRate >= 0.3 || refererMissingRatio >= 0.8)
+        {
+            return "RateLimit";
+        }
+
+        if (score >= 20 || refererMissingRatio >= 0.5 || errorRate >= 0.15)
+        {
+            return "Monitor";
+        }
+
+        return "Allow";
+    }
+
+    private static readonly string[] AdminProbeTokens =
+    [
+        "admin", "manager", "login", "cms", "console", "dashboard", "admin.aspx", "admin/", "signin", "administrator"
+    ];
+
+    private static readonly string[] BackupProbeTokens =
+    [
+        "backup", "zip", "bak", "old", ".bak", ".zip", ".old", ".backup"
+    ];
+
+    private static readonly string[] ConfigProbeTokens =
+    [
+        "web.config", "appsettings.json", ".env", "config.json", "settings.json", "connectionstrings", "secrets"
+    ];
+
+    private static readonly string[] ScriptProbeTokens =
+    [
+        "shell", "cmd=", "powershell", ".php", ".aspx", ".jsp", ".cgi", ".sh", "phpmyadmin", "wp-admin", "wp-login", "test", "debug"
+    ];
+
+    private static List<ErrorIpItem> GetErrorIps(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(g => new ErrorIpItem(
+                g.Key,
+                g.Count(x => string.Equals(x.Status, "403", StringComparison.OrdinalIgnoreCase)),
+                g.Count(x => string.Equals(x.Status, "404", StringComparison.OrdinalIgnoreCase)),
+                g.Count(x => string.Equals(x.Status, "500", StringComparison.OrdinalIgnoreCase))))
+            .Where(x => x.ErrorCount > 0)
+            .OrderByDescending(x => x.ErrorCount)
+            .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+    }
+
+    private static List<SuspiciousQueryItem> GetSuspiciousQueryStrings(List<ParsedLogRow> rows, int take)
+    {
+        var suspiciousEntries = rows
+            .Select(row => ExtractSuspiciousQueryString(row.Uri))
+            .Where(x => x is not null)
+            .Select(x => x!)
+            .GroupBy(x => x.QueryString, StringComparer.OrdinalIgnoreCase)
+            .Select(g => new SuspiciousQueryItem(
+                g.Key,
+                g.Count(),
+                g.SelectMany(x => x.Reasons).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x, StringComparer.OrdinalIgnoreCase).ToList()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.QueryString, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+
+        return suspiciousEntries;
+    }
+
+    private static BotSummary GetBotSummary(List<ParsedLogRow> rows, int take)
+    {
+        var matches = rows
+            .Select(row => ClassifyBot(row.UserAgent))
+            .Where(match => match is not null)
+            .Select(match => match!)
+            .ToList();
+
+        var breakdown = matches
+            .GroupBy(x => new { x.Name, x.Category })
+            .Select(g => new BotItem(g.Key.Name, g.Key.Category, g.Count()))
+            .OrderByDescending(x => x.Count)
+            .ThenBy(x => x.Name, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
+
+        return new BotSummary(
+            matches.Count(x => string.Equals(x.Category, "search-engine", StringComparison.OrdinalIgnoreCase)),
+            matches.Count(x => string.Equals(x.Category, "ai", StringComparison.OrdinalIgnoreCase)),
+            matches.Count(x => string.Equals(x.Category, "crawler", StringComparison.OrdinalIgnoreCase)),
+            breakdown);
+    }
+
+    private static BotMatch? ClassifyBot(string? userAgent)
+    {
+        if (string.IsNullOrWhiteSpace(userAgent) || userAgent == "-")
+        {
+            return null;
+        }
+
+        var ua = userAgent.Trim();
+        foreach (var candidate in BotCandidates)
+        {
+            if (ua.Contains(candidate.Pattern, StringComparison.OrdinalIgnoreCase))
+            {
+                return new BotMatch(candidate.Name, candidate.Category);
+            }
+        }
+
+        return null;
+    }
+
+    private static SuspiciousQueryMatch? ExtractSuspiciousQueryString(string? uri)
+    {
+        if (string.IsNullOrWhiteSpace(uri))
+        {
+            return null;
+        }
+
+        var questionIndex = uri.IndexOf('?');
+        if (questionIndex < 0 || questionIndex == uri.Length - 1)
+        {
+            return null;
+        }
+
+        var query = uri[(questionIndex + 1)..];
+        var hashIndex = query.IndexOf('#');
+        if (hashIndex >= 0)
+        {
+            query = query[..hashIndex];
+        }
+
+        query = query.Trim();
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return null;
+        }
+
+        var reasons = new List<string>();
+        var lower = query.ToLowerInvariant();
+
+        if (query.Length >= 120)
+        {
+            reasons.Add("long_query");
+        }
+
+        if (lower.Contains("%2e%2e") || lower.Contains("../") || lower.Contains("..\\") || lower.Contains("%5c") || lower.Contains("%2f"))
+        {
+            reasons.Add("traversal_or_encoded_path");
+        }
+
+        if (lower.Contains("<script") || lower.Contains("onerror=") || lower.Contains("alert(") || lower.Contains("javascript:"))
+        {
+            reasons.Add("xss_pattern");
+        }
+
+        if (lower.Contains("union select") || lower.Contains("information_schema") || lower.Contains(" or 1=1") || lower.Contains("sleep(") || lower.Contains("benchmark(") || lower.Contains("xp_cmdshell"))
+        {
+            reasons.Add("sqli_pattern");
+        }
+
+        if (lower.Contains("cmd=") || lower.Contains("exec=") || lower.Contains("powershell") || lower.Contains("wget ") || lower.Contains("curl ") || lower.Contains("bash "))
+        {
+            reasons.Add("command_injection_pattern");
+        }
+
+        if (lower.Contains("/etc/passwd") || lower.Contains("web.config") || lower.Contains("win.ini") || lower.Contains("administrator") || lower.Contains("phpmyadmin") || lower.Contains("wp-"))
+        {
+            reasons.Add("probing_pattern");
+        }
+
+        if (query.Count(ch => ch == '&') >= 6)
+        {
+            reasons.Add("many_parameters");
+        }
+
+        if (!reasons.Any())
+        {
+            return null;
+        }
+
+        return new SuspiciousQueryMatch(query, reasons);
+    }
+
+    private static bool IsMissingField(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) || string.Equals(value.Trim(), "-", StringComparison.Ordinal);
+    }
+
+    private static DateOnly? GetLogDate(List<ParsedLogRow> rows)
+    {
+        var dates = rows
+            .Select(x => x.Date)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .ToList();
+
+        if (dates.Count == 0)
+        {
+            return null;
+        }
+
+        var first = dates
+            .GroupBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(g => g.Count())
+            .Select(g => g.Key)
+            .FirstOrDefault();
+
+        if (first is null)
+        {
+            return null;
+        }
+
+        if (DateOnly.TryParse(first, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
+    }
+
+    private static string Csv(string? value)
+    {
+        var v = value ?? string.Empty;
+        if (v.Contains('"') || v.Contains(',') || v.Contains('\n') || v.Contains('\r'))
+        {
+            v = v.Replace("\"", "\"\"");
+            return $"\"{v}\"";
+        }
+        return v;
+    }
+
+    private async Task ScrollToTop()
+    {
+        await JS.InvokeVoidAsync("window.scrollTo", new { top = 0, left = 0, behavior = "smooth" });
+    }
+
+    private sealed record CompactLogAnalysisPayload
+    {
+        public DateTime GeneratedUtc { get; init; }
+        public int TotalRequestCount { get; init; }
+        public int AnalyzedRequestCount { get; init; }
+        public int ExcludedRequestCount { get; init; }
+        public IReadOnlyList<string> ExcludedIpPatterns { get; init; } = [];
+        public int UniqueIpCount { get; init; }
+        public double RefererMissingRatio { get; init; }
+        public AttackSummaryItem AttackSummary { get; init; } = new(string.Empty, 0, 0, string.Empty, 0, 0d, 0d, string.Empty, Array.Empty<CountItem>());
+        public IReadOnlyList<UrlAttackDetailItem> UrlAttackDetails { get; init; } = [];
+        public IReadOnlyList<SuspiciousQueryItem> SuspiciousQueryStrings { get; init; } = [];
+        public IReadOnlyList<ScoredIpItem> ScoredIps { get; init; } = [];
+        public IReadOnlyList<NotFoundScanIpItem> NotFoundScanIps { get; init; } = [];
+        public IReadOnlyList<UrlAttackDetailItem> TopUrlAttackCandidates { get; init; } = [];
+        public IReadOnlyList<UrlAttackDetailItem> BoardAttackCandidates { get; init; } = [];
+        public IReadOnlyList<CountItem> Top404Urls { get; init; } = [];
+        public IReadOnlyList<CountItem> Top404Ips { get; init; } = [];
+        public string? Question { get; init; }
+    }
+
+    private sealed record CountItem(string Value, int Count);
+
+    private sealed record ErrorIpItem(string Ip, int Count403, int Count404, int Count500)
+    {
+        public int ErrorCount => Count403 + Count404 + Count500;
+    }
+
+    private sealed record SuspiciousQueryItem(string QueryString, int Count, IReadOnlyList<string> Reasons);
+
+    private sealed record BotSummary(
+        int SearchEngineRequestCount,
+        int AiRequestCount,
+        int CrawlerRequestCount,
+        IReadOnlyList<BotItem> Breakdown);
+
+    private sealed record BotItem(string Name, string Category, int Count);
+
+    private sealed record BotMatch(string Name, string Category);
+
+    private sealed record SuspiciousQueryMatch(string QueryString, IReadOnlyList<string> Reasons);
+
+    private sealed record ScoredIpItem(
+        string Ip,
+        int RequestCount,
+        int Score,
+        IReadOnlyList<string> Reasons,
+        string TopUrl,
+        int TopUrlCount,
+        double RefererMissingRatio,
+        int ErrorCount,
+        int SuspiciousQueryCount,
+        int UserAgentCount,
+        bool IsBot,
+        string RecommendedAction,
+        IReadOnlyList<CountItem> TopUrls,
+        IReadOnlyList<CountItem> TopUserAgents)
+    {
+        public int Http200Count { get; init; }
+        public string Top200Url { get; init; } = string.Empty;
+        public int Top200UrlCount { get; init; }
+        public string DominantUrl { get; init; } = string.Empty;
+        public int BoardAccessCount { get; init; }
+        public int NoReferer200Count { get; init; }
+        public double DominantUrlRatio { get; init; }
+    }
+
+    private sealed record UrlAttackCandidateItem(
+        string Url,
+        int TotalRequestCount,
+        int Http200RequestCount,
+        int UniqueIpCount,
+        double RefererMissingRatio,
+        string TopIp,
+        int TopIpCount,
+        int UserAgentCount,
+        int ErrorCount,
+        bool IsBoardUrl,
+        string RecommendedAction,
+        IReadOnlyList<string> Reasons)
+    {
+        public int Score { get; init; }
+        public double TopIpRatio { get; init; }
+    }
+
+    private sealed record AttackSummaryItem(
+        string TopTargetUrl,
+        int TopTargetUrlRequestCount,
+        int TopTargetUrlUniqueIpCount,
+        string TopTargetIp,
+        int TopTargetIpRequestCount,
+        double TopTargetIpRatio,
+        double NoRefererRatio,
+        string TopTargetAction,
+        IReadOnlyList<CountItem> AttackUrlRanks);
+
+    private sealed record UrlIpShareItem(string Ip, int Count, double Share);
+
+    private sealed record UrlAttackDetailItem(
+        string Url,
+        int TotalRequests,
+        int Http200Count,
+        int Http404Count,
+        int UniqueIpCount,
+        int? CountryCount,
+        double NoRefererRatio,
+        string TopIp,
+        int TopIpRequestCount,
+        double TopIpRatio,
+        int Top10IpRequestCount,
+        double Top10IpRatio,
+        int Top30IpRequestCount,
+        double Top30IpRatio,
+        int RemainingIpCount,
+        int RemainingRequestCount,
+        double AverageRequestsPerIp,
+        int DistributedAccessScore,
+        bool IsDistributedAccess,
+        bool IsDistributedCrawler,
+        bool IsDistributedDdosCandidate,
+        int UserAgentCount,
+        string RecommendedAction,
+        IReadOnlyList<string> Reasons,
+        IReadOnlyList<UrlIpShareItem> TopIps)
+    {
+        public int Score { get; init; }
+        public bool IsBoardUrl { get; init; }
+        public bool IsDistributedAttackCandidate { get; init; }
+        public int Top3IpRequestCount { get; init; }
+        public double Top3IpRatio { get; init; }
+    }
+
+    private sealed record NotFoundScanIpItem(
+        string Ip,
+        int NotFoundCount,
+        IReadOnlyList<CountItem> TopUrls,
+        bool HasAdminProbe,
+        bool HasBackupProbe,
+        bool HasConfigProbe,
+        string UserAgent,
+        double RefererMissingRatio,
+        string RecommendedAction,
+        IReadOnlyList<string> Reasons)
+    {
+        public int SensitiveProbeCount { get; init; }
+        public int Score { get; init; }
+    }
+
+    private sealed record IpRepeatItem(string Ip, IReadOnlyList<CountItem> Repeats)
+    {
+        public int TotalCount => Repeats.Sum(x => x.Count);
+    }
+
+    private sealed record IpUrlStatusRepeatItem(string Ip, IReadOnlyList<CountItem> Repeats)
+    {
+        public int TotalCount => Repeats.Sum(x => x.Count);
+    }
+
+    private static readonly (string Pattern, string Name, string Category)[] BotCandidates =
+    [
+        ("googlebot", "Googlebot", "search-engine"),
+        ("bingbot", "Bingbot", "search-engine"),
+        ("yandexbot", "YandexBot", "search-engine"),
+        ("baiduspider", "BaiduSpider", "search-engine"),
+        ("duckduckbot", "DuckDuckBot", "search-engine"),
+        ("slurp", "Yahoo Slurp", "search-engine"),
+        ("naverbot", "NaverBot", "search-engine"),
+        ("yeti", "Naver Yeti", "search-engine"),
+        ("daum", "Daum", "search-engine"),
+        ("gptbot", "GPTBot", "ai"),
+        ("chatgpt-user", "ChatGPT-User", "ai"),
+        ("claude", "Claude", "ai"),
+        ("perplexitybot", "PerplexityBot", "ai"),
+        ("bytespider", "Bytespider", "ai"),
+        ("ccbot", "CCBot", "ai"),
+        ("anthropic-ai", "Anthropic-AI", "ai"),
+        ("applebot", "Applebot", "crawler"),
+        ("facebookexternalhit", "FacebookExternalHit", "crawler"),
+        ("facebookbot", "FacebookBot", "crawler"),
+        ("sogou", "Sogou", "crawler"),
+        ("qwantbot", "QwantBot", "crawler"),
+        ("mj12bot", "MJ12bot", "crawler")
+    ];
+
+    public void Dispose()
+    {
+        try
+        {
+            _analysisCts?.Dispose();
+            _ = JS.InvokeVoidAsync("monitorSettings.unwatch", "ollamaEnabled");
+        }
+        catch
+        {
+            // ignore cleanup failures
+        }
+
+        _settingsRef?.Dispose();
+    }
+
+    private sealed record OllamaAnalyzeResponse(string? Response);
+
+    private static string BuildFallbackAnalysisReport(CompactLogAnalysisPayload payload)
+    {
+        static string JoinItems<T>(IEnumerable<T> items, Func<T, string> selector, int take = 3)
+            => string.Join(", ", items.Take(take).Select(selector));
+
+        var topAttackUrls = payload.TopUrlAttackCandidates.Take(3).ToList();
+        var topScoredIps = payload.ScoredIps
+            .Where(x => x.RecommendedAction is "Block" or "RateLimit" or "Monitor")
+            .Take(5)
+            .ToList();
+        var top404Ips = payload.NotFoundScanIps.Take(5).ToList();
+        var boardUrls = payload.BoardAttackCandidates.Take(3).ToList();
+        var top404Urls = payload.Top404Urls.Take(3).ToList();
+
+        var lines = new List<string>
+        {
+            "[전체 요약]",
+            $"원본 {payload.TotalRequestCount:N0}건 중 분석 대상 {payload.AnalyzedRequestCount:N0}건, 제외 {payload.ExcludedRequestCount:N0}건이며 제외 IP 패턴은 {string.Join(", ", payload.ExcludedIpPatterns)}입니다. Referer 없음 비율은 {payload.RefererMissingRatio:P0}입니다.",
+            "",
+            "[위험도]",
+            topScoredIps.Count > 0 || topAttackUrls.Count > 0 || top404Ips.Count > 0 ? "중간 이상" : "관찰 필요",
+            "",
+            "[공격 URL]",
+            topAttackUrls.Count > 0
+                ? JoinItems(topAttackUrls, x => $"{x.Url}({x.RecommendedAction}, {x.TotalRequests:N0}회, 200={x.Http200Count:N0}, topIP={x.TopIp} {x.TopIpRatio:P0})")
+                : "뚜렷한 공격 URL 후보가 충분하지 않습니다.",
+            boardUrls.Count > 0
+                ? $"게시판 후보: {JoinItems(boardUrls, x => $"{x.Url}({x.RecommendedAction}, {x.TotalRequests:N0}회, topIP={x.TopIp} {x.TopIpRatio:P0})")}"
+                : string.Empty,
+            "",
+            "[의심 IP]",
+            topScoredIps.Count > 0
+                ? JoinItems(topScoredIps, x => $"{x.Ip}({x.RecommendedAction}, score={x.Score}, 요청={x.RequestCount:N0}, 200={x.Http200Count:N0}, 404={x.ErrorCount:N0}, dominant={x.DominantUrlRatio:P0})")
+                : "차단 또는 제한 후보 IP가 충분하지 않습니다.",
+            top404Ips.Count > 0
+                ? $"404 스캔 후보: {JoinItems(top404Ips, x => $"{x.Ip}({x.RecommendedAction}, 404={x.NotFoundCount:N0}, 민감탐색={x.SensitiveProbeCount:N0})")}"
+                : string.Empty,
+            "",
+            "[차단 후보]",
+            string.Join(", ",
+                topScoredIps.Where(x => x.RecommendedAction is "Block" or "RateLimit").Select(x => x.Ip)
+                    .Concat(top404Ips.Where(x => x.RecommendedAction is "Block" or "RateLimit").Select(x => x.Ip))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .Take(8)),
+            "",
+            "[대응 방안]",
+            "게시판 URL 집중 접근과 404 스캐닝 IP는 우선 차단 또는 속도 제한을 적용하고, 200 정상 응답 기반의 반복 호출은 Referer와 호출 비율을 기준으로 추가 점검하세요."
+        };
+
+        return string.Join(Environment.NewLine, lines.Where(line => !string.IsNullOrWhiteSpace(line)));
+    }
+
+    private static bool LooksTrivialAnalysis(string? response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            return true;
+        }
+
+        var trimmed = response.Trim();
+        var normalized = trimmed.Replace(".", string.Empty, StringComparison.Ordinal)
+            .Replace("!", string.Empty, StringComparison.Ordinal)
+            .Replace("?", string.Empty, StringComparison.Ordinal)
+            .Replace(" ", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
+
+        if (normalized is "ok" or "okay" or "alright" or "done" or "complete" or "완료" or "알겠습니다" or "이해했습니다")
+        {
+            return true;
+        }
+
+        if (trimmed.Length < 40)
+        {
+            return !(trimmed.Contains("위험도", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Contains("공격 URL", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Contains("차단", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Contains("대응", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Contains("공격", StringComparison.OrdinalIgnoreCase)
+                || trimmed.Contains("의심", StringComparison.OrdinalIgnoreCase));
+        }
+
+        return false;
+    }
+}
+
+
+
+
+
+
+
+

@@ -1,0 +1,370 @@
+@page "/alerts/history"
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.EntityFrameworkCore
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+@inject MonitorStateService MonitorState
+@inject IJSRuntime JS
+
+<PageTitle>OpsEye | Alert History</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Operations</div>
+            <h1 class="h3 mb-1">Alert history</h1>
+            <p class="text-secondary mb-0">Detailed alert events with thresholds, values, and recovery context.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Alerts loaded</div>
+                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Threshold</div>
+                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Threshold)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Recovery</div>
+                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Recovery)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-2">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Anomaly</div>
+                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Anomaly)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-3">
+                    <input class="form-control" placeholder="Search host / metric / message" @bind="SearchText" @bind:event="oninput" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="HostFilter">
+                        <option value="">All hosts</option>
+                        @foreach (var host in Hosts)
+                        {
+                            <option value="@host">@host</option>
+                        }
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="TypeFilter">
+                        <option value="">All types</option>
+                        <option value="@AlertType.Threshold.ToString()">Threshold</option>
+                        <option value="@AlertType.Recovery.ToString()">Recovery</option>
+                        <option value="@AlertType.Anomaly.ToString()">Anomaly</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <input class="form-control" type="date" @bind="FromDate" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <input class="form-control" type="date" @bind="ToDate" />
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+                        <span class="text-muted small">Rows per page</span>
+                        <select class="form-select form-select-sm w-auto" @bind="PageSize">
+                            <option value="10">10</option>
+                            <option value="30">30</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Host</th>
+                            <th>Metric</th>
+                            <th>Type</th>
+                            <th>Value / Threshold</th>
+                            <th>Ratio</th>
+                            <th>Message</th>
+                            <th>IP</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (PagedAlerts.Any())
+                        {
+                            @foreach (var alert in PagedAlerts)
+                            {
+                                var ratio = alert.Threshold <= 0 ? 0 : alert.Value / alert.Threshold * 100d;
+                                <tr>
+                                    <td>@alert.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>@alert.Hostname</td>
+                                    <td><span class="badge text-bg-primary">@alert.Metric</span></td>
+                                    <td><span class="badge @(GetAlertTypeBadge(alert.Type))">@alert.Type</span></td>
+                                    <td>@alert.Value.ToString("0.0") / @alert.Threshold.ToString("0.0")</td>
+                                    <td>@ratio.ToString("0.0")%</td>
+                                    <td class="text-break">@alert.Message</td>
+                                    <td>@alert.Ip</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="8" class="text-center text-secondary py-4">No alert events found.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                <div class="text-muted small">
+                    Showing @DisplayRangeStart-@DisplayRangeEnd of @FilteredAlerts.Count item(s)
+                </div>
+                <div class="btn-group" role="group" aria-label="Pagination">
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">Previous</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<AlertMessage> _alerts = [];
+    private string _searchText = string.Empty;
+    private string _hostFilter = string.Empty;
+    private string _typeFilter = string.Empty;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private int _pageSize = 30;
+    private int _currentPage = 1;
+    private bool _preferencesLoaded;
+    private const string SearchKey = "alertHistory.searchText";
+    private const string HostKey = "alertHistory.hostFilter";
+    private const string TypeKey = "alertHistory.typeFilter";
+    private const string FromDateKey = "alertHistory.fromDate";
+    private const string ToDateKey = "alertHistory.toDate";
+    private const string PageSizeKey = "alertHistory.pageSize";
+
+    private string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            _searchText = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private string HostFilter
+    {
+        get => _hostFilter;
+        set
+        {
+            _hostFilter = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private string TypeFilter
+    {
+        get => _typeFilter;
+        set
+        {
+            _typeFilter = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private DateTime? FromDate
+    {
+        get => _fromDate;
+        set
+        {
+            _fromDate = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private DateTime? ToDate
+    {
+        get => _toDate;
+        set
+        {
+            _toDate = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private int PageSize
+    {
+        get => _pageSize;
+        set
+        {
+            _pageSize = value is 10 or 30 or 50 or 100 ? value : 30;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private IEnumerable<string> Hosts => _alerts.Select(x => x.Hostname).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x);
+
+    private List<AlertMessage> FilteredAlerts =>
+        _alerts
+            .Where(alert =>
+                string.IsNullOrWhiteSpace(_searchText) ||
+                alert.Hostname.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                alert.Metric.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                alert.Message.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                alert.Ip.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            .Where(alert => string.IsNullOrWhiteSpace(_hostFilter) || string.Equals(alert.Hostname, _hostFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(alert => string.IsNullOrWhiteSpace(_typeFilter) || string.Equals(alert.Type.ToString(), _typeFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(alert => !_fromDate.HasValue || alert.TimestampUtc.ToLocalTime() >= _fromDate.Value.Date)
+            .Where(alert => !_toDate.HasValue || alert.TimestampUtc.ToLocalTime() < _toDate.Value.Date.AddDays(1))
+            .OrderByDescending(x => x.TimestampUtc)
+            .ToList();
+
+    private List<AlertMessage> PagedAlerts =>
+        FilteredAlerts
+            .Skip((_currentPage - 1) * _pageSize)
+            .Take(_pageSize)
+            .ToList();
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredAlerts.Count / (double)_pageSize));
+    private bool IsFirstPage => _currentPage <= 1;
+    private bool IsLastPage => _currentPage >= TotalPages;
+    private int DisplayRangeStart => FilteredAlerts.Count == 0 ? 0 : ((_currentPage - 1) * _pageSize) + 1;
+    private int DisplayRangeEnd => Math.Min(_currentPage * _pageSize, FilteredAlerts.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadPreferencesAsync();
+        _preferencesLoaded = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _alerts.Clear();
+        _alerts.AddRange(await db.AlertEvents
+            .OrderByDescending(x => x.TimestampUtc)
+            .Take(500)
+            .Select(x => new AlertMessage(x.Hostname, x.Ip, x.Os, x.Metric, x.Value, x.Threshold, x.Message, x.Type, x.TimestampUtc))
+            .ToListAsync());
+        _currentPage = 1;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = string.Empty;
+        _hostFilter = string.Empty;
+        _typeFilter = string.Empty;
+        _fromDate = null;
+        _toDate = null;
+        _currentPage = 1;
+        if (_preferencesLoaded)
+        {
+            _ = PersistPreferencesAsync();
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (_currentPage < TotalPages)
+        {
+            _currentPage++;
+        }
+    }
+
+    private async Task LoadPreferencesAsync()
+    {
+        _searchText = await JS.InvokeAsync<string>("monitorSettings.get", SearchKey, _searchText) ?? string.Empty;
+        _hostFilter = await JS.InvokeAsync<string>("monitorSettings.get", HostKey, _hostFilter) ?? string.Empty;
+        _typeFilter = await JS.InvokeAsync<string>("monitorSettings.get", TypeKey, _typeFilter) ?? string.Empty;
+        _fromDate = await LoadDateAsync(FromDateKey);
+        _toDate = await LoadDateAsync(ToDateKey);
+        _pageSize = await JS.InvokeAsync<int>("monitorSettings.get", PageSizeKey, _pageSize);
+        _pageSize = _pageSize is 10 or 30 or 50 or 100 ? _pageSize : 30;
+        _currentPage = 1;
+    }
+
+    private async Task PersistPreferencesAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("monitorSettings.set", SearchKey, _searchText);
+            await JS.InvokeVoidAsync("monitorSettings.set", HostKey, _hostFilter);
+            await JS.InvokeVoidAsync("monitorSettings.set", TypeKey, _typeFilter);
+            await JS.InvokeVoidAsync("monitorSettings.set", FromDateKey, _fromDate?.ToString("yyyy-MM-dd"));
+            await JS.InvokeVoidAsync("monitorSettings.set", ToDateKey, _toDate?.ToString("yyyy-MM-dd"));
+            await JS.InvokeVoidAsync("monitorSettings.set", PageSizeKey, _pageSize);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task<DateTime?> LoadDateAsync(string key)
+    {
+        var value = await JS.InvokeAsync<string>("monitorSettings.get", key, null);
+        return DateTime.TryParse(value, out var parsed) ? parsed.Date : null;
+    }
+
+    private static string GetAlertTypeBadge(AlertType type) => type switch
+    {
+        AlertType.Recovery => "text-bg-success",
+        AlertType.Anomaly => "text-bg-warning",
+        _ => "text-bg-danger"
+    };
+}

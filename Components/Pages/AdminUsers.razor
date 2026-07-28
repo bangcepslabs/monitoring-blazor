@@ -1,0 +1,719 @@
+@page "/admin/users"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Linq
+@using System.Security.Claims
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject AuthenticationStateProvider AuthenticationStateProvider
+@inject MemberAuthService MemberAuthService
+@inject IJSRuntime JSRuntime
+
+<PageTitle>OpsEye | Admin Users</PageTitle>
+
+<div class="account-page">
+    <div class="page-hero d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="eyebrow">Admin Center</div>
+            <h1 class="display-6 mb-2">User management</h1>
+            <p class="text-secondary mb-0">
+                Create users, manage roles, control active status, and reset passwords.
+            </p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a class="btn btn-outline-secondary" href="/account">
+                <i class="bi bi-person-gear me-2"></i>My account
+            </a>
+            <a class="btn btn-outline-secondary" href="/admin/audit">
+                <i class="bi bi-journal-text me-2"></i>Audit log
+            </a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @( _isError ? "alert-danger" : "alert-success") shadow-sm" role="alert">
+            @_message
+        </div>
+    }
+
+    <div class="row g-4">
+        <div class="col-12 col-xl-5">
+            <div class="card section-card h-100">
+                <div class="card-header">
+                    <strong>Create member</strong>
+                </div>
+                <div class="card-body d-grid gap-3">
+                    <div>
+                        <label class="form-label" for="new-user-name">User ID</label>
+                        <input id="new-user-name" class="form-control" @bind="_newUserName" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="new-display-name">Display name</label>
+                        <input id="new-display-name" class="form-control" @bind="_newDisplayName" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="new-role">Role</label>
+                        <select id="new-role" class="form-select" @bind="_newRole">
+                            <option value="User">User</option>
+                            <option value="Admin">Admin</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="form-label" for="new-user-password">Password</label>
+                        <input id="new-user-password" type="password" class="form-control" autocomplete="new-password" @bind="_newPasswordForCreate" />
+                    </div>
+                    <div>
+                        <label class="form-label" for="new-user-confirm">Confirm password</label>
+                        <input id="new-user-confirm" type="password" class="form-control" autocomplete="new-password" @bind="_newPasswordConfirmForCreate" />
+                    </div>
+                    <div class="alert alert-info small mb-0" role="note">
+                        Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.
+                    </div>
+                    <button type="button" class="btn btn-outline-primary" @onclick="CreateMemberAsync" disabled="@(!CanCreateMember)">
+                        <i class="bi bi-person-plus-fill me-2"></i>Create user
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-7">
+            <div class="card section-card mb-4">
+                <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                    <strong>Members</strong>
+                    <span class="text-secondary small">@_sortedMembers.Count() member(s)</span>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex flex-wrap gap-2 mb-3">
+                        <input class="form-control flex-grow-1" style="min-width: 220px;" placeholder="Search user / display name" @bind="_searchText" @bind:event="oninput" />
+                        <button type="button" class="btn btn-outline-secondary" @onclick="LoadMembersAsync">
+                            <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                        </button>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="table align-middle member-table">
+                            <thead>
+                                <tr>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.UserName))">User <span>@GetSortGlyph(nameof(MemberEntity.UserName))</span></button></th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.DisplayName))">Display <span>@GetSortGlyph(nameof(MemberEntity.DisplayName))</span></button></th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.Role))">Role <span>@GetSortGlyph(nameof(MemberEntity.Role))</span></button></th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.IsActive))">Status <span>@GetSortGlyph(nameof(MemberEntity.IsActive))</span></button></th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @if (_sortedMembers.Any())
+                                {
+                                    @foreach (var member in _sortedMembers)
+                                    {
+                                        <tr class="@(IsSelected(member.Id) ? "table-active" : string.Empty)">
+                                            <td>@member.UserName</td>
+                                            <td>@member.DisplayName</td>
+                                            <td><span class="badge text-bg-primary">@member.Role</span></td>
+                                            <td>
+                                                @if (member.IsActive)
+                                                {
+                                                    <span class="badge text-bg-success">Active</span>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge text-bg-secondary">Inactive</span>
+                                                }
+                                            </td>
+                                            <td class="text-end">
+                                                <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => SelectMember(member.Id)">
+                                                    Manage
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
+                                else
+                                {
+                                    <tr>
+                                        <td colspan="5" class="text-center text-secondary py-4">
+                                            No members match your search.
+                                        </td>
+                                    </tr>
+                                }
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            @if (_selectedMember is not null)
+            {
+                <div class="card section-card">
+                    <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
+                        <strong>Selected member</strong>
+                        <span class="text-secondary small">ID @_selectedMember.Id</span>
+                    </div>
+                    <div class="card-body d-grid gap-3">
+                        <div class="alert alert-info small mb-0" role="note">
+                            Username is fixed. Use this panel to update the display name, role, active state, password, and account lock state.
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="selected-user">User ID</label>
+                                <input id="selected-user" class="form-control" value="@_selectedMember.UserName" disabled />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="selected-role">Role</label>
+                                <select id="selected-role" class="form-select" @bind="_selectedMember.Role" disabled="@IsCurrentUserSelected()">
+                                    <option value="User">User</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="selected-display">Display name</label>
+                                <input id="selected-display" class="form-control" @bind="_selectedMember.DisplayName" />
+                            </div>
+                            <div class="col-12 col-md-6 d-flex align-items-end">
+                                <div class="form-check form-switch">
+                                    <input id="selected-active" class="form-check-input" type="checkbox" @bind="_selectedMember.IsActive" disabled="@IsCurrentUserSelected()" />
+                                    <label class="form-check-label" for="selected-active">Active account</label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Failed logins</label>
+                                <input class="form-control" value="@_selectedMember.FailedLoginCount" disabled />
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Last failed login</label>
+                                <input class="form-control" value="@(_selectedMember.LastFailedLoginUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Lockout until</label>
+                                <input class="form-control" value="@(_selectedMember.LockoutUntilUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Two-factor authentication</label>
+                                <input class="form-control" value="@(_selectedMember.TwoFactorEnabled ? "Enabled" : "Disabled")" disabled />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Enabled at</label>
+                                <input class="form-control" value="@(_selectedMember.TwoFactorEnabledUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
+                            </div>
+                        </div>
+
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="reset-password">Reset password</label>
+                                <input id="reset-password" type="password" class="form-control" autocomplete="new-password" @bind="_selectedPassword" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label" for="reset-password-confirm">Confirm password</label>
+                                <input id="reset-password-confirm" type="password" class="form-control" autocomplete="new-password" @bind="_selectedPasswordConfirm" />
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info small mb-0" role="note">
+                            Admin actions affect the selected member immediately. Role and active state changes will ask for confirmation.
+                        </div>
+
+                        <div class="d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-primary" @onclick="SaveSelectedMemberAsync" disabled="@(!CanSaveSelectedMember)">
+                                <i class="bi bi-save me-2"></i>Save profile
+                            </button>
+                            <button type="button" class="btn btn-outline-warning" @onclick="ResetSelectedPasswordAsync" disabled="@(!CanResetSelectedPassword)">
+                                <i class="bi bi-key me-2"></i>Reset password
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="LockSelectedMemberAsync" disabled="@IsLockActionDisabled()">
+                                <i class="bi bi-lock-fill me-2"></i>Lock account
+                            </button>
+                            <button type="button" class="btn btn-outline-success" @onclick="UnlockSelectedMemberAsync" disabled="@IsUnlockActionDisabled()">
+                                <i class="bi bi-unlock me-2"></i>Unlock account
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="DisableSelectedMemberTwoFactorAsync" disabled="@IsDisableSelectedMemberTwoFactorDisabled()">
+                                <i class="bi bi-shield-slash me-2"></i>Disable 2FA
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="ClearSelection">
+                                Close
+                            </button>
+                        </div>
+
+                        @if (_loginAttempts.Any())
+                        {
+                            <div class="mt-3">
+                                <div class="fw-semibold mb-2">Recent login attempts</div>
+                                <div class="table-responsive">
+                                    <table class="table table-sm align-middle">
+                                        <thead>
+                                            <tr>
+                                                <th>When</th>
+                                                <th>Status</th>
+                                                <th>Reason</th>
+                                                <th>IP</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach (var attempt in _loginAttempts)
+                                            {
+                                                <tr>
+                                                    <td>@attempt.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</td>
+                                                    <td>
+                                                        @if (attempt.Success)
+                                                        {
+                                                            <span class="badge text-bg-success">Success</span>
+                                                        }
+                                                        else
+                                                        {
+                                                            <span class="badge text-bg-danger">Failed</span>
+                                                        }
+                                                    </td>
+                                                    <td>@attempt.Reason</td>
+                                                    <td>@(attempt.IpAddress ?? "-")</td>
+                                                </tr>
+                                            }
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private long? _currentMemberId;
+    private readonly List<MemberEntity> _members = new();
+    private readonly List<MemberLoginAttemptEntity> _loginAttempts = new();
+    private MemberEntity? _selectedMember;
+    private MemberEntity? _selectedMemberOriginal;
+    private string _searchText = string.Empty;
+
+    private string _newUserName = string.Empty;
+    private string _newDisplayName = string.Empty;
+    private string _newRole = "User";
+    private string _newPasswordForCreate = string.Empty;
+    private string _newPasswordConfirmForCreate = string.Empty;
+
+    private string _selectedPassword = string.Empty;
+    private string _selectedPasswordConfirm = string.Empty;
+    private string _memberSortColumn = nameof(MemberEntity.UserName);
+    private bool _memberSortAscending = true;
+
+    private string? _message;
+    private bool _isError;
+
+    private IEnumerable<MemberEntity> _filteredMembers =>
+        string.IsNullOrWhiteSpace(_searchText)
+            ? _members
+            : _members.Where(member =>
+                member.UserName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                member.DisplayName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                member.Role.Contains(_searchText, StringComparison.OrdinalIgnoreCase));
+
+    private IEnumerable<MemberEntity> _sortedMembers
+    {
+        get
+        {
+            var query = _filteredMembers;
+            return _memberSortColumn switch
+            {
+                nameof(MemberEntity.DisplayName) => _memberSortAscending
+                    ? query.OrderBy(x => x.DisplayName, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(x => x.DisplayName, StringComparer.OrdinalIgnoreCase),
+                nameof(MemberEntity.Role) => _memberSortAscending
+                    ? query.OrderBy(x => x.Role, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(x => x.Role, StringComparer.OrdinalIgnoreCase),
+                nameof(MemberEntity.IsActive) => _memberSortAscending
+                    ? query.OrderBy(x => x.IsActive).ThenBy(x => x.UserName, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(x => x.IsActive).ThenBy(x => x.UserName, StringComparer.OrdinalIgnoreCase),
+                _ => _memberSortAscending
+                    ? query.OrderBy(x => x.UserName, StringComparer.OrdinalIgnoreCase)
+                    : query.OrderByDescending(x => x.UserName, StringComparer.OrdinalIgnoreCase)
+            };
+        }
+    }
+
+    private bool CanCreateMember => !string.IsNullOrWhiteSpace(_newUserName)
+        && !string.IsNullOrWhiteSpace(_newDisplayName)
+        && !string.IsNullOrWhiteSpace(_newPasswordForCreate)
+        && !string.IsNullOrWhiteSpace(_newPasswordConfirmForCreate)
+        && string.Equals(_newPasswordForCreate, _newPasswordConfirmForCreate, StringComparison.Ordinal)
+        && IsPasswordPolicySatisfied(_newUserName, _newPasswordForCreate);
+
+    private bool CanSaveSelectedMember =>
+        _selectedMember is not null &&
+        !string.IsNullOrWhiteSpace(_selectedMember.DisplayName);
+
+    private bool CanResetSelectedPassword =>
+        _selectedMember is not null &&
+        !string.IsNullOrWhiteSpace(_selectedPassword) &&
+        !string.IsNullOrWhiteSpace(_selectedPasswordConfirm) &&
+        string.Equals(_selectedPassword, _selectedPasswordConfirm, StringComparison.Ordinal) &&
+        IsPasswordPolicySatisfied(_selectedMember.UserName, _selectedPassword);
+
+    protected override async Task OnInitializedAsync()
+    {
+        var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var memberIdValue = authState.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (long.TryParse(memberIdValue, out var memberId))
+        {
+            _currentMemberId = memberId;
+        }
+
+        await LoadMembersAsync();
+    }
+
+    private async Task LoadMembersAsync()
+    {
+        _members.Clear();
+        _members.AddRange(await MemberAuthService.GetMembersAsync());
+
+        if (_selectedMember is not null)
+        {
+            var refreshed = _members.FirstOrDefault(x => x.Id == _selectedMember.Id);
+            if (refreshed is null)
+            {
+                ClearSelection();
+            }
+            else
+            {
+                _selectedMember = CloneMember(refreshed);
+                _selectedMemberOriginal = CloneMember(refreshed);
+                await LoadSelectedMemberSecurityAsync();
+            }
+        }
+    }
+
+    private async Task CreateMemberAsync()
+    {
+        ClearMessage();
+
+        if (!CanCreateMember)
+        {
+            SetError("Please fill out all create-user fields and satisfy the password policy.");
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.CreateMemberAsync(_newUserName, _newDisplayName, _newPasswordForCreate, _newRole);
+            _newUserName = string.Empty;
+            _newDisplayName = string.Empty;
+            _newRole = "User";
+            _newPasswordForCreate = string.Empty;
+            _newPasswordConfirmForCreate = string.Empty;
+            SetSuccess("Member created.");
+            await LoadMembersAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task SaveSelectedMemberAsync()
+    {
+        if (_selectedMember is null)
+        {
+            return;
+        }
+
+        ClearMessage();
+
+        try
+        {
+            var roleChanged = _selectedMemberOriginal is not null &&
+                              !string.Equals(_selectedMember.Role, _selectedMemberOriginal.Role, StringComparison.OrdinalIgnoreCase);
+            var activeChanged = _selectedMemberOriginal is not null &&
+                                _selectedMember.IsActive != _selectedMemberOriginal.IsActive;
+
+            if (!IsCurrentUserSelected() && (roleChanged || activeChanged))
+            {
+                var confirmText = roleChanged && activeChanged
+                    ? $"Role and active status for {_selectedMember.UserName} will be updated. Continue?"
+                    : roleChanged
+                        ? $"Role for {_selectedMember.UserName} will be updated. Continue?"
+                        : $"Active status for {_selectedMember.UserName} will be updated. Continue?";
+
+                if (!await ConfirmAsync(confirmText))
+                {
+                    return;
+                }
+            }
+
+            await MemberAuthService.UpdateDisplayNameAsync(_selectedMember.Id, _selectedMember.DisplayName);
+
+            if (!IsCurrentUserSelected())
+            {
+                await MemberAuthService.UpdateRoleAsync(_selectedMember.Id, _selectedMember.Role);
+                await MemberAuthService.SetMemberActiveAsync(_selectedMember.Id, _selectedMember.IsActive);
+            }
+
+            SetSuccess("Member profile updated.");
+            await LoadMembersAsync();
+            await LoadSelectedMemberSecurityAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task ResetSelectedPasswordAsync()
+    {
+        if (_selectedMember is null)
+        {
+            return;
+        }
+
+        ClearMessage();
+
+        if (!CanResetSelectedPassword)
+        {
+            SetError("Please enter a valid new password and confirmation.");
+            return;
+        }
+
+        if (!await ConfirmAsync($"Reset password for {_selectedMember.UserName}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.ChangePasswordAsync(_selectedMember.Id, _selectedPassword);
+            _selectedPassword = string.Empty;
+            _selectedPasswordConfirm = string.Empty;
+            SetSuccess("Password reset complete.");
+            await LoadMembersAsync();
+            await LoadSelectedMemberSecurityAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task SelectMember(long memberId)
+    {
+        var member = _members.FirstOrDefault(x => x.Id == memberId);
+        if (member is null)
+        {
+            return;
+        }
+
+        _selectedMember = CloneMember(member);
+        _selectedMemberOriginal = CloneMember(member);
+        _selectedPassword = string.Empty;
+        _selectedPasswordConfirm = string.Empty;
+        ClearMessage();
+        await LoadSelectedMemberSecurityAsync();
+    }
+
+    private void ClearSelection()
+    {
+        _selectedMember = null;
+        _selectedMemberOriginal = null;
+        _selectedPassword = string.Empty;
+        _selectedPasswordConfirm = string.Empty;
+        _loginAttempts.Clear();
+    }
+
+    private bool IsSelected(long memberId) => _selectedMember?.Id == memberId;
+
+    private bool IsCurrentUserSelected() => _currentMemberId.HasValue && _selectedMember?.Id == _currentMemberId.Value;
+
+    private void SetMemberSort(string column)
+    {
+        if (string.Equals(_memberSortColumn, column, StringComparison.Ordinal))
+        {
+            _memberSortAscending = !_memberSortAscending;
+            return;
+        }
+
+        _memberSortColumn = column;
+        _memberSortAscending = true;
+    }
+
+    private string GetSortGlyph(string column)
+    {
+        if (!string.Equals(_memberSortColumn, column, StringComparison.Ordinal))
+        {
+            return string.Empty;
+        }
+
+        return _memberSortAscending ? "^" : "v";
+    }
+
+    private static bool IsPasswordPolicySatisfied(string userName, string password)
+    {
+        return global::Monitoring.Blazor.Services.MemberAuthService.ValidatePasswordPolicy(userName, password) is null;
+    }
+
+    private async Task<bool> ConfirmAsync(string message)
+    {
+        try
+        {
+            return await JSRuntime.InvokeAsync<bool>("confirm", message);
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    private static MemberEntity CloneMember(MemberEntity source) =>
+        new()
+        {
+            Id = source.Id,
+            UserName = source.UserName,
+            DisplayName = source.DisplayName,
+            Role = source.Role,
+            IsActive = source.IsActive,
+            CreatedUtc = source.CreatedUtc,
+            LastLoginUtc = source.LastLoginUtc,
+            PasswordHash = source.PasswordHash,
+            FailedLoginCount = source.FailedLoginCount,
+            LastFailedLoginUtc = source.LastFailedLoginUtc,
+            LockoutUntilUtc = source.LockoutUntilUtc,
+            LastFailedLoginReason = source.LastFailedLoginReason,
+            LastFailedLoginIp = source.LastFailedLoginIp,
+            PasswordChangedUtc = source.PasswordChangedUtc,
+            MustChangePassword = source.MustChangePassword,
+            TwoFactorEnabled = source.TwoFactorEnabled,
+            TwoFactorSecret = source.TwoFactorSecret,
+            TwoFactorEnabledUtc = source.TwoFactorEnabledUtc,
+            EmailAddress = source.EmailAddress,
+            EmailConfirmedUtc = source.EmailConfirmedUtc
+        };
+
+    private async Task LoadSelectedMemberSecurityAsync()
+    {
+        _loginAttempts.Clear();
+
+        if (_selectedMember is null)
+        {
+            return;
+        }
+
+        var attempts = await MemberAuthService.GetRecentLoginAttemptsAsync(_selectedMember.UserName, 10);
+        _loginAttempts.AddRange(attempts);
+    }
+
+    private bool IsLockActionDisabled() =>
+        _selectedMember is null ||
+        IsCurrentUserSelected() ||
+        (_selectedMember.LockoutUntilUtc is not null && _selectedMember.LockoutUntilUtc > DateTime.UtcNow);
+
+    private bool IsUnlockActionDisabled() =>
+        _selectedMember is null ||
+        IsCurrentUserSelected() ||
+        (_selectedMember.LockoutUntilUtc is null || _selectedMember.LockoutUntilUtc <= DateTime.UtcNow);
+
+    private bool IsDisableSelectedMemberTwoFactorDisabled() =>
+        _selectedMember is null || _selectedMember.TwoFactorEnabled != true;
+
+    private async Task LockSelectedMemberAsync()
+    {
+        if (_selectedMember is null || IsCurrentUserSelected())
+        {
+            return;
+        }
+
+        ClearMessage();
+
+        if (!await ConfirmAsync($"Lock account for {_selectedMember.UserName}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.LockMemberAsync(_selectedMember.Id, "manual admin lock");
+            SetSuccess("Account locked.");
+            await LoadMembersAsync();
+            await LoadSelectedMemberSecurityAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task UnlockSelectedMemberAsync()
+    {
+        if (_selectedMember is null || IsCurrentUserSelected())
+        {
+            return;
+        }
+
+        ClearMessage();
+
+        if (!await ConfirmAsync($"Unlock account for {_selectedMember.UserName}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.UnlockMemberAsync(_selectedMember.Id);
+            SetSuccess("Account unlocked.");
+            await LoadMembersAsync();
+            await LoadSelectedMemberSecurityAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private async Task DisableSelectedMemberTwoFactorAsync()
+    {
+        if (_selectedMember is null)
+        {
+            return;
+        }
+
+        ClearMessage();
+
+        if (!await ConfirmAsync($"Disable two-factor authentication for {_selectedMember.UserName}?"))
+        {
+            return;
+        }
+
+        try
+        {
+            await MemberAuthService.DisableTwoFactorAsync(_selectedMember.Id);
+            SetSuccess("Two-factor authentication disabled.");
+            await LoadMembersAsync();
+            await LoadSelectedMemberSecurityAsync();
+        }
+        catch (Exception ex)
+        {
+            SetError(ex.Message);
+        }
+    }
+
+    private void SetSuccess(string message)
+    {
+        _message = message;
+        _isError = false;
+    }
+
+    private void SetError(string message)
+    {
+        _message = message;
+        _isError = true;
+    }
+
+    private void ClearMessage()
+    {
+        _message = null;
+        _isError = false;
+    }
+}

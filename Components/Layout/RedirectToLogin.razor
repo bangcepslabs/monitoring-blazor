@@ -1,0 +1,13 @@
+@inject NavigationManager NavigationManager
+
+<p class="text-secondary">Redirecting to sign-in...</p>
+
+@code {
+    protected override void OnAfterRender(bool firstRender)
+    {
+        if (firstRender)
+        {
+            NavigationManager.NavigateTo("/login", forceLoad: true);
+        }
+    }
+}

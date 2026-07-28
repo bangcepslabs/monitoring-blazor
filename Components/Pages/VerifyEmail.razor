@@ -1,0 +1,81 @@
+@page "/verify-email"
+@attribute [AllowAnonymous]
+@layout LoginLayout
+@using Microsoft.AspNetCore.WebUtilities
+@using Monitoring.Blazor.Services
+@inject NavigationManager NavigationManager
+@inject MemberAuthService MemberAuthService
+
+<PageTitle>OpsEye | Verify Email</PageTitle>
+
+<div class="login-page">
+    <section class="login-shell" aria-label="Email verification">
+        <div class="login-brand">
+            <div class="login-brand-mark" aria-hidden="true">
+                <i class="bi bi-envelope-check-fill"></i>
+            </div>
+            <div>
+                <div class="login-brand-name">OpsEye</div>
+                <div class="login-brand-sub">Email verification</div>
+            </div>
+        </div>
+
+        <div class="login-card card">
+            <div class="card-body p-4 p-md-5">
+                @if (_isDone)
+                {
+                    <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">
+                        @_message
+                    </div>
+                    <a class="btn btn-primary w-100" href="/login">Go to login</a>
+                }
+                else
+                {
+                    <div class="d-flex align-items-center gap-2">
+                        <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
+                        <div>
+                            <div class="fw-semibold">Verifying email</div>
+                            <div class="text-secondary small">Please wait a moment.</div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    private bool _isDone;
+    private bool _isError;
+    private string _message = "Email verification completed.";
+
+    protected override async Task OnInitializedAsync()
+    {
+        var uri = NavigationManager.ToAbsoluteUri(NavigationManager.Uri);
+        var query = QueryHelpers.ParseQuery(uri.Query);
+        var token = query.TryGetValue("token", out var tokenValue) ? tokenValue.ToString() : string.Empty;
+
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            _isError = true;
+            _message = "Verification token is missing.";
+            _isDone = true;
+            return;
+        }
+
+        try
+        {
+            var success = await MemberAuthService.ConfirmEmailVerificationAsync(token);
+            _isError = !success;
+            _message = success ? "Your email address has been verified." : "Verification link is invalid or expired.";
+        }
+        catch (Exception ex)
+        {
+            _isError = true;
+            _message = ex.Message;
+        }
+
+        _isDone = true;
+    }
+}
+

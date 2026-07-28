@@ -1,0 +1,70 @@
+services:
+  db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: opseye-db
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+    ports:
+      - "${MSSQL_PORT:-1433}:1433"
+    volumes:
+      - mssql-data:/var/opt/mssql
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: opseye-app
+    restart: unless-stopped
+    depends_on:
+      - db
+    environment:
+      ASPNETCORE_ENVIRONMENT: "Production"
+      ASPNETCORE_URLS: "http://+:8080"
+      Monitoring__UseHttpsRedirection: "false"
+      Monitoring__DataDirectory: "/data/appdata"
+      ConnectionStrings__MonitoringDb: "Server=db,1433;Database=${MSSQL_DATABASE:-MonitoringDb};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
+      Monitoring__Ollama__Enabled: "${OLLAMA_ENABLED:-false}"
+      Monitoring__Ollama__BaseUrl: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"
+      Monitoring__Ollama__Model: "${OLLAMA_MODEL:-gemma3:4b}"
+      Monitoring__Ollama__TimeoutSeconds: "${OLLAMA_TIMEOUT_SECONDS:-1200}"
+      Monitoring__Ollama__AutoAnalyzeEnabled: "${OLLAMA_AUTO_ANALYZE_ENABLED:-true}"
+      Monitoring__Ollama__AutoAnalyzeStatus5xxRatio: "${OLLAMA_AUTO_ANALYZE_STATUS5XX_RATIO:-0.05}"
+      Monitoring__Ollama__AnalysisOutputFolder: "/data/analysis"
+      Monitoring__LogExport__Enabled: "${LOG_EXPORT_ENABLED:-false}"
+      Monitoring__LogExport__LogFolder: "/data/iis-logs"
+      Monitoring__LogExport__OutputFolder: "/data/export"
+      Monitoring__LogExport__RunHour: "${LOG_EXPORT_RUN_HOUR:-9}"
+      Monitoring__LogExport__RunMinute: "${LOG_EXPORT_RUN_MINUTE:-0}"
+      Monitoring__LogExport__TargetDateOffsetDays: "${LOG_EXPORT_OFFSET_DAYS:-1}"
+      Monitoring__LogImport__Enabled: "${LOG_IMPORT_ENABLED:-false}"
+      Monitoring__LogImport__LogFolder: "/data/iis-logs"
+      Monitoring__LogImport__RunHour: "${LOG_IMPORT_RUN_HOUR:-9}"
+      Monitoring__LogImport__RunMinute: "${LOG_IMPORT_RUN_MINUTE:-5}"
+      Monitoring__LogImport__TargetDateOffsetDays: "${LOG_IMPORT_OFFSET_DAYS:-1}"
+      Monitoring__LogImport__StateFilePath: "/data/state/log-import-state.json"
+      Monitoring__LogImport__ServerName: "${LOG_IMPORT_SERVER_NAME:-HOST-01}"
+      Monitoring__Email__Enabled: "${EMAIL_ENABLED:-false}"
+      Monitoring__Email__VerificationEnabled: "${EMAIL_VERIFICATION_ENABLED:-false}"
+      Monitoring__Email__PasswordResetEnabled: "${EMAIL_PASSWORD_RESET_ENABLED:-false}"
+      Monitoring__Email__SmtpHost: "${SMTP_HOST:-}"
+      Monitoring__Email__SmtpPort: "${SMTP_PORT:-587}"
+      Monitoring__Email__EnableSsl: "${SMTP_ENABLE_SSL:-true}"
+      Monitoring__Email__UseDefaultCredentials: "${SMTP_USE_DEFAULT_CREDENTIALS:-false}"
+      Monitoring__Email__SmtpUsername: "${SMTP_USERNAME:-}"
+      Monitoring__Email__SmtpPassword: "${SMTP_PASSWORD:-}"
+      Monitoring__Email__FromAddress: "${SMTP_FROM_ADDRESS:-}"
+      Monitoring__Email__FromName: "${SMTP_FROM_NAME:-OpsEye}"
+      Monitoring__Email__VerificationSubject: "${SMTP_VERIFICATION_SUBJECT:-Confirm your email address}"
+      Monitoring__SlowQuery__ThresholdSeconds: "${SLOW_QUERY_THRESHOLD_SECONDS:-5}"
+      Monitoring__SqlTargets__HOST-01: "Server=db,1433;Database=master;User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
+    ports:
+      - "${APP_PORT:-8080}:8080"
+    volumes:
+      - ./docker-data/app:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  mssql-data:

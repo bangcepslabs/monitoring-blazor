@@ -1,0 +1,88 @@
+@page "/dependencies"
+@using Monitoring.Blazor.Services
+@inject DependencyStatusService DependencyStatusService
+@implements IDisposable
+
+<PageTitle>OpsEye | Dependencies</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">System</div>
+            <h1 class="h3 mb-1">Dependency status</h1>
+            <p class="text-secondary mb-0">Check the services this dashboard depends on.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <span class="align-self-center text-muted small">Auto refresh: @( _autoRefresh ? "On" : "Off")</span>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        @foreach (var item in _items)
+        {
+            <div class="col-12 col-md-6 col-xl-4">
+                <div class="card shadow-sm h-100">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center justify-content-between gap-2">
+                            <h2 class="h5 mb-0">@item.Name</h2>
+                            <span class="badge @(item.Healthy ? "text-bg-success" : "text-bg-warning")">@item.Status</span>
+                        </div>
+                        <div class="text-secondary small mt-2 text-break">@item.Details</div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private List<DependencyStatusEntry> _items = [];
+    private PeriodicTimer? _refreshTimer;
+    private CancellationTokenSource? _refreshCts;
+    private bool _autoRefresh = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+        StartRefreshLoop();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _items = await DependencyStatusService.GetStatusesAsync();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void StartRefreshLoop()
+    {
+        _refreshCts?.Cancel();
+        _refreshCts?.Dispose();
+        _refreshCts = new CancellationTokenSource();
+        _refreshTimer?.Dispose();
+        _refreshTimer = new PeriodicTimer(TimeSpan.FromSeconds(30));
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                while (_autoRefresh && _refreshTimer is not null && await _refreshTimer.WaitForNextTickAsync(_refreshCts.Token))
+                {
+                    await ReloadAsync();
+                }
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        });
+    }
+
+    public void Dispose()
+    {
+        _autoRefresh = false;
+        _refreshCts?.Cancel();
+        _refreshTimer?.Dispose();
+        _refreshCts?.Dispose();
+    }
+}

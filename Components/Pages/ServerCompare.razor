@@ -1,0 +1,179 @@
+@page "/server-compare"
+@attribute [Authorize]
+@using System.Globalization
+@using Monitoring.Blazor.Services
+@inject MonitorStateService MonitorState
+@inject ServerCatalogRepository ServerCatalogRepository
+@inject SlowQueryService SlowQueryService
+@inject IConfiguration Configuration
+
+<PageTitle>OpsEye | Server Compare</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Infrastructure</div>
+            <h1 class="h3 mb-1">Server comparison</h1>
+            <p class="text-secondary mb-0">Compare health, group metadata, SQL access, and alert override coverage per server.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Servers</div>
+                    <div class="fs-4 fw-semibold">@_rows.Count</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Online</div>
+                    <div class="fs-4 fw-semibold">@_rows.Count(x => x.IsOnline)</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">SQL targets configured</div>
+                    <div class="fs-4 fw-semibold">@_rows.Count(x => x.HasSqlTarget)</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Host</th>
+                            <th>Status</th>
+                            <th>Group</th>
+                            <th>Tags</th>
+                            <th>CPU</th>
+                            <th>Memory</th>
+                            <th>Disk</th>
+                            <th>SQL Access</th>
+                            <th>Alert Override</th>
+                            <th>Target URL</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var row in _rows)
+                        {
+                            <tr>
+                                <td>
+                                    <div class="fw-semibold">@row.Hostname</div>
+                                    <div class="text-muted small">@row.Ip</div>
+                                </td>
+                                <td><span class="badge @(row.IsOnline ? "text-bg-success" : "text-bg-danger")">@(row.IsOnline ? "Online" : "Offline")</span></td>
+                                <td>@DisplayOrDash(row.Group)</td>
+                                <td class="text-break">@DisplayOrDash(row.Tags)</td>
+                                <td>@row.Cpu.ToString("0.0")%</td>
+                                <td>@row.Memory.ToString("0.0")%</td>
+                                <td>@row.Disk.ToString("0.0")%</td>
+                                <td>
+                                    @if (row.HasSqlTarget)
+                                    {
+                                        <div class="small text-break">@row.SqlServer</div>
+                                        <div class="text-muted small">@row.SqlDatabase</div>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Not configured</span>
+                                    }
+                                </td>
+                                <td>
+                                    @if (row.HasAlertOverride)
+                                    {
+                                        <span class="badge text-bg-warning">Custom</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="text-muted">Default</span>
+                                    }
+                                </td>
+                                <td class="text-break">@DisplayOrDash(row.TargetUrl)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<CompareRow> _rows = [];
+
+    protected override void OnInitialized()
+    {
+        Reload();
+    }
+
+    private void Reload()
+    {
+        _rows.Clear();
+        var hosts = MonitorState.GetSnapshot(TimeSpan.FromSeconds(15));
+        var catalog = ServerCatalogRepository.LoadAll();
+        var alertOverrides = Configuration.GetSection("Monitoring:Alerts:Overrides").Get<Dictionary<string, AlertSettingsOverride>>() ?? new(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var host in hosts)
+        {
+            catalog.TryGetValue(host.Info.Hostname, out var metadata);
+            var sqlTarget = SlowQueryService.GetSqlTargetSettings(host.Info.Hostname);
+            var hasSqlTarget = !string.IsNullOrWhiteSpace(sqlTarget.Server);
+
+            _rows.Add(new CompareRow
+            {
+                Hostname = host.Info.Hostname,
+                Ip = host.Info.Ip,
+                IsOnline = host.IsOnline,
+                Group = metadata?.Group ?? string.Empty,
+                Tags = metadata?.Tags ?? string.Empty,
+                Cpu = host.Info.Dynamic.CpuInfo.Usage,
+                Memory = host.Info.Dynamic.MemoryInfo.Usage,
+                Disk = host.Info.Dynamic.DiskInfo.Percent,
+                TargetUrl = host.Info.TargetUrl,
+                HasSqlTarget = hasSqlTarget,
+                SqlServer = hasSqlTarget ? sqlTarget.Server : string.Empty,
+                SqlDatabase = hasSqlTarget ? sqlTarget.Database : string.Empty,
+                HasAlertOverride = alertOverrides.ContainsKey(host.Info.Hostname)
+            });
+        }
+    }
+
+    private Task ReloadAsync()
+    {
+        Reload();
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private static string DisplayOrDash(string? value) => string.IsNullOrWhiteSpace(value) ? "-" : value;
+
+    private sealed class CompareRow
+    {
+        public string Hostname { get; set; } = string.Empty;
+        public string Ip { get; set; } = string.Empty;
+        public bool IsOnline { get; set; }
+        public string Group { get; set; } = string.Empty;
+        public string Tags { get; set; } = string.Empty;
+        public double Cpu { get; set; }
+        public double Memory { get; set; }
+        public double Disk { get; set; }
+        public string? TargetUrl { get; set; }
+        public bool HasSqlTarget { get; set; }
+        public string SqlServer { get; set; } = string.Empty;
+        public string SqlDatabase { get; set; } = string.Empty;
+        public bool HasAlertOverride { get; set; }
+    }
+}

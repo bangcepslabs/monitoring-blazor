@@ -1,0 +1,15 @@
+{
+  "Enabled": true,
+  "CpuThreshold": 80,
+  "CpuDurationMinutes": 5,
+  "RamThreshold": 90,
+  "DiskThreshold": 95,
+  "CooldownMinutes": 10,
+  "RecoveryEnabled": true,
+  "RecoveryCooldownMinutes": 10,
+  "AnomalyEnabled": false,
+  "AnomalyWindow": 20,
+  "AnomalyStdDev": 2,
+  "AnomalyMinDelta": 10,
+  "AnomalyCooldownMinutes": 15
+}

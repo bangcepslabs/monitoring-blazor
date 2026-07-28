@@ -1,0 +1,887 @@
+@page "/settings"
+@attribute [Authorize(Roles = "Admin")]
+@using System.Net.Http.Json
+@using System.Text.Json
+@using Monitoring.Blazor.Services
+@inject IHttpClientFactory HttpClientFactory
+@inject IJSRuntime JS
+@inject NavigationManager NavigationManager
+
+<div class="settings-page">
+    <section class="settings-panel" aria-labelledby="settings-title">
+        <div class="settings-header">
+            <div>
+                <div class="settings-kicker">Configuration</div>
+                <h2 id="settings-title">Settings</h2>
+            </div>
+            <div class="d-flex gap-2">
+                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ReloadAsync" disabled="@IsSaving">Reload</button>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@IsSaving">Save</button>
+                <button type="button" class="settings-close" aria-label="Back" @onclick="CloseAsync">X</button>
+            </div>
+        </div>
+
+        <div class="settings-body">
+            <div class="settings-tabs" role="tablist" aria-label="Settings categories">
+                <button type="button" class="@BasicTabButtonClass" @onclick="ShowBasicTab">Basic</button>
+                <button type="button" class="@CollectionTabButtonClass" @onclick="ShowCollectionTab">Log Pipeline</button>
+                <button type="button" class="@AnalysisTabButtonClass" @onclick="ShowAnalysisTab">AI & Reports</button>
+                <button type="button" class="@IntegrationsTabButtonClass" @onclick="ShowIntegrationsTab">Integrations</button>
+            </div>
+            <div class="settings-summary">
+                <div>
+                    <div class="settings-summary-title">@TabSummaryTitle</div>
+                    <div class="settings-summary-text">@TabSummaryText</div>
+                </div>
+                <div class="settings-summary-note">@TabSummaryNote</div>
+            </div>
+
+            @if (ActiveSettingsTab == "basic")
+            {
+                <div class="settings-section" id="alert-rules">
+                    <div class="settings-section-title">Server Health Alerts</div>
+                    <div class="settings-section-help">Tune when the dashboard should raise warnings for CPU, memory, disk, recovery, or maintenance windows.</div>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Enabled</label>
+                            <select class="form-select" @bind="AlertEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">CPU %</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.CpuThreshold" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">CPU Minutes</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">RAM %</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.RamThreshold" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Disk %</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Cooldown</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Recovery</label>
+                            <select class="form-select" @bind="RecoveryEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Recovery Cooldown</label>
+                            <input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Anomaly</label>
+                            <select class="form-select" @bind="AnomalyEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Maintenance Window</label>
+                            <select class="form-select" @bind="MaintenanceWindowEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Window Start</label>
+                            <input class="form-control" type="time" @bind="MaintenanceWindowStartValue" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Window End</label>
+                            <input class="form-control" type="time" @bind="MaintenanceWindowEndValue" />
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" id="security">
+                    <div class="settings-section-title">Account Security</div>
+                    <div class="settings-section-help">Turn two-factor authentication on or off for the account system.</div>
+                    <div class="row g-2">
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Two-factor authentication</label>
+                            <select class="form-select" @bind="TwoFactorEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (ActiveSettingsTab == "collection")
+            {
+                <div class="settings-section" id="collection">
+                    <div class="settings-section-title">IIS Log Collection</div>
+                    <div class="settings-section-help">These settings decide where IIS logs are read from and when they are copied into the reporting folder.</div>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Daily log export</label>
+                            <select class="form-select" @bind="LogExportEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">IIS log folder</label>
+                            <input class="form-control" @bind="LogExportSettings.LogFolder" placeholder="C:\\inetpub\\logs\\LogFiles\\W3SVC3" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Export folder</label>
+                            <input class="form-control" @bind="LogExportSettings.OutputFolder" placeholder="F:\\iis_log" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Export Hour</label>
+                            <input class="form-control" type="number" @bind="LogExportSettings.RunHour" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Export Minute</label>
+                            <input class="form-control" type="number" @bind="LogExportSettings.RunMinute" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Export Offset Days</label>
+                            <input class="form-control" type="number" @bind="LogExportSettings.TargetDateOffsetDays" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Daily log import</label>
+                            <select class="form-select" @bind="LogImportEnabledChoice">
+                                <option value="Y">Y</option>
+                                <option value="N">N</option>
+                            </select>
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Import log folder</label>
+                            <input class="form-control" @bind="LogImportSettings.LogFolder" placeholder="C:\\inetpub\\logs\\LogFiles\\W3SVC3" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Import state file</label>
+                            <input class="form-control" @bind="LogImportSettings.StateFilePath" placeholder="F:\\iis_log\\log-import-state.json" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Import Hour</label>
+                            <input class="form-control" type="number" @bind="LogImportSettings.RunHour" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Import Minute</label>
+                            <input class="form-control" type="number" @bind="LogImportSettings.RunMinute" />
+                        </div>
+                        <div class="col-12 col-md-2">
+                            <label class="form-label">Import Offset Days</label>
+                            <input class="form-control" type="number" @bind="LogImportSettings.TargetDateOffsetDays" />
+                        </div>
+                        <div class="col-12 col-md-3">
+                            <label class="form-label">Server name for reports</label>
+                            <input class="form-control" @bind="LogImportSettings.ServerName" placeholder="HOST-01" />
+                        </div>
+                    </div>
+                </div>
+            }
+
+            @if (ActiveSettingsTab == "analysis")
+            {
+                <div class="settings-section" id="analysis">
+                        <div class="settings-section-title">AI Analysis</div>
+                        <div class="settings-section-help">These settings control whether the app sends IIS log data to Ollama and how long it waits for answers.</div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">AI Analysis</label>
+                                <select class="form-select" @bind="OllamaEnabledChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Ollama Base URL</label>
+                                <input class="form-control" @bind="OllamaSettings.BaseUrl" placeholder="http://localhost:11434" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Ollama Model</label>
+                                <input class="form-control" @bind="OllamaSettings.Model" placeholder="gemma3:4b" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Ollama Timeout (sec)</label>
+                                <input class="form-control" type="number" @bind="OllamaSettings.TimeoutSeconds" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Auto analyze</label>
+                                <select class="form-select" @bind="OllamaAutoAnalyzeChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Auto Analyze Threshold</label>
+                                <input class="form-control" type="number" step="0.01" @bind="OllamaSettings.AutoAnalyzeStatus5xxRatio" />
+                            </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label">Analysis output folder</label>
+                            <input class="form-control" @bind="OllamaSettings.AnalysisOutputFolder" placeholder="F:\\iis_log\\analysis" />
+                            <div class="form-text">This is where the latest IIS analysis JSON is saved and loaded from.</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section" id="report">
+                    <div class="settings-section-title">Reports</div>
+                    <div class="settings-section-help">View a human-readable IIS analysis report here, and open the raw JSON only when you need the source data.</div>
+                    <div class="row g-2">
+                        <div class="col-12 col-lg-8">
+                            <label class="form-label">Human-readable report</label>
+                            <div class="report-preview">
+                                @if (string.IsNullOrWhiteSpace(_iisReportSummary))
+                                {
+                                    <div class="text-muted">No IIS analysis loaded yet.</div>
+                                }
+                                else
+                                {
+                                    <pre class="report-preview-text">@_iisReportSummary</pre>
+                                }
+                            </div>
+                        </div>
+                        <div class="col-12 col-lg-4">
+                            <div class="d-grid gap-2">
+                                <button type="button" class="btn btn-outline-primary" @onclick="LoadLatestIisReportAsync">Load Latest IIS Report</button>
+                                <button type="button" class="btn btn-outline-secondary" @onclick="ToggleIisReportJsonView" disabled="@string.IsNullOrWhiteSpace(_iisReportRawJson)">
+                                    @(ShowIisReportJson ? "Hide JSON" : "View JSON")
+                                </button>
+                                <button type="button" class="btn btn-outline-success" @onclick="RunLogExportNowAsync">Run Log Export Now</button>
+                                <button type="button" class="btn btn-outline-dark" @onclick="DownloadIisReportAsync" disabled="@string.IsNullOrWhiteSpace(_iisReportRawJson)">Download JSON</button>
+                            </div>
+                            <div class="text-muted small mt-2">
+                                The JSON view is only for copying, downloading, or troubleshooting.
+                            </div>
+                        </div>
+                    </div>
+                    @if (ShowIisReportJson)
+                    {
+                        <div class="mt-3">
+                            <label class="form-label">Raw JSON</label>
+                            <textarea class="form-control font-monospace" rows="10" readonly>@_iisReportRawJson</textarea>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (ActiveSettingsTab == "integrations")
+            {
+                <div class="settings-section" id="backup">
+                        <div class="settings-section-title">Backup & Restore</div>
+                        <div class="settings-section-help">Use this to export the current settings as JSON or restore them later.</div>
+                        <div class="mb-2">
+                            <label class="form-label">Import backup file</label>
+                            <InputFile OnChange="LoadBackupFileAsync" class="form-control" accept=".json,application/json" />
+                        </div>
+                        <div class="row g-2">
+                            <div class="col-12">
+                                <label class="form-label">Backup JSON</label>
+                                <textarea class="form-control font-monospace" rows="8" @bind="_backupJson" placeholder="Generate a backup or paste JSON here to restore."></textarea>
+                            </div>
+                        </div>
+                        <div class="mt-3 d-flex flex-wrap gap-2">
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CreateBackupAsync">Generate Backup</button>
+                            <button type="button" class="btn btn-outline-primary" @onclick="DownloadBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">Download Backup</button>
+                            <button type="button" class="btn btn-outline-warning" @onclick="RestoreBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">Restore Backup</button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="ClearBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">Clear</button>
+                        </div>
+                </div>
+
+                <div class="settings-section" id="email">
+                        <div class="settings-section-title">Email Verification / Reset</div>
+                        <div class="settings-section-help">Turn email-based signup verification and password reset on or off, then set the SMTP server below.</div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">SMTP auth mode</label>
+                                <select class="form-select" @bind="EmailEnabledChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Signup verification</label>
+                                <select class="form-select" @bind="EmailVerificationChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Password reset</label>
+                                <select class="form-select" @bind="EmailPasswordResetChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">SMTP Host</label>
+                                <input class="form-control" @bind="EmailSettings.SmtpHost" placeholder="smtp.example.com" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">SMTP Port</label>
+                                <input class="form-control" type="number" @bind="EmailSettings.SmtpPort" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">SSL</label>
+                                <select class="form-select" @bind="EmailSslChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Username</label>
+                                <input class="form-control" @bind="EmailSettings.SmtpUsername" autocomplete="off" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Password</label>
+                                <input class="form-control" type="password" @bind="EmailSettings.SmtpPassword" autocomplete="new-password" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">From Address</label>
+                                <input class="form-control" @bind="EmailSettings.FromAddress" placeholder="noreply@example.com" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">From Name</label>
+                                <input class="form-control" @bind="EmailSettings.FromName" placeholder="OpsEye" />
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Verification Subject</label>
+                                <input class="form-control" @bind="EmailSettings.VerificationSubject" />
+                            </div>
+                        </div>
+                </div>
+
+                <div class="settings-section" id="chatops">
+                        <div class="settings-section-title">Notifications</div>
+                        <div class="settings-section-help">Send alerts to Slack, Teams, or a custom webhook when important events happen.</div>
+                        <div class="row g-2 align-items-end">
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Notifications</label>
+                                <select class="form-select" @bind="NotificationsEnabledChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Slack</label>
+                                <select class="form-select" @bind="SlackEnabledChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Slack Webhook URL</label>
+                                <input class="form-control" @bind="NotificationSettings.SlackWebhookUrl" placeholder="https://hooks.slack.com/..." />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Teams</label>
+                                <select class="form-select" @bind="TeamsEnabledChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Teams Webhook URL</label>
+                                <input class="form-control" @bind="NotificationSettings.TeamsWebhookUrl" placeholder="https://outlook.office.com/webhook/..." />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <label class="form-label">Generic Webhook</label>
+                                <select class="form-select" @bind="WebhookEnabledChoice">
+                                    <option value="Y">Y</option>
+                                    <option value="N">N</option>
+                                </select>
+                            </div>
+                            <div class="col-12 col-md-9">
+                                <label class="form-label">Webhook URL</label>
+                                <input class="form-control" @bind="NotificationSettings.WebhookUrl" placeholder="https://example.com/webhook" />
+                            </div>
+                        </div>
+                </div>
+            }
+
+            @if (!string.IsNullOrWhiteSpace(StatusMessage))
+            {
+                <div class="alert alert-secondary mb-0">@StatusMessage</div>
+            }
+        </div>
+
+        <div class="settings-footer">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@IsSaving">Reload</button>
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@IsSaving">Save</button>
+        </div>
+    </section>
+</div>
+
+@code {
+    private AlertSettings AlertSettings { get; set; } = new();
+    private SecuritySettings SecuritySettings { get; set; } = new();
+    private bool IsOpen { get; set; }
+    private bool IsSaving { get; set; }
+    private string ActiveSettingsTab { get; set; } = "basic";
+    private string? StatusMessage { get; set; }
+    private EmailSettings EmailSettings { get; set; } = new();
+    private NotificationSettings NotificationSettings { get; set; } = new();
+    private OllamaRuntimeSettings OllamaSettings { get; set; } = new();
+    private LogExportRuntimeSettings LogExportSettings { get; set; } = new();
+    private LogImportRuntimeSettings LogImportSettings { get; set; } = new();
+    private string _backupJson = string.Empty;
+    private string _iisReportSummary = string.Empty;
+    private string _iisReportRawJson = string.Empty;
+    private bool ShowIisReportJson { get; set; }
+
+    private string AlertEnabledChoice
+    {
+        get => AlertSettings.Enabled ? "Y" : "N";
+        set => AlertSettings.Enabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string RecoveryEnabledChoice
+    {
+        get => AlertSettings.RecoveryEnabled ? "Y" : "N";
+        set => AlertSettings.RecoveryEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string AnomalyEnabledChoice
+    {
+        get => AlertSettings.AnomalyEnabled ? "Y" : "N";
+        set => AlertSettings.AnomalyEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string MaintenanceWindowEnabledChoice
+    {
+        get => AlertSettings.MaintenanceWindowEnabled ? "Y" : "N";
+        set => AlertSettings.MaintenanceWindowEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string TwoFactorEnabledChoice
+    {
+        get => SecuritySettings.TwoFactorEnabled ? "Y" : "N";
+        set => SecuritySettings.TwoFactorEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string OllamaEnabledChoice
+    {
+        get => OllamaSettings.Enabled ? "Y" : "N";
+        set => OllamaSettings.Enabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string OllamaAutoAnalyzeChoice
+    {
+        get => OllamaSettings.AutoAnalyzeEnabled ? "Y" : "N";
+        set => OllamaSettings.AutoAnalyzeEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string LogExportEnabledChoice
+    {
+        get => LogExportSettings.Enabled ? "Y" : "N";
+        set => LogExportSettings.Enabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string LogImportEnabledChoice
+    {
+        get => LogImportSettings.Enabled ? "Y" : "N";
+        set => LogImportSettings.Enabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string EmailEnabledChoice
+    {
+        get => EmailSettings.Enabled ? "Y" : "N";
+        set => EmailSettings.Enabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string EmailVerificationChoice
+    {
+        get => EmailSettings.VerificationEnabled ? "Y" : "N";
+        set => EmailSettings.VerificationEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string EmailPasswordResetChoice
+    {
+        get => EmailSettings.PasswordResetEnabled ? "Y" : "N";
+        set => EmailSettings.PasswordResetEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string EmailSslChoice
+    {
+        get => EmailSettings.EnableSsl ? "Y" : "N";
+        set => EmailSettings.EnableSsl = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string NotificationsEnabledChoice
+    {
+        get => NotificationSettings.Enabled ? "Y" : "N";
+        set => NotificationSettings.Enabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string SlackEnabledChoice
+    {
+        get => NotificationSettings.SlackEnabled ? "Y" : "N";
+        set => NotificationSettings.SlackEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string TeamsEnabledChoice
+    {
+        get => NotificationSettings.TeamsEnabled ? "Y" : "N";
+        set => NotificationSettings.TeamsEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private string WebhookEnabledChoice
+    {
+        get => NotificationSettings.WebhookEnabled ? "Y" : "N";
+        set => NotificationSettings.WebhookEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    private string BasicTabButtonClass => TabButtonClass("basic");
+    private string CollectionTabButtonClass => TabButtonClass("collection");
+    private string AnalysisTabButtonClass => TabButtonClass("analysis");
+    private string IntegrationsTabButtonClass => TabButtonClass("integrations");
+
+    private string TabSummaryTitle => ActiveSettingsTab switch
+    {
+        "basic" => "Basic settings",
+        "collection" => "IIS log pipeline",
+        "analysis" => "AI analysis and reports",
+        "integrations" => "Backup, email, and notifications",
+        _ => "Settings"
+    };
+
+    private string TabSummaryText => ActiveSettingsTab switch
+    {
+        "basic" => "Server health alerts and account security.",
+        "collection" => "Where IIS logs are picked up, exported, and imported.",
+        "analysis" => "Ollama analysis and where report JSON is stored.",
+        "integrations" => "Backups, email verification/reset, and outbound notifications.",
+        _ => string.Empty
+    };
+
+    private string TabSummaryNote => ActiveSettingsTab switch
+    {
+        "basic" => "Start here if you only want to tune the main behavior.",
+        "collection" => "Check this first if logs are not showing up.",
+        "analysis" => "Only needed when AI analysis is enabled.",
+        "integrations" => "Used when you need recovery or external delivery.",
+        _ => string.Empty
+    };
+
+    private void ShowBasicTab() => ActiveSettingsTab = "basic";
+    private void ShowCollectionTab() => ActiveSettingsTab = "collection";
+    private void ShowAnalysisTab() => ActiveSettingsTab = "analysis";
+    private void ShowIntegrationsTab() => ActiveSettingsTab = "integrations";
+
+    private string TabButtonClass(string tabKey)
+        => ActiveSettingsTab == tabKey ? "btn btn-primary btn-sm" : "btn btn-outline-secondary btn-sm";
+
+    private TimeOnly? MaintenanceWindowStartValue
+    {
+        get => TryParseTimeOnly(AlertSettings.MaintenanceWindowStart, out var value) ? value : null;
+        set => AlertSettings.MaintenanceWindowStart = value?.ToString("HH:mm") ?? string.Empty;
+    }
+
+    private TimeOnly? MaintenanceWindowEndValue
+    {
+        get => TryParseTimeOnly(AlertSettings.MaintenanceWindowEnd, out var value) ? value : null;
+        set => AlertSettings.MaintenanceWindowEnd = value?.ToString("HH:mm") ?? string.Empty;
+    }
+
+    public async Task OpenAsync()
+    {
+        NavigationManager.NavigateTo("/settings");
+    }
+
+    public Task CloseAsync()
+    {
+        NavigationManager.NavigateTo("/");
+        return Task.CompletedTask;
+    }
+
+    private async Task ReloadAsync()
+    {
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            StatusMessage = null;
+            var client = CreateClient();
+            var settings = await client.GetFromJsonAsync<AlertSettings>("api/alerts/settings");
+            if (settings is not null)
+            {
+                AlertSettings = settings;
+            }
+
+            var securitySettings = await client.GetFromJsonAsync<SecuritySettings>("api/security/settings");
+            if (securitySettings is not null)
+            {
+                SecuritySettings = securitySettings;
+            }
+
+            var ollamaResponse = await client.GetFromJsonAsync<OllamaRuntimeSettings>("api/runtime/ollama");
+            if (ollamaResponse is not null)
+            {
+                OllamaSettings = ollamaResponse;
+            }
+
+            var logExportResponse = await client.GetFromJsonAsync<LogExportRuntimeSettings>("api/runtime/log-export");
+            if (logExportResponse is not null)
+            {
+                LogExportSettings = logExportResponse;
+            }
+
+            var logImportResponse = await client.GetFromJsonAsync<LogImportRuntimeSettings>("api/runtime/log-import");
+            if (logImportResponse is not null)
+            {
+                LogImportSettings = logImportResponse;
+            }
+
+            var emailResponse = await client.GetFromJsonAsync<EmailSettings>("api/email/settings");
+            if (emailResponse is not null)
+            {
+                EmailSettings = emailResponse;
+            }
+
+            var notificationResponse = await client.GetFromJsonAsync<NotificationSettings>("api/notification/settings");
+            if (notificationResponse is not null)
+            {
+                NotificationSettings = notificationResponse;
+            }
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SaveAsync()
+    {
+        if (IsSaving)
+        {
+            return;
+        }
+
+        IsSaving = true;
+        StatusMessage = null;
+        try
+        {
+            var client = CreateClient();
+            var response = await client.PostAsJsonAsync("api/alerts/settings", AlertSettings);
+            response.EnsureSuccessStatusCode();
+
+            var securityResponse = await client.PostAsJsonAsync("api/security/settings", SecuritySettings);
+            securityResponse.EnsureSuccessStatusCode();
+
+            var emailResponse = await client.PostAsJsonAsync("api/email/settings", EmailSettings);
+            emailResponse.EnsureSuccessStatusCode();
+
+            var notificationResponse = await client.PostAsJsonAsync("api/notification/settings", NotificationSettings);
+            notificationResponse.EnsureSuccessStatusCode();
+
+            var ollamaResponse = await client.PostAsJsonAsync("api/runtime/ollama", OllamaSettings);
+            ollamaResponse.EnsureSuccessStatusCode();
+
+            var logExportResponse = await client.PostAsJsonAsync("api/runtime/log-export", LogExportSettings);
+            logExportResponse.EnsureSuccessStatusCode();
+
+            var logImportResponse = await client.PostAsJsonAsync("api/runtime/log-import", LogImportSettings);
+            logImportResponse.EnsureSuccessStatusCode();
+
+            StatusMessage = "Settings saved.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+        finally
+        {
+            IsSaving = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task CreateBackupAsync()
+    {
+        try
+        {
+            var client = CreateClient();
+            _backupJson = await client.GetStringAsync("api/settings/backup");
+            StatusMessage = "Backup JSON generated.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadLatestIisReportAsync()
+    {
+        try
+        {
+            var client = CreateClient();
+            var latest = await client.GetFromJsonAsync<OllamaAnalysisEntry>("api/ollama/latest");
+            _iisReportSummary = latest?.Response ?? string.Empty;
+            _iisReportRawJson = latest is null
+                ? string.Empty
+                : JsonSerializer.Serialize(latest, new JsonSerializerOptions { WriteIndented = true });
+            ShowIisReportJson = false;
+            StatusMessage = latest is null
+                ? "No IIS analysis found."
+                : "Latest IIS analysis loaded.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DownloadIisReportAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_iisReportRawJson))
+        {
+            StatusMessage = "IIS report JSON is empty.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var fileName = $"iis-report-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+        await JS.InvokeVoidAsync("monitorSettings.downloadText", fileName, _iisReportRawJson, "application/json");
+        StatusMessage = $"Download started: {fileName}.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task ToggleIisReportJsonView()
+    {
+        ShowIisReportJson = !ShowIisReportJson;
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RunLogExportNowAsync()
+    {
+        try
+        {
+            var client = CreateClient();
+            var response = await client.PostAsync("api/log-export/run", null);
+            var body = await response.Content.ReadAsStringAsync();
+            response.EnsureSuccessStatusCode();
+            StatusMessage = string.IsNullOrWhiteSpace(body) ? "Log export completed." : body;
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task DownloadBackupAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_backupJson))
+        {
+            StatusMessage = "Backup JSON is empty.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        var fileName = $"settings-backup-{DateTime.Now:yyyyMMdd-HHmmss}.json";
+        await JS.InvokeVoidAsync("monitorSettings.downloadText", fileName, _backupJson, "application/json");
+        StatusMessage = $"Download started: {fileName}.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task RestoreBackupAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_backupJson))
+        {
+            StatusMessage = "Backup JSON is empty.";
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        try
+        {
+            var payload = JsonSerializer.Deserialize<SettingsBackupPayload>(_backupJson);
+            if (payload is null)
+            {
+                throw new InvalidOperationException("Invalid backup JSON.");
+            }
+
+            var client = CreateClient();
+            var response = await client.PostAsJsonAsync("api/settings/restore", payload);
+            response.EnsureSuccessStatusCode();
+            StatusMessage = "Backup restored.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadBackupFileAsync(InputFileChangeEventArgs args)
+    {
+        try
+        {
+            var file = args.File;
+            if (file is null)
+            {
+                return;
+            }
+
+            await using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
+            using var reader = new StreamReader(stream);
+            _backupJson = await reader.ReadToEndAsync();
+            StatusMessage = $"Loaded backup file: {file.Name}.";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = ex.Message;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private Task ClearBackupAsync()
+    {
+        _backupJson = string.Empty;
+        StatusMessage = "Backup JSON cleared.";
+        return InvokeAsync(StateHasChanged);
+    }
+
+    private HttpClient CreateClient()
+    {
+        var client = HttpClientFactory.CreateClient();
+        client.BaseAddress = new Uri(NavigationManager.BaseUri);
+        return client;
+    }
+
+    private static bool TryParseTimeOnly(string? value, out TimeOnly time)
+    {
+        if (TimeOnly.TryParse(value, out time))
+        {
+            return true;
+        }
+
+        time = default;
+        return false;
+    }
+}

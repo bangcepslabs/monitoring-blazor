@@ -1,0 +1,282 @@
+@page "/admin/audit"
+@attribute [Authorize(Roles = "Admin")]
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@using Microsoft.EntityFrameworkCore
+@using System.Globalization
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+@inject IJSRuntime JS
+
+<PageTitle>OpsEye | Audit Log</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Admin Center</div>
+            <h1 class="h3 mb-1">Audit log</h1>
+            <p class="text-secondary mb-0">Member changes, authentication events, and administrative actions.</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/admin/users">Back to user management</a>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-4">
+                    <input class="form-control" placeholder="Search action / actor / target" @bind="SearchText" @bind:event="oninput" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="ActionFilter">
+                        <option value="">All actions</option>
+                        <option value="member_create">member_create</option>
+                        <option value="member_register">member_register</option>
+                        <option value="member_update">member_update</option>
+                        <option value="login">login</option>
+                        <option value="logout">logout</option>
+                        <option value="two_factor">two_factor</option>
+                        <option value="member_active">member_active</option>
+                        <option value="member_role">member_role</option>
+                        <option value="member_display_name">member_display_name</option>
+                        <option value="password_change">password_change</option>
+                        <option value="password_reset_request">password_reset_request</option>
+                        <option value="password_reset_confirm">password_reset_confirm</option>
+                        <option value="alert_settings_update">alert_settings_update</option>
+                        <option value="security_settings_update">security_settings_update</option>
+                        <option value="email_settings_update">email_settings_update</option>
+                        <option value="sql_target_update">sql_target_update</option>
+                        <option value="sql_target_remove">sql_target_remove</option>
+                        <option value="settings_backup">settings_backup</option>
+                        <option value="settings_restore">settings_restore</option>
+                        <option value="notification_settings_update">notification_settings_update</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="StatusFilter">
+                        <option value="">All status</option>
+                        <option value="success">Success</option>
+                        <option value="failed">Failed</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-2">
+                    <input class="form-control" type="date" @bind="FromDate" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <input class="form-control" type="date" @bind="ToDate" />
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ApplyFilters">Apply</button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-outline-secondary ms-auto" type="button" @onclick="LoadAsync">Refresh</button>
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="table table-hover align-middle">
+                    <thead>
+                        <tr>
+                            <th>Time</th>
+                            <th>Actor</th>
+                            <th>Target</th>
+                            <th>Action</th>
+                            <th>Status</th>
+                            <th>Details</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @if (_filteredLogs.Any())
+                        {
+                            @foreach (var log in _filteredLogs)
+                            {
+                                <tr>
+                                    <td>@log.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                    <td>@log.ActorUserName</td>
+                                    <td>@(log.TargetUserName ?? "-")</td>
+                                    <td><span class="badge text-bg-primary">@log.Action</span></td>
+                                    <td>
+                                        @if (log.Success)
+                                        {
+                                            <span class="badge text-bg-success">Success</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge text-bg-danger">Failed</span>
+                                        }
+                                    </td>
+                                    <td class="text-break">@log.Details</td>
+                                </tr>
+                            }
+                        }
+                        else
+                        {
+                            <tr>
+                                <td colspan="6" class="text-center text-secondary py-4">No audit entries found.</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private readonly List<MemberAuditLogEntity> _logs = new();
+    private string _searchText = string.Empty;
+    private string _actionFilter = string.Empty;
+    private string _statusFilter = string.Empty;
+    private DateTime? _fromDateUtc;
+    private DateTime? _toDateUtc;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private bool _preferencesLoaded;
+    private const string SearchKey = "adminAudit.searchText";
+    private const string ActionKey = "adminAudit.actionFilter";
+    private const string StatusKey = "adminAudit.statusFilter";
+    private const string FromDateKey = "adminAudit.fromDate";
+    private const string ToDateKey = "adminAudit.toDate";
+
+    private string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            _searchText = value;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private string ActionFilter
+    {
+        get => _actionFilter;
+        set
+        {
+            _actionFilter = value;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private string StatusFilter
+    {
+        get => _statusFilter;
+        set
+        {
+            _statusFilter = value;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private DateTime? FromDate
+    {
+        get => _fromDate;
+        set
+        {
+            _fromDate = value;
+            ApplyFilters();
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private DateTime? ToDate
+    {
+        get => _toDate;
+        set
+        {
+            _toDate = value;
+            ApplyFilters();
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private IEnumerable<MemberAuditLogEntity> _filteredLogs =>
+        _logs.Where(log =>
+            string.IsNullOrWhiteSpace(_searchText) ||
+            log.Action.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+            log.ActorUserName.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+            (log.TargetUserName?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (log.Details?.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ?? false))
+        .Where(log => string.IsNullOrWhiteSpace(_actionFilter) || string.Equals(log.Action, _actionFilter, StringComparison.OrdinalIgnoreCase))
+        .Where(log => string.IsNullOrWhiteSpace(_statusFilter) ||
+            (_statusFilter == "success" && log.Success) ||
+            (_statusFilter == "failed" && !log.Success))
+        .Where(log => !_fromDateUtc.HasValue || log.CreatedUtc >= _fromDateUtc.Value)
+        .Where(log => !_toDateUtc.HasValue || log.CreatedUtc < _toDateUtc.Value);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadPreferencesAsync();
+        _preferencesLoaded = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _logs.Clear();
+        _logs.AddRange(await db.MemberAuditLogs
+            .OrderByDescending(x => x.CreatedUtc)
+            .Take(500)
+            .ToListAsync());
+    }
+
+    private void ApplyFilters()
+    {
+        _fromDateUtc = _fromDate?.Date.ToUniversalTime();
+        _toDateUtc = _toDate?.Date.AddDays(1).ToUniversalTime();
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = string.Empty;
+        _actionFilter = string.Empty;
+        _statusFilter = string.Empty;
+        _fromDate = null;
+        _toDate = null;
+        _fromDateUtc = null;
+        _toDateUtc = null;
+        if (_preferencesLoaded)
+        {
+            _ = PersistPreferencesAsync();
+        }
+    }
+
+    private async Task LoadPreferencesAsync()
+    {
+        _searchText = await JS.InvokeAsync<string>("monitorSettings.get", SearchKey, _searchText) ?? string.Empty;
+        _actionFilter = await JS.InvokeAsync<string>("monitorSettings.get", ActionKey, _actionFilter) ?? string.Empty;
+        _statusFilter = await JS.InvokeAsync<string>("monitorSettings.get", StatusKey, _statusFilter) ?? string.Empty;
+        _fromDate = await LoadDateAsync(FromDateKey);
+        _toDate = await LoadDateAsync(ToDateKey);
+        ApplyFilters();
+    }
+
+    private async Task PersistPreferencesAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("monitorSettings.set", SearchKey, _searchText);
+            await JS.InvokeVoidAsync("monitorSettings.set", ActionKey, _actionFilter);
+            await JS.InvokeVoidAsync("monitorSettings.set", StatusKey, _statusFilter);
+            await JS.InvokeVoidAsync("monitorSettings.set", FromDateKey, _fromDate?.ToString("yyyy-MM-dd"));
+            await JS.InvokeVoidAsync("monitorSettings.set", ToDateKey, _toDate?.ToString("yyyy-MM-dd"));
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task<DateTime?> LoadDateAsync(string key)
+    {
+        var value = await JS.InvokeAsync<string>("monitorSettings.get", key, null);
+        return DateTime.TryParse(value, out var parsed) ? parsed.Date : null;
+    }
+}

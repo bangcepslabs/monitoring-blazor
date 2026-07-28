@@ -1,0 +1,44 @@
+{
+  "Alerts": {
+    "Enabled": true,
+    "CpuThreshold": 80,
+    "CpuDurationMinutes": 5,
+    "RamThreshold": 90,
+    "DiskThreshold": 95,
+    "CooldownMinutes": 10,
+    "RecoveryEnabled": true,
+    "RecoveryCooldownMinutes": 10,
+    "AnomalyEnabled": false,
+    "AnomalyWindow": 20,
+    "AnomalyStdDev": 2,
+    "AnomalyMinDelta": 10,
+    "AnomalyCooldownMinutes": 15,
+    "MaintenanceWindowEnabled": false,
+    "MaintenanceWindowStart": "00:00",
+    "MaintenanceWindowEnd": "00:00"
+  },
+  "Email": {
+    "Enabled": false,
+    "VerificationEnabled": false,
+    "PasswordResetEnabled": false,
+    "SmtpHost": "",
+    "SmtpPort": 587,
+    "EnableSsl": true,
+    "UseDefaultCredentials": false,
+    "SmtpUsername": "",
+    "SmtpPassword": "",
+    "FromAddress": "",
+    "FromName": "OpsEye",
+    "VerificationSubject": "Confirm your email address"
+  },
+  "Security": {
+    "TwoFactorEnabled": true
+  },
+  "SqlTargets": {},
+  "ServerCatalog": {
+    "ICT02": {
+      "Group": "Prod",
+      "Tags": ""
+    }
+  }
+}

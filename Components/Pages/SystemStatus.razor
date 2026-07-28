@@ -1,0 +1,247 @@
+@page "/system-status"
+@attribute [Authorize]
+@using Microsoft.EntityFrameworkCore
+@using Monitoring.Blazor.Services
+@inject DependencyStatusService DependencyStatusService
+@inject SettingsBackupArchiveService BackupArchiveService
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+
+<PageTitle>OpsEye | System Status</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">System</div>
+            <h1 class="h3 mb-1">System status</h1>
+            <p class="text-secondary mb-0">Database, SMTP, Ollama, paths, and backup health in one place.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <button class="btn btn-primary" @onclick="CreateBackupNowAsync">Create backup now</button>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(_message))
+    {
+        <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+    }
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Members</div>
+                    <div class="fs-4 fw-semibold">@_memberCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Audit logs</div>
+                    <div class="fs-4 fw-semibold">@_auditCount</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Latest backup</div>
+                    <div class="fs-6 fw-semibold">@_latestBackupLabel</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-3">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Backup files</div>
+                    <div class="fs-4 fw-semibold">@_backups.Count</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100 border-warning">
+                <div class="card-body">
+                    <div class="text-muted small">Attention needed</div>
+                    <div class="fs-4 fw-semibold">@_warningCount</div>
+                    <div class="text-secondary small">Dependencies and backup status that need action.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Backup retention</div>
+                    <div class="fs-6 fw-semibold">@_backupPolicyLabel</div>
+                    <div class="text-secondary small">Old archives are pruned automatically.</div>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-body">
+                    <div class="text-muted small">Latest backup age</div>
+                    <div class="fs-6 fw-semibold">@_latestBackupAgeLabel</div>
+                    <div class="text-secondary small">Stale backups are highlighted here.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col-12 col-xl-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent"><strong>Dependency checks</strong></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        @foreach (var item in _dependencies)
+                        {
+                            <div class="col-12 col-md-6">
+                                <div class="border rounded-3 p-3 h-100 @(item.Healthy ? string.Empty : "border-warning bg-warning-subtle")">
+                                    <div class="d-flex justify-content-between gap-2">
+                                        <div class="fw-semibold">@item.Name</div>
+                                        <span class="badge @(item.Healthy ? "text-bg-success" : "text-bg-warning")">@item.Status</span>
+                                    </div>
+                                    <div class="text-secondary small mt-2 text-break">@item.Details</div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-12 col-xl-6">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-transparent d-flex justify-content-between align-items-center gap-2">
+                    <strong>Backup archive</strong>
+                    <span class="text-muted small">Auto backup enabled</span>
+                </div>
+                <div class="card-body">
+                    @if (_backups.Count == 0)
+                    {
+                        <div class="text-muted">No backup archives yet.</div>
+                    }
+                    else
+                    {
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>File</th>
+                                        <th>Created</th>
+                                        <th>Size</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var backup in _backups)
+                                    {
+                                        <tr>
+                                            <td class="text-break">@backup.FileName</td>
+                                            <td>@backup.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
+                                            <td>@FormatBytes(backup.SizeBytes)</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<DependencyStatusEntry> _dependencies = [];
+    private List<SettingsBackupArchiveEntry> _backups = [];
+    private int _warningCount;
+    private int _memberCount;
+    private int _auditCount;
+    private string _latestBackupLabel = "No backup yet";
+    private string _latestBackupAgeLabel = "No backup yet";
+    private string _backupPolicyLabel = "30 files / 30 days";
+    private bool _backupIsStale;
+    private string? _message;
+    private bool _isError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    private async Task ReloadAsync()
+    {
+        _dependencies = await DependencyStatusService.GetStatusesAsync();
+        _backups = BackupArchiveService.GetRecentArchives(10);
+        var policy = BackupArchiveService.GetPolicy();
+        _backupPolicyLabel = $"{policy.KeepCount} files / {policy.RetentionDays} days";
+        _latestBackupLabel = _backups.FirstOrDefault() is { } backup
+            ? backup.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")
+            : "No backup yet";
+        _latestBackupAgeLabel = _backups.FirstOrDefault() is { } latestBackup
+            ? FormatBackupAge(latestBackup.CreatedUtc)
+            : "No backup yet";
+        _backupIsStale = _backups.FirstOrDefault() is { } staleBackup && staleBackup.CreatedUtc < DateTime.UtcNow.AddDays(policy.RetentionDays * -1);
+        _warningCount = _dependencies.Count(x => !x.Healthy) + (_backups.Count == 0 || _backupIsStale ? 1 : 0);
+
+        await using var db = await DbFactory.CreateDbContextAsync();
+        _memberCount = await db.Members.CountAsync();
+        _auditCount = await db.MemberAuditLogs.CountAsync();
+        _message = "System status refreshed.";
+        _isError = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CreateBackupNowAsync()
+    {
+        var created = await BackupArchiveService.CreateArchiveAsync();
+        if (created is null)
+        {
+            _message = "Backup creation failed.";
+            _isError = true;
+        }
+        else
+        {
+            _message = $"Backup created: {created.FileName}";
+            _isError = false;
+        }
+
+        await ReloadAsync();
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes < 1024)
+        {
+            return $"{bytes} B";
+        }
+
+        if (bytes < 1024 * 1024)
+        {
+            return $"{bytes / 1024d:0.0} KB";
+        }
+
+        return $"{bytes / 1024d / 1024d:0.0} MB";
+    }
+
+    private static string FormatBackupAge(DateTime createdUtc)
+    {
+        var age = DateTime.UtcNow - createdUtc;
+        if (age.TotalHours < 1)
+        {
+            return $"{Math.Max(1, (int)Math.Round(age.TotalMinutes))} minute(s) ago";
+        }
+
+        if (age.TotalDays < 1)
+        {
+            return $"{Math.Max(1, (int)Math.Round(age.TotalHours))} hour(s) ago";
+        }
+
+        return $"{Math.Max(1, (int)Math.Round(age.TotalDays))} day(s) ago";
+    }
+}

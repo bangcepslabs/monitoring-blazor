@@ -1,0 +1,156 @@
+is_global = true
+build_property.TargetFramework = net10.0
+build_property.TargetFrameworkIdentifier = .NETCoreApp
+build_property.TargetFrameworkVersion = v10.0
+build_property.TargetPlatformMinVersion = 
+build_property.UsingMicrosoftNETSdkWeb = true
+build_property.ProjectTypeGuids = 
+build_property.InvariantGlobalization = 
+build_property.PlatformNeutralAssembly = 
+build_property.EnforceExtendedAnalyzerRules = 
+build_property.EntryPointFilePath = 
+build_property._SupportedPlatformList = Linux,macOS,Windows
+build_property.RootNamespace = Monitoring.Blazor
+build_property.RootNamespace = Monitoring.Blazor
+build_property.ProjectDir = g:\Bang\dashboard\monitoring-blazor\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.RazorLangVersion = 10.0
+build_property.SupportLocalizedComponentNames = 
+build_property.GenerateRazorMetadataSourceChecksumAttributes = 
+build_property.MSBuildProjectDirectory = g:\Bang\dashboard\monitoring-blazor
+build_property._RazorSourceGeneratorDebug = 
+build_property.EffectiveAnalysisLevelStyle = 10.0
+build_property.EnableCodeStyleSeverity = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/App.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xBcHAucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Layout/RedirectToLogin.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcUmVkaXJlY3RUb0xvZ2luLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/AdminAudit.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pbkF1ZGl0LnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/AdminChangeReport.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pbkNoYW5nZVJlcG9ydC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/AlertHistory.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBbGVydEhpc3RvcnkucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/Dependencies.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xEZXBlbmRlbmNpZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/Error.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFcnJvci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/EventsTimeline.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xFdmVudHNUaW1lbGluZS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/ForgotPassword.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xGb3Jnb3RQYXNzd29yZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/IncidentTimeline.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJbmNpZGVudFRpbWVsaW5lLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/JavaLogParser.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xKYXZhTG9nUGFyc2VyLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/NotFound.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xOb3RGb3VuZC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/ResetPassword.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZXNldFBhc3N3b3JkLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/ServerCompare.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTZXJ2ZXJDb21wYXJlLnJhem9y
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/ServerGroups.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTZXJ2ZXJHcm91cHMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/SystemStatus.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xTeXN0ZW1TdGF0dXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/TwoFactor.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xUd29GYWN0b3IucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/VerifyEmail.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xWZXJpZnlFbWFpbC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xfSW1wb3J0cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Routes.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xSb3V0ZXMucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/_Imports.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xfSW1wb3J0cy5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = 
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Layout/LoginLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTG9naW5MYXlvdXQucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-huodzh76un
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Layout/MainLayout.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTWFpbkxheW91dC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-0t3h3hir95
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Layout/NavMenu.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcTmF2TWVudS5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-gwjrotujd2
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Layout/ReconnectModal.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcUmVjb25uZWN0TW9kYWwucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-nz3vd41je8
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Layout/SettingsPanel.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xMYXlvdXRcU2V0dGluZ3NQYW5lbC5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-hgclselsf8
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/Account.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBY2NvdW50LnJhem9y
+build_metadata.AdditionalFiles.CssScope = b-82w58ku1b9
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/AdminUsers.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xBZG1pblVzZXJzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = b-xjw7uqjt9m
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/Home.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xIb21lLnJhem9y
+build_metadata.AdditionalFiles.CssScope = b-43btxsiiou
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/IpAnalysis.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xJcEFuYWx5c2lzLnJhem9y
+build_metadata.AdditionalFiles.CssScope = b-6xj9fhv1qf
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/Login.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xMb2dpbi5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-lyh7grzkoe
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/LogParser.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xMb2dQYXJzZXIucmF6b3I=
+build_metadata.AdditionalFiles.CssScope = b-xjvbipgdj0
+
+[g:/Bang/dashboard/monitoring-blazor/Components/Pages/Register.razor]
+build_metadata.AdditionalFiles.TargetPath = Q29tcG9uZW50c1xQYWdlc1xSZWdpc3Rlci5yYXpvcg==
+build_metadata.AdditionalFiles.CssScope = b-a2i7ktm6yx

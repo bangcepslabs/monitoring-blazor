@@ -1,0 +1,58 @@
+.page-header h3 {
+  font-weight: 700;
+}
+
+.ip-analysis-dl {
+  margin-bottom: 0;
+}
+
+.ip-analysis-dl dt {
+  color: var(--bs-secondary-color);
+  font-weight: 600;
+  margin-bottom: 0.35rem;
+}
+
+.ip-analysis-dl dd {
+  margin-bottom: 0.35rem;
+  word-break: break-word;
+}
+
+.ip-map {
+  min-height: 420px;
+  height: 100%;
+  width: 100%;
+  border-bottom-left-radius: 0.375rem;
+  border-bottom-right-radius: 0.375rem;
+}
+
+.analysis-pill {
+  height: 100%;
+  border: 1px solid var(--bs-border-color);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  background: var(--bs-body-bg);
+}
+
+.batch-input {
+  min-height: 180px;
+  resize: vertical;
+}
+
+.batch-result-table {
+  max-height: 420px;
+  overflow: auto;
+}
+
+.batch-result-table .table {
+  margin-bottom: 0;
+}
+
+.nav-tabs.card-header-tabs {
+  border-bottom: 0;
+}
+
+@media (max-width: 991.98px) {
+  .ip-map {
+    min-height: 320px;
+  }
+}

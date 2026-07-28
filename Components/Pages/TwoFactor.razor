@@ -1,0 +1,90 @@
+@page "/two-factor"
+@attribute [AllowAnonymous]
+@layout LoginLayout
+@using Microsoft.AspNetCore.WebUtilities
+@using Microsoft.AspNetCore.Http
+@inject IHttpContextAccessor HttpContextAccessor
+@inject NavigationManager NavigationManager
+
+<PageTitle>OpsEye | Two-Factor Verification</PageTitle>
+
+<div class="login-page">
+    <section class="login-shell" aria-label="Two-factor verification form">
+        <div class="login-brand">
+            <div class="login-brand-mark" aria-hidden="true">
+                <i class="bi bi-shield-check"></i>
+            </div>
+            <div>
+                <div class="login-brand-name">OpsEye</div>
+                <div class="login-brand-sub">Two-factor verification</div>
+            </div>
+        </div>
+
+        <div class="login-card card">
+            <div class="card-body p-4 p-md-5">
+                <div class="mb-4">
+                    <h1 class="h3 mb-2">Enter verification code</h1>
+                    <p class="text-secondary mb-0">
+                        Your account requires a one-time verification code.
+                    </p>
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(_message))
+                {
+                    <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+                }
+
+                <form method="post" action="/auth/two-factor" class="d-grid gap-3">
+                    <input type="hidden" name="returnUrl" value="@_returnUrl" />
+                    <div>
+                        <label class="form-label">Account</label>
+                        <input class="form-control" value="@(_pendingUserName ?? "-")" disabled />
+                    </div>
+                    <div>
+                        <label class="form-label" for="two-factor-code">Verification code</label>
+                        <input id="two-factor-code" name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" required />
+                    </div>
+                    <div class="d-grid gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-shield-check me-2"></i>Verify
+                        </button>
+                        <a class="btn btn-outline-secondary" href="/login">Back to login</a>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? Error { get; set; }
+
+    private string _returnUrl = "/";
+    private string? _message;
+    private bool _isError;
+    private string? _pendingUserName;
+
+    protected override void OnInitialized()
+    {
+        if (!string.IsNullOrWhiteSpace(ReturnUrl))
+        {
+            _returnUrl = ReturnUrl!;
+        }
+
+        _pendingUserName = HttpContextAccessor.HttpContext?.Session.GetString("pending_2fa_user_name");
+
+        if (!string.IsNullOrWhiteSpace(Error))
+        {
+            _message = Error switch
+            {
+                "invalid" => "The verification code is invalid.",
+                _ => Error
+            };
+            _isError = true;
+        }
+    }
+}

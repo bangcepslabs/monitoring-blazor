@@ -1,0 +1,276 @@
+@page "/events"
+@using Monitoring.Blazor.Services
+@inject IJSRuntime JS
+@inject EventTimelineService TimelineService
+
+<PageTitle>OpsEye | Event Timeline</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Operations</div>
+            <h1 class="h3 mb-1">Event timeline</h1>
+            <p class="text-secondary mb-0">Alerts, login attempts, and admin actions in one feed.</p>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+        </div>
+    </div>
+
+    <div class="card shadow-sm">
+        <div class="card-body">
+            <div class="row g-2 mb-3">
+                <div class="col-12 col-md-4">
+                    <input class="form-control" placeholder="Search title / subject / message" @bind="SearchText" @bind:event="oninput" />
+                </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="CategoryFilter">
+                        <option value="">All categories</option>
+                        <option value="Alert">Alert</option>
+                        <option value="Login">Login</option>
+                        <option value="Audit">Audit</option>
+                    </select>
+                </div>
+                <div class="col-6 col-md-3">
+                    <input class="form-control" type="date" @bind="FromDate" />
+                </div>
+                <div class="col-6 col-md-3">
+                    <input class="form-control" type="date" @bind="ToDate" />
+                </div>
+                <div class="col-12 d-flex flex-wrap gap-2">
+                    <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
+                        <span class="text-muted small">Rows per page</span>
+                        <select class="form-select form-select-sm w-auto" @bind="PageSize">
+                            <option value="10">10</option>
+                            <option value="30">30</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            @if (_items.Count == 0)
+            {
+                <div class="text-muted">No events loaded.</div>
+            }
+            else
+            {
+                <div class="timeline-list d-grid gap-2">
+                    @foreach (var item in PagedItems)
+                    {
+                        <div class="border rounded-3 p-3">
+                            <div class="d-flex flex-wrap justify-content-between gap-2">
+                                <div class="fw-semibold">@item.Title</div>
+                                <span class="badge text-bg-secondary">@item.Category</span>
+                            </div>
+                            <div class="text-secondary small">@item.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
+                            <div class="mt-2">
+                                <span class="badge text-bg-light text-dark border me-2">@item.Subject</span>
+                                <span class="text-break">@item.Message</span>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(item.Detail))
+                            {
+                                <div class="text-muted small mt-1 text-break">@item.Detail</div>
+                            }
+                        </div>
+                        }
+                </div>
+
+                <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+                    <div class="text-muted small">
+                        Showing @DisplayRangeStart-@DisplayRangeEnd of @FilteredItems.Count item(s)
+                    </div>
+                    <div class="btn-group" role="group" aria-label="Pagination">
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">Previous</button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">Next</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<EventTimelineEntry> _items = [];
+    private string _searchText = string.Empty;
+    private string _categoryFilter = string.Empty;
+    private DateTime? _fromDate;
+    private DateTime? _toDate;
+    private int _pageSize = 30;
+    private int _currentPage = 1;
+    private bool _preferencesLoaded;
+    private const string SearchKey = "eventsTimeline.searchText";
+    private const string CategoryKey = "eventsTimeline.categoryFilter";
+    private const string FromDateKey = "eventsTimeline.fromDate";
+    private const string ToDateKey = "eventsTimeline.toDate";
+    private const string PageSizeKey = "eventsTimeline.pageSize";
+
+    private string SearchText
+    {
+        get => _searchText;
+        set
+        {
+            _searchText = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private string CategoryFilter
+    {
+        get => _categoryFilter;
+        set
+        {
+            _categoryFilter = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private DateTime? FromDate
+    {
+        get => _fromDate;
+        set
+        {
+            _fromDate = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private DateTime? ToDate
+    {
+        get => _toDate;
+        set
+        {
+            _toDate = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private int PageSize
+    {
+        get => _pageSize;
+        set
+        {
+            _pageSize = value is 10 or 30 or 50 or 100 ? value : 30;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private List<EventTimelineEntry> FilteredItems =>
+        _items
+            .Where(item =>
+                string.IsNullOrWhiteSpace(_searchText) ||
+                item.Title.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                item.Subject.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                item.Message.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
+                item.Detail.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
+            .Where(item => string.IsNullOrWhiteSpace(_categoryFilter) || string.Equals(item.Category, _categoryFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(item => !_fromDate.HasValue || item.TimestampUtc.ToLocalTime() >= _fromDate.Value.Date)
+            .Where(item => !_toDate.HasValue || item.TimestampUtc.ToLocalTime() < _toDate.Value.Date.AddDays(1))
+            .ToList();
+
+    private List<EventTimelineEntry> PagedItems =>
+        FilteredItems
+            .Skip((_currentPage - 1) * _pageSize)
+            .Take(_pageSize)
+            .ToList();
+
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredItems.Count / (double)_pageSize));
+    private bool IsFirstPage => _currentPage <= 1;
+    private bool IsLastPage => _currentPage >= TotalPages;
+    private int DisplayRangeStart => FilteredItems.Count == 0 ? 0 : ((_currentPage - 1) * _pageSize) + 1;
+    private int DisplayRangeEnd => Math.Min(_currentPage * _pageSize, FilteredItems.Count);
+
+    protected override async Task OnInitializedAsync()
+    {
+        await ReloadAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        await LoadPreferencesAsync();
+        _preferencesLoaded = true;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task ReloadAsync()
+    {
+        _items = await TimelineService.GetRecentEventsAsync(120);
+        _currentPage = 1;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ClearFilters()
+    {
+        _searchText = string.Empty;
+        _categoryFilter = string.Empty;
+        _fromDate = null;
+        _toDate = null;
+        _currentPage = 1;
+        if (_preferencesLoaded)
+        {
+            _ = PersistPreferencesAsync();
+        }
+    }
+
+    private void PreviousPage()
+    {
+        if (_currentPage > 1)
+        {
+            _currentPage--;
+        }
+    }
+
+    private void NextPage()
+    {
+        if (_currentPage < TotalPages)
+        {
+            _currentPage++;
+        }
+    }
+
+    private async Task LoadPreferencesAsync()
+    {
+        _searchText = await JS.InvokeAsync<string>("monitorSettings.get", SearchKey, _searchText) ?? string.Empty;
+        _categoryFilter = await JS.InvokeAsync<string>("monitorSettings.get", CategoryKey, _categoryFilter) ?? string.Empty;
+        _fromDate = await LoadDateAsync(FromDateKey);
+        _toDate = await LoadDateAsync(ToDateKey);
+        _pageSize = await JS.InvokeAsync<int>("monitorSettings.get", PageSizeKey, _pageSize);
+        _pageSize = _pageSize is 10 or 30 or 50 or 100 ? _pageSize : 30;
+        _currentPage = 1;
+    }
+
+    private async Task PersistPreferencesAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("monitorSettings.set", SearchKey, _searchText);
+            await JS.InvokeVoidAsync("monitorSettings.set", CategoryKey, _categoryFilter);
+            await JS.InvokeVoidAsync("monitorSettings.set", FromDateKey, _fromDate?.ToString("yyyy-MM-dd"));
+            await JS.InvokeVoidAsync("monitorSettings.set", ToDateKey, _toDate?.ToString("yyyy-MM-dd"));
+            await JS.InvokeVoidAsync("monitorSettings.set", PageSizeKey, _pageSize);
+        }
+        catch
+        {
+        }
+    }
+
+    private async Task<DateTime?> LoadDateAsync(string key)
+    {
+        var value = await JS.InvokeAsync<string>("monitorSettings.get", key, null);
+        return DateTime.TryParse(value, out var parsed) ? parsed.Date : null;
+    }
+}

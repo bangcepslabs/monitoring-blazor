@@ -85,5 +85,8 @@ docker compose up --build
 ## Notes
 - DB 연결 실패 시 `appsettings.private.json` 또는 `.env`의 SQL 정보를 확인하세요.
 
+## License
+This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
 
 

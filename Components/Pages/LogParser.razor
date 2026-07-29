@@ -6,6 +6,7 @@
 @using Microsoft.EntityFrameworkCore
 @using System.Net.Http.Json
 @using System.Text.Json
+@using System.Text
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject IConfiguration Configuration
 @inject IJSRuntime JS
@@ -225,7 +226,7 @@
             <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">Run Export Now</button>
             <button class="btn btn-sm btn-outline-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)">AI 분석</button>
             <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">AI 분석 취소</button>
-            <input class="form-control form-control-sm log-question-input" placeholder="추가 질문을 작성하실 수 있습니다." @bind="AiQuestion" />
+            <input class="form-control form-control-sm log-question-input" placeholder="추가 질문을 작성하실 수 있습니다." @bind="AiQuestion" @bind:event="oninput" />
             <button class="btn btn-sm btn-outline-secondary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze || string.IsNullOrWhiteSpace(AiQuestion))">질문 반영</button>
             <label class="form-label mb-0">Multi-sort</label>
             <input type="checkbox" class="form-check-input" @bind="MultiSort" />
@@ -1368,10 +1369,25 @@
                 }
             }
 
-            AnalyzeMessage = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
-            if (LooksTrivialAnalysis(AnalyzeMessage))
+            var questionSpecific = !string.IsNullOrWhiteSpace(question)
+                ? BuildQuestionSpecificAnalysis(filtered, analysisPayload, question)
+                : null;
+            var finalText = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
+            var isTrivialAnalysis = LooksTrivialAnalysis(finalText);
+
+            if (!string.IsNullOrWhiteSpace(questionSpecific))
             {
-                AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload);
+                AnalyzeMessage = isTrivialAnalysis
+                    ? questionSpecific
+                    : string.Join(Environment.NewLine + Environment.NewLine, new[] { finalText, questionSpecific }.Where(x => !string.IsNullOrWhiteSpace(x)));
+            }
+            else if (isTrivialAnalysis)
+            {
+                AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload, question);
+            }
+            else
+            {
+                AnalyzeMessage = finalText;
             }
         }
         catch (TaskCanceledException)
@@ -1441,36 +1457,177 @@
     private static string BuildAnalysisJson(CompactLogAnalysisPayload payload, string? question)
     {
         var json = JsonSerializer.Serialize(payload, AnalysisJsonOptions);
-        var hasQuestion = !string.IsNullOrWhiteSpace(question);
-        var questionBlock = hasQuestion
-            ? """
+        var builder = new StringBuilder();
 
-추가 질문:
-""" + question!.Trim() + """
+        builder.AppendLine("아래는 IIS 로그를 압축한 보안 분석 JSON이다.");
+        builder.AppendLine("이 JSON만 근거로 SOC 분석 보고서를 작성하라.");
+        builder.AppendLine("반드시 한국어로 답변하라.");
+        builder.AppendLine("브라우저/OS/User-Agent 일반 설명은 하지 마라.");
+        builder.AppendLine("확인문구(Okay, OK, 알겠습니다, 이해했습니다)만 출력하지 마라.");
+        builder.AppendLine("반드시 AttackSummary, UrlAttackDetails, TopUrlAttackCandidates, ScoredIps, NotFoundScanIps 순서로 먼저 검토하라.");
+        builder.AppendLine("제외 IP 패턴과 제외 건수도 함께 확인하라.");
+        builder.AppendLine("특히 UrlAttackDetails의 Top3IpRatio, Top10IpRatio, Top30IpRatio, RemainingIpCount, RemainingRequestCount, DistributedAccessScore, IsDistributedAccess, IsDistributedCrawler, IsDistributedDdosCandidate를 반드시 확인하라.");
+        builder.AppendLine("분석 결과에서는 단일 IP 공격, 분산 크롤링, 분산 DDoS 의심을 명확히 구분하라.");
+        builder.AppendLine("출력 형식은 반드시 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라.");
+        builder.AppendLine("각 섹션에는 JSON에 있는 항목과 수치를 근거로 최소 1문장 이상 작성하라.");
 
-이 질문이 있으면 기본 보안 분석 외에 반드시 질문에 직접 답하라.
-기본 형식은 유지하되, 마지막에 [추가 질문 답변] 섹션을 넣고 질문에 대한 결론을 명확히 작성하라.
-"""
-            : string.Empty;
-        return """
-아래는 IIS 로그를 압축한 보안 분석 JSON이다.
-이 JSON만 근거로 SOC 분석 보고서를 작성하라.
-반드시 한국어로 답변하라.
-브라우저/OS/User-Agent 일반 설명은 하지 마라.
-확인문구(Okay, OK, 알겠습니다, 이해했습니다)만 출력하지 마라.
-반드시 AttackSummary, UrlAttackDetails, TopUrlAttackCandidates, ScoredIps, NotFoundScanIps 순서로 먼저 검토하라.
-제외 IP 패턴과 제외 건수도 함께 확인하라.
-특히 UrlAttackDetails의 Top3IpRatio, Top10IpRatio, Top30IpRatio, RemainingIpCount, RemainingRequestCount, DistributedAccessScore, IsDistributedAccess, IsDistributedCrawler, IsDistributedDdosCandidate를 반드시 확인하라.
-분석 결과에서는 단일 IP 공격, 분산 크롤링, 분산 DDoS 의심을 명확히 구분하라.
-출력 형식은 반드시 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라.
-각 섹션에는 JSON에 있는 항목과 수치를 근거로 최소 1문장 이상 작성하라.
-""" + questionBlock + """
+        if (!string.IsNullOrWhiteSpace(question))
+        {
+            builder.AppendLine();
+            builder.AppendLine("추가 질문:");
+            builder.AppendLine(question.Trim());
+            builder.AppendLine();
+            builder.AppendLine("이 질문이 있으면 기본 보안 분석 외에 반드시 질문에 직접 답하라.");
+            builder.AppendLine("기본 형식은 유지하되, 마지막에 [추가 질문 답변] 섹션을 넣고 질문에 대한 결론을 명확히 작성하라.");
+        }
 
-JSON:
-```json
-""" + json + """
-```
-""";
+        builder.AppendLine();
+        builder.AppendLine("JSON:");
+        builder.AppendLine("```json");
+        builder.AppendLine(json);
+        builder.AppendLine("```");
+
+        return builder.ToString();
+    }
+
+    private static string BuildQuestionSpecificAnalysis(List<ParsedLogRow> rows, CompactLogAnalysisPayload payload, string question)
+    {
+        static IReadOnlyList<string> ExtractQuestionIps(string text)
+        {
+            var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b");
+            return matches.Select(m => m.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        static int GetActionRank(string action) => action switch
+        {
+            "Block" => 4,
+            "RateLimit" => 3,
+            "Monitor" => 2,
+            "Allow" => 1,
+            _ => 0
+        };
+
+        static string GetReviewVerdict(string action) => action switch
+        {
+            "Block" => "차단 유지 권고",
+            "RateLimit" => "즉시 차단보다는 속도 제한 권고",
+            "Monitor" => "즉시 차단 근거는 약해 모니터링 재검토 권고",
+            _ => "즉시 차단 근거 부족"
+        };
+
+        var questionIps = ExtractQuestionIps(question);
+        if (questionIps.Count == 0)
+        {
+            return string.Empty;
+        }
+
+        var lines = new List<string>
+        {
+            "[추가 질문 답변]",
+            $"질문에서 추출된 IP {questionIps.Count:N0}개를 현재 필터된 원본 로그와 다시 대조해 차단 적절성을 재평가했습니다."
+        };
+
+        var blockIps = new List<string>();
+        var rateLimitIps = new List<string>();
+        var monitorIps = new List<string>();
+        var matchedRowsIps = new List<string>();
+        var existingCandidateIps = payload.ScoredIps.Select(x => x.Ip)
+            .Concat(payload.NotFoundScanIps.Select(x => x.Ip))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var ip in questionIps)
+        {
+            var ipRows = rows.Where(x => string.Equals(x.Ip?.Trim(), ip, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (ipRows.Count == 0)
+            {
+                lines.Add($"- {ip}: 현재 분석 대상 로그에서 직접 보이지 않습니다.");
+                continue;
+            }
+
+            matchedRowsIps.Add(ip);
+
+            var total = ipRows.Count;
+            var count200 = ipRows.Count(x => string.Equals(x.Status?.Trim(), "200", StringComparison.OrdinalIgnoreCase));
+            var count404 = ipRows.Count(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase));
+            var missingReferer = ipRows.Count(x => string.IsNullOrWhiteSpace(x.Referrer) || x.Referrer == "-");
+            var topUrls = ipRows.Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+                .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+                .Select(g => new CountItem(g.Key, g.Count()))
+                .OrderByDescending(x => x.Count)
+                .Take(3)
+                .ToList();
+            var topUrl = topUrls.FirstOrDefault();
+            var rescored = BuildScoredIp(ip, ipRows, rows.Count);
+            var rescanned404 = count404 > 0
+                ? BuildNotFoundScanIp(ip, ipRows.Where(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase)).ToList())
+                : null;
+            var action = GetActionRank(rescored.RecommendedAction) >= GetActionRank(rescanned404?.RecommendedAction ?? string.Empty)
+                ? rescored.RecommendedAction
+                : rescanned404!.RecommendedAction;
+            var reasons = rescored.Reasons
+                .Concat(rescanned404?.Reasons ?? Array.Empty<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            var dominantUrl = !string.IsNullOrWhiteSpace(rescored.DominantUrl)
+                ? $"{rescored.DominantUrl} {rescored.DominantUrlRatio:P0}"
+                : "-";
+            var verdict = GetReviewVerdict(action);
+
+            lines.Add($"- {ip}: 총 {total:N0}건, 200={count200:N0}, 404={count404:N0}, Referer 없음 {missingReferer / (double)total:P0}, 재평가 {action} ({verdict}).");
+            if (topUrl is not null)
+            {
+                lines.Add($"  주요 URL: {string.Join(", ", topUrls.Select(x => $"{x.Value}({x.Count:N0})"))}");
+            }
+            lines.Add($"  집중도: 상위 URL 비중 {rescored.DominantUrlRatio:P0}, 대표 URL {dominantUrl}");
+            if (reasons.Count > 0)
+            {
+                lines.Add($"  근거: {string.Join(", ", reasons.Take(4))}");
+            }
+            if (existingCandidateIps.Contains(ip))
+            {
+                lines.Add("  기존 AI 요약 후보 목록에도 포함되어 있었습니다.");
+            }
+
+            switch (action)
+            {
+                case "Block":
+                    blockIps.Add(ip);
+                    break;
+                case "RateLimit":
+                    rateLimitIps.Add(ip);
+                    break;
+                default:
+                    monitorIps.Add(ip);
+                    break;
+            }
+        }
+
+        if (matchedRowsIps.Count > 0)
+        {
+            lines.Add($"질문 IP 중 현재 로그에 실제로 존재한 IP: {string.Join(", ", matchedRowsIps)}");
+        }
+
+        if (blockIps.Count > 0)
+        {
+            lines.Add($"결론: 즉시 차단 유지 권고 IP는 {string.Join(", ", blockIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
+        }
+        else if (rateLimitIps.Count > 0)
+        {
+            lines.Add($"결론: 우선 속도 제한 권고 IP는 {string.Join(", ", rateLimitIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
+        }
+        else if (monitorIps.Count > 0)
+        {
+            lines.Add($"결론: 현재는 모니터링 우선 대상 IP는 {string.Join(", ", monitorIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
+        }
+
+        var likelyOverblocked = monitorIps.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        if (likelyOverblocked.Count > 0)
+        {
+            lines.Add($"재검토: 즉시 차단보다는 모니터링 또는 속도 제한이 더 자연스러운 IP는 {string.Join(", ", likelyOverblocked)} 입니다.");
+        }
+
+        return string.Join(Environment.NewLine, lines);
     }
 
     private static bool IsExcludedAnalysisIp(string? ip)
@@ -2950,10 +3107,95 @@ JSON:
 
     private sealed record OllamaAnalyzeResponse(string? Response);
 
-    private static string BuildFallbackAnalysisReport(CompactLogAnalysisPayload payload)
+    private static string BuildFallbackAnalysisReport(CompactLogAnalysisPayload payload, string? question)
     {
-        static string JoinItems<T>(IEnumerable<T> items, Func<T, string> selector, int take = 3)
-            => string.Join(", ", items.Take(take).Select(selector));
+        static IReadOnlyList<string> ExtractQuestionIps(string? text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                return [];
+            }
+
+            var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b");
+            return matches.Select(m => m.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        }
+
+        static string FormatReasons(IReadOnlyList<string> reasons, int take = 3)
+            => reasons.Count == 0 ? "근거 없음" : string.Join(", ", reasons.Take(take));
+
+        static string DescribeUrlPattern(UrlAttackDetailItem item)
+        {
+            if (item.IsDistributedDdosCandidate)
+            {
+                return "분산 DDoS 또는 분산형 대량 호출 의심";
+            }
+
+            if (item.IsDistributedCrawler)
+            {
+                return "분산 크롤링 또는 분산 스크래핑 의심";
+            }
+
+            if (item.TopIpRatio >= 0.7)
+            {
+                return "단일 IP 집중형 스크래핑 의심";
+            }
+
+            if (item.Http404Count > 0 && item.Http404Count >= item.Http200Count)
+            {
+                return "404 기반 스캐닝 또는 탐색성 접근 의심";
+            }
+
+            if (item.Http200Count > 0 && item.NoRefererRatio >= 0.5)
+            {
+                return "정상 응답 기반 자동화 접근 의심";
+            }
+
+            return "반복 접근 패턴 관찰";
+        }
+
+        static string DescribeIpPattern(ScoredIpItem item)
+        {
+            if (item.BoardAccessCount >= 20 && item.DominantUrlRatio >= 0.7)
+            {
+                return "게시판 URL 단일 경로 집중형";
+            }
+
+            if (item.Http200Count > 0 && item.NoReferer200Count >= 20)
+            {
+                return "정상 응답 기반 반복 호출형";
+            }
+
+            if (item.ErrorCount >= 20)
+            {
+                return "오류 유발 또는 탐색형";
+            }
+
+            if (item.RefererMissingRatio >= 0.8)
+            {
+                return "Referer 없는 자동화 접근형";
+            }
+
+            return "반복 호출 관찰";
+        }
+
+        static string DescribeAction(string action) => action switch
+        {
+            "Block" => "즉시 차단 권고",
+            "RateLimit" => "속도 제한 권고",
+            "Monitor" => "모니터링 권고",
+            _ => "관찰 필요"
+        };
+
+        static string FormatIpList(IEnumerable<string> ips, int take = 8)
+        {
+            var values = ips
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(take)
+                .ToList();
+
+            return values.Count == 0 ? "없음" : string.Join(", ", values);
+        }
 
         var topAttackUrls = payload.TopUrlAttackCandidates.Take(3).ToList();
         var topScoredIps = payload.ScoredIps
@@ -2964,42 +3206,204 @@ JSON:
         var boardUrls = payload.BoardAttackCandidates.Take(3).ToList();
         var top404Urls = payload.Top404Urls.Take(3).ToList();
 
+        var blockCandidates = payload.ScoredIps
+            .Where(x => x.RecommendedAction == "Block")
+            .Select(x => x.Ip)
+            .Concat(payload.NotFoundScanIps.Where(x => x.RecommendedAction == "Block").Select(x => x.Ip))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToList();
+        var rateLimitCandidates = payload.ScoredIps
+            .Where(x => x.RecommendedAction == "RateLimit")
+            .Select(x => x.Ip)
+            .Concat(payload.NotFoundScanIps.Where(x => x.RecommendedAction == "RateLimit").Select(x => x.Ip))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToList();
+        var monitorCandidates = payload.ScoredIps
+            .Where(x => x.RecommendedAction == "Monitor")
+            .Select(x => x.Ip)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Take(10)
+            .ToList();
+        var suspiciousQueries = payload.SuspiciousQueryStrings.Take(5).ToList();
+        var topAttack = payload.AttackSummary;
+        var blockUrlCount = payload.UrlAttackDetails.Count(x => x.RecommendedAction == "Block");
+        var rateLimitUrlCount = payload.UrlAttackDetails.Count(x => x.RecommendedAction == "RateLimit");
+        var distributedUrls = payload.UrlAttackDetails.Where(x => x.IsDistributedAttackCandidate).OrderByDescending(x => x.Score).Take(3).ToList();
+        var singleIpUrls = payload.UrlAttackDetails.Where(x => !x.IsDistributedAttackCandidate && x.TopIpRatio >= 0.7).OrderByDescending(x => x.Score).Take(3).ToList();
+        var highRisk404Ips = payload.NotFoundScanIps.Where(x => x.RecommendedAction is "Block" or "RateLimit").Take(5).ToList();
+        var topBlockUrl = topAttackUrls.FirstOrDefault(x => x.RecommendedAction == "Block") ?? topAttackUrls.FirstOrDefault();
+        var topBlockIp = payload.ScoredIps.FirstOrDefault(x => x.RecommendedAction == "Block")
+            ?? payload.ScoredIps.FirstOrDefault(x => x.RecommendedAction == "RateLimit")
+            ?? payload.ScoredIps.FirstOrDefault();
+
+        var summaryText = topAttack.TopTargetUrlRequestCount > 0
+            ? $"{topAttack.TopTargetUrl}가 현재 가장 우선순위가 높은 공격 대상 URL로 보이며, 총 {topAttack.TopTargetUrlRequestCount:N0}회 요청 중 고유 IP {topAttack.TopTargetUrlUniqueIpCount:N0}개가 관여했습니다."
+            : "뚜렷한 단일 공격 대상 URL은 제한적이지만, 반복 접근과 404 스캐닝 흔적은 확인됩니다.";
+
+        var riskText =
+            blockUrlCount >= 3 || blockCandidates.Count >= 5
+                ? $"높음. Block 권고 URL {blockUrlCount:N0}개, Block 권고 IP {blockCandidates.Count:N0}개가 확인되어 단순 관찰 단계는 지났습니다."
+                : rateLimitUrlCount >= 2 || rateLimitCandidates.Count >= 3
+                    ? $"중간 이상. RateLimit 또는 Block이 필요한 URL/IP가 여럿 보여 선제 대응이 필요합니다."
+                    : "관찰 필요. 즉시 차단까지는 아니어도 반복 접근 패턴은 지속 모니터링이 필요합니다.";
+
         var lines = new List<string>
         {
             "[전체 요약]",
-            $"원본 {payload.TotalRequestCount:N0}건 중 분석 대상 {payload.AnalyzedRequestCount:N0}건, 제외 {payload.ExcludedRequestCount:N0}건이며 제외 IP 패턴은 {string.Join(", ", payload.ExcludedIpPatterns)}입니다. Referer 없음 비율은 {payload.RefererMissingRatio:P0}입니다.",
+            $"원본 {payload.TotalRequestCount:N0}건 중 분석 대상은 {payload.AnalyzedRequestCount:N0}건이고, 제외 IP 패턴 {string.Join(", ", payload.ExcludedIpPatterns)}로 {payload.ExcludedRequestCount:N0}건이 분석에서 빠졌습니다. 전체 분석 대상의 Referer 없음 비율은 {payload.RefererMissingRatio:P0}입니다.",
+            summaryText,
+            topBlockUrl is not null
+                ? $"가장 우선 대응할 URL은 {topBlockUrl.Url}이며, 패턴은 {DescribeUrlPattern(topBlockUrl)}이고 현재 권고는 {DescribeAction(topBlockUrl.RecommendedAction)}입니다."
+                : string.Empty,
+            topBlockIp is not null
+                ? $"가장 우선 대응할 IP는 {topBlockIp.Ip}이며, 패턴은 {DescribeIpPattern(topBlockIp)}이고 현재 권고는 {DescribeAction(topBlockIp.RecommendedAction)}입니다."
+                : string.Empty,
             "",
             "[위험도]",
-            topScoredIps.Count > 0 || topAttackUrls.Count > 0 || top404Ips.Count > 0 ? "중간 이상" : "관찰 필요",
+            riskText,
+            distributedUrls.Count > 0
+                ? $"분산형 접근 후보 URL이 {distributedUrls.Count:N0}개 확인되어 단일 IP 차단만으로는 충분하지 않을 가능성이 있습니다."
+                : "현재 상위 후보 중 분산형 접근보다는 단일 IP 또는 소수 IP 집중형 패턴이 더 뚜렷합니다.",
             "",
             "[공격 URL]",
             topAttackUrls.Count > 0
-                ? JoinItems(topAttackUrls, x => $"{x.Url}({x.RecommendedAction}, {x.TotalRequests:N0}회, 200={x.Http200Count:N0}, topIP={x.TopIp} {x.TopIpRatio:P0})")
+                ? string.Join(Environment.NewLine, topAttackUrls.Select(x =>
+                    $"- {x.Url}: {DescribeUrlPattern(x)}. 권고 {x.RecommendedAction}, 총 {x.TotalRequests:N0}회, 200={x.Http200Count:N0}, 404={x.Http404Count:N0}, 고유 IP {x.UniqueIpCount:N0}, 상위 IP {x.TopIp} {x.TopIpRatio:P0}, Top10 점유율 {x.Top10IpRatio:P0}, Referer 없음 {x.NoRefererRatio:P0}, 근거 {FormatReasons(x.Reasons, 4)}"))
                 : "뚜렷한 공격 URL 후보가 충분하지 않습니다.",
             boardUrls.Count > 0
-                ? $"게시판 후보: {JoinItems(boardUrls, x => $"{x.Url}({x.RecommendedAction}, {x.TotalRequests:N0}회, topIP={x.TopIp} {x.TopIpRatio:P0})")}"
+                ? $"우선 주시할 게시판/조회성 URL: {string.Join("; ", boardUrls.Select(x => $"{x.Url}({x.RecommendedAction}, {DescribeUrlPattern(x)}, {x.TotalRequests:N0}회, 상위 IP {x.TopIp} {x.TopIpRatio:P0})"))}"
+                : string.Empty,
+            distributedUrls.Count > 0
+                ? $"분산 접근 후보 URL: {string.Join("; ", distributedUrls.Select(x => $"{x.Url}(Top3 {x.Top3IpRatio:P0}, Top10 {x.Top10IpRatio:P0}, 고유 IP {x.UniqueIpCount:N0}, 분산점수 {x.DistributedAccessScore})"))}"
+                : string.Empty,
+            singleIpUrls.Count > 0
+                ? $"단일 IP 집중형 URL: {string.Join("; ", singleIpUrls.Select(x => $"{x.Url}(상위 IP {x.TopIp} {x.TopIpRatio:P0}, 총 {x.TotalRequests:N0}회)"))}"
                 : string.Empty,
             "",
             "[의심 IP]",
             topScoredIps.Count > 0
-                ? JoinItems(topScoredIps, x => $"{x.Ip}({x.RecommendedAction}, score={x.Score}, 요청={x.RequestCount:N0}, 200={x.Http200Count:N0}, 404={x.ErrorCount:N0}, dominant={x.DominantUrlRatio:P0})")
+                ? string.Join(Environment.NewLine, topScoredIps.Select(x =>
+                    $"- {x.Ip}: {DescribeIpPattern(x)}. 권고 {x.RecommendedAction}, score={x.Score}, 요청={x.RequestCount:N0}, 200={x.Http200Count:N0}, 오류={x.ErrorCount:N0}, 주요 URL {x.DominantUrl} {x.DominantUrlRatio:P0}, Referer 없음 {x.RefererMissingRatio:P0}, 근거 {FormatReasons(x.Reasons, 4)}"))
                 : "차단 또는 제한 후보 IP가 충분하지 않습니다.",
             top404Ips.Count > 0
-                ? $"404 스캔 후보: {JoinItems(top404Ips, x => $"{x.Ip}({x.RecommendedAction}, 404={x.NotFoundCount:N0}, 민감탐색={x.SensitiveProbeCount:N0})")}"
+                ? $"404 스캔 후보: {string.Join("; ", top404Ips.Select(x => $"{x.Ip}({x.RecommendedAction}, 404={x.NotFoundCount:N0}, 민감탐색={x.SensitiveProbeCount:N0}, Referer 없음 {x.RefererMissingRatio:P0}, 근거 {FormatReasons(x.Reasons, 3)})"))}"
+                : string.Empty,
+            suspiciousQueries.Count > 0
+                ? $"의심 QueryString: {string.Join("; ", suspiciousQueries.Select(x => $"{x.QueryString}({x.Count:N0}회, {FormatReasons(x.Reasons, 2)})"))}"
                 : string.Empty,
             "",
             "[차단 후보]",
-            string.Join(", ",
-                topScoredIps.Where(x => x.RecommendedAction is "Block" or "RateLimit").Select(x => x.Ip)
-                    .Concat(top404Ips.Where(x => x.RecommendedAction is "Block" or "RateLimit").Select(x => x.Ip))
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .Take(8)),
+            $"즉시 차단: {FormatIpList(blockCandidates)}" + Environment.NewLine +
+            $"속도 제한: {FormatIpList(rateLimitCandidates)}" + Environment.NewLine +
+            $"모니터링: {FormatIpList(monitorCandidates)}",
+            topBlockUrl is not null
+                ? $"우선 보호 URL: {topBlockUrl.Url} ({DescribeUrlPattern(topBlockUrl)}, {DescribeAction(topBlockUrl.RecommendedAction)})"
+                : string.Empty,
             "",
             "[대응 방안]",
-            "게시판 URL 집중 접근과 404 스캐닝 IP는 우선 차단 또는 속도 제한을 적용하고, 200 정상 응답 기반의 반복 호출은 Referer와 호출 비율을 기준으로 추가 점검하세요."
+            BuildFallbackResponsePlan(topAttackUrls, topScoredIps, top404Ips, payload.SuspiciousQueryStrings)
         };
 
+        if (top404Urls.Count > 0 || highRisk404Ips.Count > 0)
+        {
+            lines.Add($"404 집중 URL: {(top404Urls.Count > 0 ? string.Join(", ", top404Urls.Select(x => $"{x.Value}({x.Count:N0})")) : "없음")}");
+            lines.Add($"404 우선 차단/제한 IP: {(highRisk404Ips.Count > 0 ? string.Join(", ", highRisk404Ips.Select(x => $"{x.Ip}({x.RecommendedAction})")) : "없음")}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(question))
+        {
+            var questionIps = ExtractQuestionIps(question);
+            var questionIpLocations = questionIps
+                .Select(ip =>
+                {
+                    var hitKinds = new List<string>();
+                    if (topScoredIps.Any(x => x.Ip.Equals(ip, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        hitKinds.Add("ScoredIps");
+                    }
+                    if (top404Ips.Any(x => x.Ip.Equals(ip, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        hitKinds.Add("NotFoundScanIps");
+                    }
+                    if (topAttackUrls.Any(x => x.TopIp.Equals(ip, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        hitKinds.Add("TopUrlAttackCandidates");
+                    }
+                    if (boardUrls.Any(x => x.TopIp.Equals(ip, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        hitKinds.Add("BoardAttackCandidates");
+                    }
+
+                    return new { Ip = ip, HitKinds = hitKinds };
+                })
+                .ToList();
+
+            var matchedQuestionIps = questionIpLocations.Where(x => x.HitKinds.Count > 0).Select(x => x.Ip).ToList();
+            var unmatchedQuestionIps = questionIpLocations.Where(x => x.HitKinds.Count == 0).Select(x => x.Ip).ToList();
+
+            lines.Add("");
+            lines.Add("[추가 질문 답변]");
+            lines.Add($"질문: {question.Trim()}");
+            if (questionIps.Count > 0)
+            {
+                lines.Add($"질문에서 추출한 IP {questionIps.Count:N0}개 중 현재 분석 근거와 겹치는 IP는 {matchedQuestionIps.Count:N0}개입니다.");
+                if (matchedQuestionIps.Count > 0)
+                {
+                    lines.Add($"겹치는 IP: {string.Join(", ", questionIpLocations.Where(x => x.HitKinds.Count > 0).Select(x => $"{x.Ip}({string.Join("+", x.HitKinds)})"))}");
+                }
+                if (unmatchedQuestionIps.Count > 0)
+                {
+                    lines.Add($"현재 요약에서 바로 보이지 않는 IP: {string.Join(", ", unmatchedQuestionIps)}");
+                }
+            }
+
+            lines.Add("현재 답변은 LLM 본문이 아니라 로컬 집계 기반 fallback 응답입니다.");
+        }
+
         return string.Join(Environment.NewLine, lines.Where(line => !string.IsNullOrWhiteSpace(line)));
+    }
+
+    private static string BuildFallbackResponsePlan(
+        IReadOnlyList<UrlAttackDetailItem> topAttackUrls,
+        IReadOnlyList<ScoredIpItem> topScoredIps,
+        IReadOnlyList<NotFoundScanIpItem> top404Ips,
+        IReadOnlyList<SuspiciousQueryItem> suspiciousQueries)
+    {
+        var actions = new List<string>();
+
+        if (topAttackUrls.Any(x => x.IsDistributedDdosCandidate))
+        {
+            actions.Add("분산 접근 후보 URL은 특정 IP 차단만으로는 효과가 제한적일 수 있으므로 URL 단위 RateLimit, 캐싱, CDN/WAF 보호를 우선 적용하세요.");
+        }
+
+        if (topAttackUrls.Any(x => x.Http200Count > 0 && x.TopIpRatio >= 0.5))
+        {
+            actions.Add("200 정상 응답 기반 반복 호출이 상위 IP에 집중된 URL은 스크래핑 가능성이 높으므로 해당 IP 차단과 함께 대상 URL의 호출 빈도 제어를 병행하세요.");
+        }
+
+        if (top404Ips.Any())
+        {
+            actions.Add("404 스캐닝 IP는 관리자 페이지, 백업 파일, 설정 파일 탐색 여부를 기준으로 우선 차단하고, 반복 패턴이 약한 경우에는 속도 제한으로 단계 대응하세요.");
+        }
+
+        if (topScoredIps.Any(x => x.SuspiciousQueryCount > 0) || suspiciousQueries.Any())
+        {
+            actions.Add("의심 QueryString 요청은 애플리케이션 로그와 WAF 로그를 함께 대조해 실제 취약점 탐색인지 추가 확인하세요.");
+        }
+
+        if (topScoredIps.Any(x => x.BoardAccessCount >= 20))
+        {
+            actions.Add("게시판/조회성 페이지에 반복 접근이 집중되면 robots 정책, 캐시 정책, 세션·쿠키 검증, URL별 요청 제한을 함께 점검하세요.");
+        }
+
+        if (actions.Count == 0)
+        {
+            actions.Add("상위 공격 URL과 의심 IP를 기준으로 차단, 속도 제한, 모니터링 대상을 나눠 순차 대응하세요.");
+        }
+
+        return string.Join(" ", actions);
     }
 
     private static bool LooksTrivialAnalysis(string? response)

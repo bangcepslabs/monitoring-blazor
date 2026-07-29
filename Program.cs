@@ -1,4 +1,4 @@
-using Monitoring.Blazor.Components;
+﻿using Monitoring.Blazor.Components;
 using Monitoring.Blazor.Models;
 using Monitoring.Blazor.Services;
 using Microsoft.AspNetCore.Authentication;
@@ -148,7 +148,15 @@ using (var scope = app.Services.CreateScope())
     }
     catch (Exception exception)
     {
-        app.Logger.LogWarning(exception, "Database initialization failed. The application will continue without database access.");
+        try
+        {
+            app.Logger.LogWarning(exception, "Database initialization failed. The application will continue without database access.");
+        }
+        catch
+        {
+            Console.Error.WriteLine("Database initialization failed. The application will continue without database access.");
+            Console.Error.WriteLine(exception);
+        }
     }
 }
 
@@ -374,7 +382,8 @@ app.MapPost("/api/ollama/analyze", async (HttpRequest request, OllamaClient clie
         return Results.BadRequest("prompt required");
     }
 
-    var response = await client.GenerateAsync(payload.Prompt, payload.SystemPrompt, ct);
+    var effectivePrompt = BuildEffectiveOllamaPrompt(payload.Prompt, payload.UserQuestion);
+    var response = await client.GenerateAsync(effectivePrompt, payload.SystemPrompt, ct);
     var entry = new OllamaAnalysisEntry
     {
         TimestampUtc = DateTime.UtcNow,
@@ -405,7 +414,8 @@ app.MapPost("/api/ollama/analyze-async", async (HttpRequest request, OllamaClien
     {
         try
         {
-            var response = await client.GenerateAsync(payload.Prompt, payload.SystemPrompt, CancellationToken.None);
+            var effectivePrompt = BuildEffectiveOllamaPrompt(payload.Prompt, payload.UserQuestion);
+            var response = await client.GenerateAsync(effectivePrompt, payload.SystemPrompt, CancellationToken.None);
             var entry = new OllamaAnalysisEntry
             {
                 TimestampUtc = DateTime.UtcNow,
@@ -444,7 +454,8 @@ app.MapPost("/api/ollama/stream", async (HttpRequest request, OllamaClient clien
         var builder = new System.Text.StringBuilder();
         try
         {
-            await foreach (var chunk in client.StreamAsync(payload.Prompt, payload.SystemPrompt, ct))
+            var effectivePrompt = BuildEffectiveOllamaPrompt(payload.Prompt, payload.UserQuestion);
+            await foreach (var chunk in client.StreamAsync(effectivePrompt, payload.SystemPrompt, ct))
             {
                 builder.Append(chunk);
                 var bytes = System.Text.Encoding.UTF8.GetBytes(chunk);
@@ -474,7 +485,7 @@ app.MapPost("/api/ollama/stream", async (HttpRequest request, OllamaClient clien
         }
         catch (Exception exception)
         {
-            var message = $"AI 분석 실패: {exception.Message}";
+            var message = $"AI 遺꾩꽍 ?ㅽ뙣: {exception.Message}";
             var bytes = System.Text.Encoding.UTF8.GetBytes(message);
             await stream.WriteAsync(bytes, ct);
             await stream.FlushAsync(ct);
@@ -1041,6 +1052,23 @@ static string returnUrlQuery(string returnUrl)
         : $"&returnUrl={Uri.EscapeDataString(returnUrl)}";
 }
 
+static string BuildEffectiveOllamaPrompt(string prompt, string? userQuestion)
+{
+    if (string.IsNullOrWhiteSpace(userQuestion))
+    {
+        return prompt;
+    }
+
+    return string.Concat(
+        prompt,
+        "\n\n[추가 질문]\n",
+        userQuestion.Trim(),
+        "\n\n[추가 질문 응답 지침]\n",
+        "위 질문에 대해 JSON 근거를 사용해 반드시 별도 문단으로 직접 답하라. ",
+        "질문과 무관한 기본 요약만 반복하지 마라. ",
+        "질문에 포함된 IP, URL, 차단 여부를 우선 검토하고 마지막에 결론을 명확히 추가하라.");
+}
+
 static string BuildAbsoluteUrl(HttpContext context, string relativePath)
 {
     var path = relativePath.StartsWith("/", StringComparison.Ordinal) ? relativePath : "/" + relativePath;
@@ -1423,4 +1451,9 @@ internal sealed record OllamaAnalyzeRequest(
     DateOnly? LogDate,
     long? TotalRows,
     long? Status5xxCount,
-    double? Status5xxRatio);
+    double? Status5xxRatio,
+    string? UserQuestion);
+
+
+
+

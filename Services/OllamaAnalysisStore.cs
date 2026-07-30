@@ -84,6 +84,43 @@ public sealed class OllamaAnalysisStore(
         }
     }
 
+    public IReadOnlyList<OllamaAnalysisEntry> LoadRecent(int take = 10)
+    {
+        try
+        {
+            var folder = ResolveFolder();
+            if (!Directory.Exists(folder))
+            {
+                return [];
+            }
+
+            return new DirectoryInfo(folder)
+                .EnumerateFiles("iis-analysis-*.json", SearchOption.TopDirectoryOnly)
+                .OrderByDescending(x => x.LastWriteTimeUtc)
+                .Select(file =>
+                {
+                    try
+                    {
+                        var json = File.ReadAllText(file.FullName);
+                        return JsonSerializer.Deserialize<OllamaAnalysisEntry>(json);
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                })
+                .Where(entry => entry is not null && !IsIgnorableResponse(entry.Response))
+                .Take(take)
+                .Cast<OllamaAnalysisEntry>()
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Failed to load recent Ollama analysis results.");
+            return [];
+        }
+    }
+
     private static bool IsIgnorableResponse(string? response)
     {
         if (string.IsNullOrWhiteSpace(response))

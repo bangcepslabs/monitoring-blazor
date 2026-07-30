@@ -4,6 +4,7 @@ public sealed class SettingsBackupService(
     AlertSettingsRepository alertSettingsRepository,
     EmailSettingsRepository emailSettingsRepository,
     NotificationSettingsRepository notificationSettingsRepository,
+    RuntimeSettingsRepository runtimeSettingsRepository,
     SecuritySettingsRepository securitySettingsRepository,
     SqlTargetSettingsRepository sqlTargetSettingsRepository,
     ServerCatalogRepository serverCatalogRepository,
@@ -14,6 +15,7 @@ public sealed class SettingsBackupService(
         var alerts = alertSettingsRepository.Load(configuration.GetSection("Monitoring:Alerts").Get<AlertSettings>() ?? new AlertSettings());
         var email = emailSettingsRepository.Load(configuration.GetSection("Monitoring:Email").Get<EmailSettings>() ?? new EmailSettings());
         var notifications = notificationSettingsRepository.Load(configuration.GetSection("Monitoring:Notifications").Get<NotificationSettings>() ?? new NotificationSettings());
+        var logAnalysis = runtimeSettingsRepository.LoadLogAnalysis(new LogAnalysisRuntimeSettings());
         var security = securitySettingsRepository.Load(configuration.GetSection("Monitoring:Security").Get<SecuritySettings>() ?? new SecuritySettings());
         var sqlTargets = sqlTargetSettingsRepository.LoadAll();
         var serverCatalog = serverCatalogRepository.LoadAll();
@@ -22,6 +24,7 @@ public sealed class SettingsBackupService(
         {
             Alerts = alerts,
             Email = email,
+            LogAnalysis = logAnalysis,
             Notifications = notifications,
             Security = security,
             SqlTargets = sqlTargets,
@@ -34,6 +37,7 @@ public sealed class SettingsBackupService(
         alertSettingsRepository.Save(payload.Alerts ?? new AlertSettings());
         emailSettingsRepository.Save(payload.Email ?? new EmailSettings());
         notificationSettingsRepository.Save(payload.Notifications ?? new NotificationSettings());
+        runtimeSettingsRepository.SaveLogAnalysis(payload.LogAnalysis ?? new LogAnalysisRuntimeSettings());
         securitySettingsRepository.Save(payload.Security ?? new SecuritySettings());
 
         sqlTargetSettingsRepository.ReplaceAll(new Dictionary<string, SqlTargetSettings>(

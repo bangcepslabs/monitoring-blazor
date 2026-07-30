@@ -232,6 +232,37 @@
                     </div>
                 </div>
 
+                <div class="settings-section" id="analysis-rules">
+                    <div class="settings-section-title">Log Analysis Rules</div>
+                    <div class="settings-section-help">Manage excluded IP patterns and custom detection tokens used by the IIS log analyzer. Enter one item per line.</div>
+                    <div class="row g-2">
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Excluded IP patterns</label>
+                            <textarea class="form-control font-monospace" rows="5" @bind="ExcludedIpPatternsText" placeholder="121.131.195.*"></textarea>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Priority URL tokens</label>
+                            <textarea class="form-control font-monospace" rows="5" @bind="PriorityUrlTokensText" placeholder="board&#10;search&#10;download"></textarea>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Admin probe tokens</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="AdminProbeTokensText" placeholder="admin&#10;manager&#10;login"></textarea>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Backup probe tokens</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="BackupProbeTokensText" placeholder="backup&#10;bak&#10;zip"></textarea>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Config probe tokens</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="ConfigProbeTokensText" placeholder="web.config&#10;appsettings.json&#10;.env"></textarea>
+                        </div>
+                        <div class="col-12 col-lg-6">
+                            <label class="form-label">Script / exploit tokens</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="ScriptProbeTokensText" placeholder="powershell&#10;cmd=&#10;phpmyadmin"></textarea>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="settings-section" id="report">
                     <div class="settings-section-title">Reports</div>
                     <div class="settings-section-help">View a human-readable IIS analysis report here, and open the raw JSON only when you need the source data.</div>
@@ -432,6 +463,7 @@
     private OllamaRuntimeSettings OllamaSettings { get; set; } = new();
     private LogExportRuntimeSettings LogExportSettings { get; set; } = new();
     private LogImportRuntimeSettings LogImportSettings { get; set; } = new();
+    private LogAnalysisRuntimeSettings LogAnalysisSettings { get; set; } = new();
     private string _backupJson = string.Empty;
     private string _iisReportSummary = string.Empty;
     private string _iisReportRawJson = string.Empty;
@@ -539,6 +571,42 @@
         set => NotificationSettings.WebhookEnabled = string.Equals(value, "Y", StringComparison.OrdinalIgnoreCase);
     }
 
+    private string ExcludedIpPatternsText
+    {
+        get => string.Join(Environment.NewLine, LogAnalysisSettings.ExcludedIpPatterns);
+        set => LogAnalysisSettings.ExcludedIpPatterns = SplitLines(value);
+    }
+
+    private string PriorityUrlTokensText
+    {
+        get => string.Join(Environment.NewLine, LogAnalysisSettings.PriorityUrlTokens);
+        set => LogAnalysisSettings.PriorityUrlTokens = SplitLines(value);
+    }
+
+    private string AdminProbeTokensText
+    {
+        get => string.Join(Environment.NewLine, LogAnalysisSettings.AdminProbeTokens);
+        set => LogAnalysisSettings.AdminProbeTokens = SplitLines(value);
+    }
+
+    private string BackupProbeTokensText
+    {
+        get => string.Join(Environment.NewLine, LogAnalysisSettings.BackupProbeTokens);
+        set => LogAnalysisSettings.BackupProbeTokens = SplitLines(value);
+    }
+
+    private string ConfigProbeTokensText
+    {
+        get => string.Join(Environment.NewLine, LogAnalysisSettings.ConfigProbeTokens);
+        set => LogAnalysisSettings.ConfigProbeTokens = SplitLines(value);
+    }
+
+    private string ScriptProbeTokensText
+    {
+        get => string.Join(Environment.NewLine, LogAnalysisSettings.ScriptProbeTokens);
+        set => LogAnalysisSettings.ScriptProbeTokens = SplitLines(value);
+    }
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
@@ -562,7 +630,7 @@
     {
         "basic" => "Server health alerts and account security.",
         "collection" => "Where IIS logs are picked up, exported, and imported.",
-        "analysis" => "Ollama analysis and where report JSON is stored.",
+        "analysis" => "Ollama analysis, detection rules, and where report JSON is stored.",
         "integrations" => "Backups, email verification/reset, and outbound notifications.",
         _ => string.Empty
     };
@@ -571,7 +639,7 @@
     {
         "basic" => "Start here if you only want to tune the main behavior.",
         "collection" => "Check this first if logs are not showing up.",
-        "analysis" => "Only needed when AI analysis is enabled.",
+        "analysis" => "Tune this when you need custom detection logic or report storage.",
         "integrations" => "Used when you need recovery or external delivery.",
         _ => string.Empty
     };
@@ -648,6 +716,12 @@
                 LogImportSettings = logImportResponse;
             }
 
+            var logAnalysisResponse = await client.GetFromJsonAsync<LogAnalysisRuntimeSettings>("api/runtime/log-analysis-rules");
+            if (logAnalysisResponse is not null)
+            {
+                LogAnalysisSettings = logAnalysisResponse;
+            }
+
             var emailResponse = await client.GetFromJsonAsync<EmailSettings>("api/email/settings");
             if (emailResponse is not null)
             {
@@ -700,6 +774,9 @@
 
             var logImportResponse = await client.PostAsJsonAsync("api/runtime/log-import", LogImportSettings);
             logImportResponse.EnsureSuccessStatusCode();
+
+            var logAnalysisResponse = await client.PostAsJsonAsync("api/runtime/log-analysis-rules", LogAnalysisSettings);
+            logAnalysisResponse.EnsureSuccessStatusCode();
 
             StatusMessage = "Settings saved.";
         }
@@ -883,5 +960,19 @@
 
         time = default;
         return false;
+    }
+
+    private static List<string> SplitLines(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return [];
+        }
+
+        return value
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }

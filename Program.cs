@@ -501,6 +501,12 @@ app.MapGet("/api/ollama/latest", (OllamaAnalysisStore store) =>
         : Results.Json(latest);
 });
 
+app.MapGet("/api/ollama/history", (OllamaAnalysisStore store, int? take) =>
+{
+    var items = store.LoadRecent(Math.Clamp(take ?? 10, 1, 50));
+    return Results.Ok(items);
+});
+
 static bool IsOllamaDisabledResponse(string? response)
 {
     return string.Equals(response?.Trim(), "Ollama is disabled in configuration.", StringComparison.OrdinalIgnoreCase);
@@ -805,6 +811,38 @@ app.MapPost("/api/runtime/log-import", async (HttpRequest request, HttpContext c
         ],
         true,
         "Log import runtime settings updated",
+        context.RequestAborted);
+    return Results.Ok();
+});
+
+app.MapGet("/api/runtime/log-analysis-rules", (RuntimeSettingsRepository repo) =>
+{
+    return Results.Ok(repo.LoadLogAnalysis(new LogAnalysisRuntimeSettings()));
+});
+
+app.MapPost("/api/runtime/log-analysis-rules", async (HttpRequest request, HttpContext context, RuntimeSettingsRepository repo, AuditLogService auditLogService) =>
+{
+    var settings = await request.ReadFromJsonAsync<LogAnalysisRuntimeSettings>();
+    if (settings is null)
+    {
+        return Results.BadRequest("Invalid settings");
+    }
+
+    var before = repo.LoadLogAnalysis(new LogAnalysisRuntimeSettings());
+    repo.SaveLogAnalysis(settings);
+    await auditLogService.WriteChangeAsync(
+        "log_analysis_runtime_update",
+        null,
+        [
+            new AuditChange("ExcludedIpPatterns", string.Join(", ", before.ExcludedIpPatterns), string.Join(", ", settings.ExcludedIpPatterns)),
+            new AuditChange("PriorityUrlTokens", string.Join(", ", before.PriorityUrlTokens), string.Join(", ", settings.PriorityUrlTokens)),
+            new AuditChange("AdminProbeTokens", string.Join(", ", before.AdminProbeTokens), string.Join(", ", settings.AdminProbeTokens)),
+            new AuditChange("BackupProbeTokens", string.Join(", ", before.BackupProbeTokens), string.Join(", ", settings.BackupProbeTokens)),
+            new AuditChange("ConfigProbeTokens", string.Join(", ", before.ConfigProbeTokens), string.Join(", ", settings.ConfigProbeTokens)),
+            new AuditChange("ScriptProbeTokens", string.Join(", ", before.ScriptProbeTokens), string.Join(", ", settings.ScriptProbeTokens))
+        ],
+        true,
+        "Log analysis rule settings updated",
         context.RequestAborted);
     return Results.Ok();
 });

@@ -4,6 +4,7 @@
 @using Monitoring.Blazor.Models
 @using Monitoring.Blazor.Services
 @using Microsoft.EntityFrameworkCore
+@using System.Net
 @using System.Net.Http.Json
 @using System.Text.Json
 @using System.Text
@@ -228,6 +229,8 @@
             <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">AI 분석 취소</button>
             <input class="form-control form-control-sm log-question-input" placeholder="추가 질문을 작성하실 수 있습니다." @bind="AiQuestion" @bind:event="oninput" />
             <button class="btn btn-sm btn-outline-secondary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze || string.IsNullOrWhiteSpace(AiQuestion))">질문 반영</button>
+            <button class="btn btn-sm btn-outline-dark" @onclick="CopyBlockCandidatesAsync" disabled="@(!CanCopyBlockCandidates)">Copy Block IPs</button>
+            <button class="btn btn-sm btn-outline-dark" @onclick="CopyRateLimitCandidatesAsync" disabled="@(!CanCopyRateLimitCandidates)">Copy RateLimit IPs</button>
             <label class="form-label mb-0">Multi-sort</label>
             <input type="checkbox" class="form-check-input" @bind="MultiSort" />
             <span class="badge @(UseOllama ? "text-bg-success" : "text-bg-secondary")">Ollama: @(UseOllama ? "Y" : "N")</span>
@@ -252,37 +255,152 @@
         }
         @if (!string.IsNullOrWhiteSpace(AnalyzeMessage))
         {
+            var reportSections = ParseAnalysisSections(AnalyzeMessage);
             <section class="analysis-inline-report mb-3" aria-label="AI analysis report">
                 <div class="analysis-inline-report__header">
-                    <div class="analysis-inline-report__eyebrow">AI 분석 리포트</div>
-                    <div class="analysis-inline-report__accent" aria-hidden="true"></div>
+                    <button type="button" class="analysis-inline-report__toggle" @onclick="ToggleAnalysisReportCollapsed">
+                        <div class="analysis-inline-report__eyebrow">AI 분석 리포트</div>
+                        <div class="analysis-inline-report__title">SOC Summary</div>
+                    </button>
+                    <div class="analysis-inline-report__meta">
+                        <span class="badge @(LastAnalysisUsedFallback ? "text-bg-warning" : "text-bg-success")">@(LastAnalysisUsedFallback ? "Fallback" : "LLM")</span>
+                        @if (!string.IsNullOrWhiteSpace(LastAnalysisSourceLabel))
+                        {
+                            <span class="badge text-bg-secondary">@LastAnalysisSourceLabel</span>
+                        }
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAnalysisReportCollapsed">
+                            @(IsAnalysisReportCollapsed ? "펼치기" : "접기")
+                        </button>
+                    </div>
                 </div>
-                <pre class="analysis-pre">@AnalyzeMessage</pre>
+
+                @if (!IsAnalysisReportCollapsed && reportSections.Count > 0)
+                {
+                    <div class="analysis-section-grid">
+                        @foreach (var section in reportSections)
+                        {
+                            <article class="analysis-section-card">
+                                <div class="analysis-section-card__header">
+                                    <h3>@section.Title</h3>
+                                </div>
+                                <div class="analysis-section-card__body">
+                                    @{
+                                        var primaryLine = section.Lines.FirstOrDefault();
+                                        var detailLines = section.Lines.Skip(1).ToList();
+                                    }
+
+                                    @if (!string.IsNullOrWhiteSpace(primaryLine))
+                                    {
+                                        <div class="analysis-section-card__primary">@primaryLine</div>
+                                    }
+
+                                    @if (detailLines.Count > 0)
+                                    {
+                                        <details class="analysis-section-card__details">
+                                            <summary>상세 보기</summary>
+                                            <div class="analysis-section-card__details-body">
+                                                @foreach (var line in detailLines)
+                                                {
+                                                    if (line.StartsWith("- "))
+                                                    {
+                                                        <div class="analysis-section-card__bullet">@line.Substring(2)</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <p>@line</p>
+                                                    }
+                                                }
+                                            </div>
+                                        </details>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    </div>
+                }
+                else if (!IsAnalysisReportCollapsed)
+                {
+                    <pre class="analysis-pre">@AnalyzeMessage</pre>
+                }
+                else
+                {
+                    <div class="analysis-inline-report__collapsed-note">AI 분석 리포트가 접혀 있습니다. 펼치기를 누르면 상세 내용을 확인할 수 있습니다.</div>
+                }
+            </section>
+        }
+        @if (RecentAnalysisEntries.Count > 0)
+        {
+            <section class="analysis-history-panel" aria-label="Recent analysis history">
+                <div class="analysis-history-panel__header">
+                    <button type="button" class="analysis-inline-report__toggle" @onclick="ToggleRecentReportsCollapsed">
+                        <div class="analysis-inline-report__eyebrow">Recent Reports</div>
+                        <div class="analysis-inline-report__title">Analysis History</div>
+                    </button>
+                    <div class="analysis-inline-report__meta">
+                        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadRecentAnalysisHistoryAsync">Refresh</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleRecentReportsCollapsed">
+                            @(IsRecentReportsCollapsed ? "펼치기" : "접기")
+                        </button>
+                    </div>
+                </div>
+                @if (!IsRecentReportsCollapsed)
+                {
+                    <div class="analysis-history-list">
+                        @foreach (var entry in RecentAnalysisEntries)
+                        {
+                            <button type="button" class="analysis-history-item" @onclick="() => LoadHistoryEntry(entry)">
+                                <div class="analysis-history-item__top">
+                                    <strong>@entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</strong>
+                                    <span class="badge @(IsFallbackResponse(entry.Response) ? "text-bg-warning" : "text-bg-success")">@(IsFallbackResponse(entry.Response) ? "Fallback" : "LLM")</span>
+                                </div>
+                                <div class="analysis-history-item__meta">
+                                    <span>@entry.Source</span>
+                                    <span>@(entry.LogDate?.ToString() ?? "-")</span>
+                                    <span>@entry.TotalRows.ToString("N0") rows</span>
+                                </div>
+                            </button>
+                        }
+                    </div>
+                }
+                else
+                {
+                    <div class="analysis-inline-report__collapsed-note">최근 분석 이력이 접혀 있습니다. 펼치기를 누르면 목록을 확인할 수 있습니다.</div>
+                }
             </section>
         }
     </div>
     <div class="table-responsive log-entries-table">
-        <table class="table table-sm table-striped mb-0">
+        <table class="table table-sm table-striped mb-0 log-entries-grid">
+            <colgroup>
+                <col class="col-date" />
+                <col class="col-time" />
+                <col class="col-ip" />
+                <col class="col-method" />
+                <col class="col-uri" />
+                <col class="col-status" />
+                <col class="col-referer" />
+                <col class="col-agent" />
+            </colgroup>
             <thead>
             <tr>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Date))">Date <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Date))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Time))">Time <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Time))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Ip))">IP <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Ip))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Method))">Method <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Method))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Uri))">URI <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Uri))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Status))">Status <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Status))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Referrer))">Referer <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Referrer))"></i></span></button></th>
-                <th><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.UserAgent))">User-Agent <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.UserAgent))"></i></span></button></th>
+                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Date))">Date <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Date))"></i></span></button></th>
+                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Time))">Time <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Time))"></i></span></button></th>
+                <th class="cell-ip"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Ip))">IP <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Ip))"></i></span></button></th>
+                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Method))">Method <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Method))"></i></span></button></th>
+                <th class="cell-wide"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Uri))">URI <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Uri))"></i></span></button></th>
+                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Status))">Status <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Status))"></i></span></button></th>
+                <th class="cell-medium"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Referrer))">Referer <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Referrer))"></i></span></button></th>
+                <th class="cell-agent"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.UserAgent))">User-Agent <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.UserAgent))"></i></span></button></th>
             </tr>
             <tr class="table-filter-row">
-                <th><input class="form-control form-control-sm" @bind="DateFilter" @bind:event="oninput" placeholder="yyyy-mm-dd" /></th>
-                <th><input class="form-control form-control-sm" @bind="TimeFilter" @bind:event="oninput" placeholder="hh:mm" /></th>
-                <th><input class="form-control form-control-sm" @bind="IpFilter" @bind:event="oninput" placeholder="IP" /></th>
-                <th><input class="form-control form-control-sm" @bind="MethodFilter" @bind:event="oninput" placeholder="GET" /></th>
-                <th><input class="form-control form-control-sm" @bind="UriFilter" @bind:event="oninput" placeholder="/api" /></th>
-                <th><input class="form-control form-control-sm" @bind="StatusFilter" @bind:event="oninput" placeholder="200" /></th>
-                <th><input class="form-control form-control-sm" @bind="ReferrerFilter" @bind:event="oninput" placeholder="ref" /></th>
-                <th><input class="form-control form-control-sm" @bind="AgentFilter" @bind:event="oninput" placeholder="agent" /></th>
+                <th class="cell-compact"><input class="form-control form-control-sm" @bind="DateFilter" @bind:event="oninput" placeholder="yyyy-mm-dd" /></th>
+                <th class="cell-compact"><input class="form-control form-control-sm" @bind="TimeFilter" @bind:event="oninput" placeholder="hh:mm" /></th>
+                <th class="cell-ip"><input class="form-control form-control-sm" @bind="IpFilter" @bind:event="oninput" placeholder="IP" /></th>
+                <th class="cell-compact"><input class="form-control form-control-sm" @bind="MethodFilter" @bind:event="oninput" placeholder="GET" /></th>
+                <th class="cell-wide"><input class="form-control form-control-sm" @bind="UriFilter" @bind:event="oninput" placeholder="/api" /></th>
+                <th class="cell-compact"><input class="form-control form-control-sm" @bind="StatusFilter" @bind:event="oninput" placeholder="200" /></th>
+                <th class="cell-medium"><input class="form-control form-control-sm" @bind="ReferrerFilter" @bind:event="oninput" placeholder="ref" /></th>
+                <th class="cell-agent"><input class="form-control form-control-sm" @bind="AgentFilter" @bind:event="oninput" placeholder="agent" /></th>
             </tr>
             </thead>
             <tbody @key="CurrentPage">
@@ -290,14 +408,14 @@
             {
                 <Virtualize Items="filtered" Context="row" ItemSize="36" OverscanCount="12">
                     <tr @key="row" class="@GetRowClass(row)">
-                        <td>@row.Date</td>
-                        <td>@row.Time</td>
-                        <td>@row.Ip</td>
-                        <td>@row.Method</td>
-                        <td class="text-truncate" style="max-width: 380px;" title="@row.Uri">@row.Uri</td>
-                        <td>@row.Status</td>
-                        <td class="text-truncate" style="max-width: 220px;" title="@row.Referrer">@row.Referrer</td>
-                        <td class="text-truncate" style="max-width: 260px;" title="@row.UserAgent">@row.UserAgent</td>
+                        <td class="cell-compact">@row.Date</td>
+                        <td class="cell-compact">@row.Time</td>
+                        <td class="cell-ip">@row.Ip</td>
+                        <td class="cell-compact"><span class="@GetMethodBadgeClass(row.Method)">@row.Method</span></td>
+                        <td class="cell-wide text-truncate" title="@row.Uri">@row.Uri</td>
+                        <td class="cell-compact"><span class="@GetStatusBadgeClass(row.Status)">@row.Status</span></td>
+                        <td class="cell-medium text-truncate" title="@row.Referrer">@row.Referrer</td>
+                        <td class="cell-agent text-truncate" title="@row.UserAgent">@row.UserAgent</td>
                     </tr>
                 </Virtualize>
             }
@@ -306,14 +424,14 @@
                 @foreach (var row in pageRows)
                 {
                     <tr @key="row" class="@GetRowClass(row)">
-                        <td>@row.Date</td>
-                        <td>@row.Time</td>
-                        <td>@row.Ip</td>
-                        <td>@row.Method</td>
-                        <td class="text-truncate" style="max-width: 380px;" title="@row.Uri">@row.Uri</td>
-                        <td>@row.Status</td>
-                        <td class="text-truncate" style="max-width: 220px;" title="@row.Referrer">@row.Referrer</td>
-                        <td class="text-truncate" style="max-width: 260px;" title="@row.UserAgent">@row.UserAgent</td>
+                        <td class="cell-compact">@row.Date</td>
+                        <td class="cell-compact">@row.Time</td>
+                        <td class="cell-ip">@row.Ip</td>
+                        <td class="cell-compact"><span class="@GetMethodBadgeClass(row.Method)">@row.Method</span></td>
+                        <td class="cell-wide text-truncate" title="@row.Uri">@row.Uri</td>
+                        <td class="cell-compact"><span class="@GetStatusBadgeClass(row.Status)">@row.Status</span></td>
+                        <td class="cell-medium text-truncate" title="@row.Referrer">@row.Referrer</td>
+                        <td class="cell-agent text-truncate" title="@row.UserAgent">@row.UserAgent</td>
                     </tr>
                 }
             }
@@ -356,6 +474,10 @@
     private string? ExportMessage { get; set; }
     private bool IsAnalyzing { get; set; }
     private string? AnalyzeMessage { get; set; }
+    private bool IsAnalysisReportCollapsed { get; set; }
+    private bool IsRecentReportsCollapsed { get; set; }
+    private bool LastAnalysisUsedFallback { get; set; }
+    private string LastAnalysisSourceLabel { get; set; } = string.Empty;
     private string ServerName { get; set; } = string.Empty;
     private List<IBrowserFile> SelectedFiles { get; set; } = [];
     private List<ParsedLogRow> AllRows { get; set; } = [];
@@ -377,22 +499,28 @@
     private DotNetObjectReference<LogParser>? _settingsRef;
     private CancellationTokenSource? _uploadCts;
     private CancellationTokenSource? _analysisCts;
+    private LogAnalysisRuntimeSettings LogAnalysisSettings { get; set; } = new();
+    private List<OllamaAnalysisEntry> RecentAnalysisEntries { get; set; } = [];
     private static readonly JsonSerializerOptions AnalysisJsonOptions = new()
     {
         WriteIndented = false,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
     };
-    private static readonly string[] AnalysisExcludedIpPatterns =
+    private static readonly string[] DefaultAnalysisExcludedIpPatterns =
     [
         "121.131.195.*"
     ];
-    private static readonly string[] AnalysisExcludedIpPrefixes =
+    private static readonly string[] DefaultAnalysisExcludedIpPrefixes =
     [
         "121.131.195."
     ];
+    private static IReadOnlyList<string> AnalysisExcludedIpPatterns = DefaultAnalysisExcludedIpPatterns;
+    private static IReadOnlyList<string> AnalysisExcludedIpPrefixes = DefaultAnalysisExcludedIpPrefixes;
     private const int MaxUploadFiles = 10;
     private const long MaxUploadBytes = 500L * 1024 * 1024;
+    private bool CanCopyBlockCandidates => GetBlockCandidateIps().Count > 0;
+    private bool CanCopyRateLimitCandidates => GetRateLimitCandidateIps().Count > 0;
     private string OllamaEnabledChoice
     {
         get => UseOllama ? "Y" : "N";
@@ -514,8 +642,12 @@
             try
             {
                 UseOllama = await JS.InvokeAsync<bool>("monitorSettings.get", "ollamaEnabled", true);
+                IsAnalysisReportCollapsed = await JS.InvokeAsync<bool>("monitorSettings.get", "logParser.analysisCollapsed", false);
+                IsRecentReportsCollapsed = await JS.InvokeAsync<bool>("monitorSettings.get", "logParser.recentReportsCollapsed", false);
                 _settingsRef = DotNetObjectReference.Create(this);
                 await JS.InvokeVoidAsync("monitorSettings.watch", "ollamaEnabled", _settingsRef, nameof(OnOllamaPreferenceChanged));
+                await LoadRuntimeAnalysisSettingsAsync();
+                await LoadRecentAnalysisHistoryAsync();
                 await InvokeAsync(StateHasChanged);
             }
             catch
@@ -529,6 +661,121 @@
     {
         new SortSpec(nameof(ParsedLogRow.Date), true)
     };
+
+    private static List<AnalysisSection> ParseAnalysisSections(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return [];
+        }
+
+        var lines = text.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n');
+        var sections = new List<AnalysisSection>();
+        AnalysisSection? current = null;
+
+        foreach (var raw in lines)
+        {
+            var line = raw.Trim();
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                continue;
+            }
+
+            if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal) && line.Length > 2)
+            {
+                current = new AnalysisSection(line[1..^1]);
+                sections.Add(current);
+                continue;
+            }
+
+            if (current is null)
+            {
+                current = new AnalysisSection("분석 결과");
+                sections.Add(current);
+            }
+
+            current.Lines.Add(line);
+        }
+
+        return sections;
+    }
+
+    private async Task LoadRuntimeAnalysisSettingsAsync()
+    {
+        try
+        {
+            using var client = CreateAnalysisClient();
+            var settings = await client.GetFromJsonAsync<LogAnalysisRuntimeSettings>("api/runtime/log-analysis-rules");
+            LogAnalysisSettings = settings ?? new LogAnalysisRuntimeSettings();
+            ApplyRuntimeAnalysisSettings(LogAnalysisSettings);
+        }
+        catch
+        {
+            LogAnalysisSettings = new LogAnalysisRuntimeSettings();
+            ApplyRuntimeAnalysisSettings(LogAnalysisSettings);
+        }
+    }
+
+    private async Task LoadRecentAnalysisHistoryAsync()
+    {
+        try
+        {
+            using var client = CreateAnalysisClient();
+            var items = await client.GetFromJsonAsync<List<OllamaAnalysisEntry>>("api/ollama/history?take=8");
+            RecentAnalysisEntries = items ?? [];
+        }
+        catch
+        {
+            RecentAnalysisEntries = [];
+        }
+    }
+
+    private void LoadHistoryEntry(OllamaAnalysisEntry entry)
+    {
+        AnalyzeMessage = entry.Response;
+        LastAnalysisUsedFallback = IsFallbackResponse(entry.Response);
+        LastAnalysisSourceLabel = entry.Source;
+    }
+
+    private static void ApplyRuntimeAnalysisSettings(LogAnalysisRuntimeSettings settings)
+    {
+        AnalysisExcludedIpPatterns = MergeTokens(DefaultAnalysisExcludedIpPatterns, settings.ExcludedIpPatterns, treatAsPatterns: true);
+        AnalysisExcludedIpPrefixes = AnalysisExcludedIpPatterns
+            .Select(ToPrefixFromPattern)
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        PriorityUrlTokens = MergeTokens(DefaultPriorityUrlTokens, settings.PriorityUrlTokens);
+        AdminProbeTokens = MergeTokens(DefaultAdminProbeTokens, settings.AdminProbeTokens);
+        BackupProbeTokens = MergeTokens(DefaultBackupProbeTokens, settings.BackupProbeTokens);
+        ConfigProbeTokens = MergeTokens(DefaultConfigProbeTokens, settings.ConfigProbeTokens);
+        ScriptProbeTokens = MergeTokens(DefaultScriptProbeTokens, settings.ScriptProbeTokens);
+    }
+
+    private static List<string> MergeTokens(IEnumerable<string> defaults, IEnumerable<string>? custom, bool treatAsPatterns = false)
+    {
+        var values = defaults
+            .Concat(custom ?? [])
+            .Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (!treatAsPatterns)
+        {
+            return values;
+        }
+
+        return values
+            .OrderBy(x => x, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string ToPrefixFromPattern(string pattern)
+    {
+        var trimmed = pattern.Trim();
+        return trimmed.EndsWith(".*", StringComparison.Ordinal) ? trimmed[..^1] : trimmed;
+    }
 
     private async Task<List<ParsedLogRow>> ReadAndParseFile(IBrowserFile file, long bytesBefore, long totalBytes, CancellationToken token)
     {
@@ -1160,6 +1407,39 @@
         return existing.Ascending ? "bi bi-caret-up-fill" : "bi bi-caret-down-fill";
     }
 
+    private static string GetStatusBadgeClass(string? status)
+    {
+        if (!int.TryParse(status, out var code))
+        {
+            return "log-badge log-badge--neutral";
+        }
+
+        return code switch
+        {
+            >= 200 and < 300 => "log-badge log-badge--success",
+            >= 300 and < 400 => "log-badge log-badge--info",
+            >= 400 and < 500 => "log-badge log-badge--warning",
+            >= 500 => "log-badge log-badge--danger",
+            _ => "log-badge log-badge--neutral"
+        };
+    }
+
+    private static string GetMethodBadgeClass(string? method)
+    {
+        var normalized = (method ?? string.Empty).Trim().ToUpperInvariant();
+        return normalized switch
+        {
+            "GET" => "log-badge log-badge--method-get",
+            "POST" => "log-badge log-badge--method-post",
+            "PUT" => "log-badge log-badge--method-put",
+            "DELETE" => "log-badge log-badge--method-delete",
+            "PATCH" => "log-badge log-badge--method-patch",
+            "HEAD" => "log-badge log-badge--method-head",
+            "OPTIONS" => "log-badge log-badge--method-options",
+            _ => "log-badge log-badge--neutral"
+        };
+    }
+
     private void ApplyPreset(string preset)
     {
         ResetPage();
@@ -1278,16 +1558,21 @@
         if (!UseOllama)
         {
             AnalyzeMessage = "Ollama is disabled. Set Ollama to Y to enable AI analysis.";
+            LastAnalysisUsedFallback = false;
+            LastAnalysisSourceLabel = "disabled";
             return;
         }
 
         IsAnalyzing = true;
         AnalyzeMessage = "AI 분석을 실행 중입니다. 완료되면 결과가 한 번에 표시됩니다.";
+        LastAnalysisUsedFallback = false;
+        LastAnalysisSourceLabel = "running";
         _analysisCts?.Dispose();
         _analysisCts = new CancellationTokenSource();
         var ct = _analysisCts.Token;
         try
         {
+            ApplyRuntimeAnalysisSettings(LogAnalysisSettings);
             var filtered = GetFilteredRows();
             var question = AiQuestion.Trim();
             var analysisPayload = BuildAnalysisPayload(filtered, question);
@@ -1337,6 +1622,7 @@
                 AnalyzeMessage = string.IsNullOrWhiteSpace(errorText)
                     ? $"AI 분석 실패: HTTP {(int)response.StatusCode}"
                     : $"AI 분석 실패: {errorText}";
+                LastAnalysisSourceLabel = "http-error";
                 return;
             }
 
@@ -1380,24 +1666,34 @@
                 AnalyzeMessage = isTrivialAnalysis
                     ? questionSpecific
                     : string.Join(Environment.NewLine + Environment.NewLine, new[] { finalText, questionSpecific }.Where(x => !string.IsNullOrWhiteSpace(x)));
+                LastAnalysisUsedFallback = isTrivialAnalysis;
             }
             else if (isTrivialAnalysis)
             {
                 AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload, question);
+                LastAnalysisUsedFallback = true;
             }
             else
             {
                 AnalyzeMessage = finalText;
+                LastAnalysisUsedFallback = false;
             }
+
+            LastAnalysisSourceLabel = LastAnalysisUsedFallback ? "manual-fallback" : "ollama";
+            await LoadRecentAnalysisHistoryAsync();
         }
         catch (TaskCanceledException)
         {
             IsAnalyzing = false;
             AnalyzeMessage = "AI 분석 요청이 시간 초과되었습니다. 로그 양이 많으면 시간이 오래 걸릴 수 있어요. 잠시 후 다시 시도해주세요.";
+            LastAnalysisUsedFallback = false;
+            LastAnalysisSourceLabel = "timeout";
         }
         catch (Exception ex)
         {
             AnalyzeMessage = ex.Message;
+            LastAnalysisUsedFallback = false;
+            LastAnalysisSourceLabel = "error";
         }
         finally
         {
@@ -1452,6 +1748,74 @@
         AnalyzeMessage = "AI 분석이 취소되었습니다.";
 
         await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CopyBlockCandidatesAsync()
+    {
+        var content = string.Join(Environment.NewLine, GetBlockCandidateIps());
+        var ok = await JS.InvokeAsync<bool>("monitorSettings.copyText", content);
+        ExportMessage = ok ? "Block 후보 IP를 클립보드에 복사했습니다." : "클립보드 복사에 실패했습니다.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task CopyRateLimitCandidatesAsync()
+    {
+        var content = string.Join(Environment.NewLine, GetRateLimitCandidateIps());
+        var ok = await JS.InvokeAsync<bool>("monitorSettings.copyText", content);
+        ExportMessage = ok ? "RateLimit 후보 IP를 클립보드에 복사했습니다." : "클립보드 복사에 실패했습니다.";
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void ToggleAnalysisReportCollapsed()
+    {
+        IsAnalysisReportCollapsed = !IsAnalysisReportCollapsed;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", "logParser.analysisCollapsed", IsAnalysisReportCollapsed);
+    }
+
+    private void ToggleRecentReportsCollapsed()
+    {
+        IsRecentReportsCollapsed = !IsRecentReportsCollapsed;
+        _ = JS.InvokeVoidAsync("monitorSettings.set", "logParser.recentReportsCollapsed", IsRecentReportsCollapsed);
+    }
+
+    private List<string> GetBlockCandidateIps()
+    {
+        return ParseCandidateIpsByLabel("즉시 차단");
+    }
+
+    private List<string> GetRateLimitCandidateIps()
+    {
+        return ParseCandidateIpsByLabel("속도 제한");
+    }
+
+    private List<string> ParseCandidateIpsByLabel(string label)
+    {
+        if (string.IsNullOrWhiteSpace(AnalyzeMessage))
+        {
+            return [];
+        }
+
+        var line = AnalyzeMessage
+            .Replace("\r\n", "\n", StringComparison.Ordinal)
+            .Split('\n')
+            .Select(x => x.Trim())
+            .FirstOrDefault(x => x.StartsWith(label + ":", StringComparison.OrdinalIgnoreCase));
+
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return [];
+        }
+
+        var value = line[(label.Length + 1)..].Trim();
+        if (string.Equals(value, "없음", StringComparison.OrdinalIgnoreCase))
+        {
+            return [];
+        }
+
+        return value
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static string BuildAnalysisJson(CompactLogAnalysisPayload payload, string? question)
@@ -1665,6 +2029,10 @@
         var attackSummary = BuildAttackSummary(urlAttackDetails, 10);
         var top404Urls = GetStatusUrlCounts(analyzedRows, "404", 30);
         var top404Ips = GetStatusIpCounts(analyzedRows, "404", 30);
+        var adminPageProbes = GetProbeUrls(analyzedRows, AdminProbeTokens.ToArray(), 30);
+        var backupFileProbes = GetProbeUrls(analyzedRows, BackupProbeTokens.ToArray(), 30);
+        var configFileProbes = GetProbeUrls(analyzedRows, ConfigProbeTokens.ToArray(), 30);
+        var scriptProbeUrls = GetProbeUrls(analyzedRows, ScriptProbeTokens.ToArray(), 30);
         var notFoundScanIps = GetNotFoundScanIps(analyzedRows, 50);
         var topUrlAttackCandidates = urlAttackDetails
             .Where(x => x.RecommendedAction is "Block" or "RateLimit")
@@ -1719,6 +2087,10 @@
             SuspiciousQueryStrings = compactSuspiciousQueryStrings,
             Top404Urls = compactTop404Urls,
             Top404Ips = compactTop404Ips,
+            AdminPageProbes = adminPageProbes.Take(15).ToList(),
+            BackupFileProbes = backupFileProbes.Take(15).ToList(),
+            ConfigFileProbes = configFileProbes.Take(15).ToList(),
+            ScriptProbeUrls = scriptProbeUrls.Take(15).ToList(),
             Question = string.IsNullOrWhiteSpace(question) ? null : question.Trim()
         };
     }
@@ -2363,6 +2735,10 @@
 
         var isBoardUrl = IsBoardUrl(url);
         var priorityUrl = IsPriorityAttackUrl(url);
+        var hasAdminProbe = ContainsAny(url, AdminProbeTokens);
+        var hasBackupProbe = ContainsAny(url, BackupProbeTokens);
+        var hasConfigProbe = ContainsAny(url, ConfigProbeTokens);
+        var hasScriptProbe = ContainsAny(url, ScriptProbeTokens);
         var isDistributedAccess = distributedAccessScore >= 30 && uniqueIpCount >= 15 && totalRequestCount >= 20;
         var isDistributedCrawler = isDistributedAccess && http200RequestCount >= 10 && refererMissingRatio >= 0.5;
         var isDistributedDdosCandidate = isDistributedAccess && totalRequestCount >= 50 && top10IpRatio <= 0.6;
@@ -2467,6 +2843,30 @@
             reasons.Add("우선 분석 대상 URL");
         }
 
+        if (hasAdminProbe)
+        {
+            score += 20;
+            reasons.Add("관리자 페이지 탐색 시도");
+        }
+
+        if (hasBackupProbe)
+        {
+            score += 20;
+            reasons.Add("백업 파일 탐색 시도");
+        }
+
+        if (hasConfigProbe)
+        {
+            score += 20;
+            reasons.Add("설정 파일 탐색 시도");
+        }
+
+        if (hasScriptProbe)
+        {
+            score += 15;
+            reasons.Add("스크립트/익스플로잇 탐색 시도");
+        }
+
         if (isDistributedAttackCandidate)
         {
             reasons.Add($"분산 접근 가능성 높음 (Top3={top3IpRatio:P0}, Top10={top10IpRatio:P0}, Top30={top30IpRatio:P0}, 분산점수={distributedAccessScore})");
@@ -2478,9 +2878,9 @@
         }
 
         var recommendedAction =
-            (isDistributedAttackCandidate && topIpRatio < 0.01) || (isBoardUrl && (totalRequestCount >= 100 || topIpRatio >= 0.7)) || totalRequestCount >= 300 || (refererMissingRatio >= 0.8 && totalRequestCount >= 20)
+            (isDistributedAttackCandidate && topIpRatio < 0.01) || (isBoardUrl && (totalRequestCount >= 100 || topIpRatio >= 0.7)) || totalRequestCount >= 300 || (refererMissingRatio >= 0.8 && totalRequestCount >= 20) || hasAdminProbe || hasBackupProbe || hasConfigProbe
                 ? "Block"
-                : (isDistributedAttackCandidate || (isBoardUrl && totalRequestCount >= 20) || totalRequestCount >= 80 || topIpRatio >= 0.5 || refererMissingRatio >= 0.5 || (priorityUrl && totalRequestCount >= 30))
+                : (isDistributedAttackCandidate || (isBoardUrl && totalRequestCount >= 20) || totalRequestCount >= 80 || topIpRatio >= 0.5 || refererMissingRatio >= 0.5 || (priorityUrl && totalRequestCount >= 30) || hasScriptProbe)
                     ? "RateLimit"
                     : totalRequestCount >= 20
                         ? "Monitor"
@@ -2552,7 +2952,7 @@
 
     private static bool IsPriorityAttackUrl(string url)
     {
-        return ContainsAny(url, ["board", "search", "view", "download", "inform.aspx", "list.aspx", "bbs", "article", "notice", "read"]);
+        return ContainsAny(url, PriorityUrlTokens);
     }
 
     private static List<CountItem> GetProbeUrls(List<ParsedLogRow> rows, string[] tokens, int take)
@@ -2684,25 +3084,38 @@
         return "Allow";
     }
 
-    private static readonly string[] AdminProbeTokens =
+    private static readonly string[] DefaultAdminProbeTokens =
     [
-        "admin", "manager", "login", "cms", "console", "dashboard", "admin.aspx", "admin/", "signin", "administrator"
+        "admin", "manager", "login", "cms", "console", "dashboard", "admin.aspx", "admin/", "signin", "administrator",
+        "backend", "controlpanel", "master", "memberadmin", "manage", "portal", "system"
     ];
 
-    private static readonly string[] BackupProbeTokens =
+    private static readonly string[] DefaultBackupProbeTokens =
     [
-        "backup", "zip", "bak", "old", ".bak", ".zip", ".old", ".backup"
+        "backup", "zip", "bak", "old", ".bak", ".zip", ".old", ".backup", ".7z", ".tar", ".gz", ".tgz", ".rar", "dump", "db_backup"
     ];
 
-    private static readonly string[] ConfigProbeTokens =
+    private static readonly string[] DefaultConfigProbeTokens =
     [
-        "web.config", "appsettings.json", ".env", "config.json", "settings.json", "connectionstrings", "secrets"
+        "web.config", "appsettings.json", ".env", "config.json", "settings.json", "connectionstrings", "secrets",
+        "application.properties", "bootstrap.yml", "bootstrap.yaml", "application.yml", "application.yaml",
+        "config.php", "settings.php", ".npmrc", ".git/config", "id_rsa", "known_hosts", "credentials.json"
     ];
 
-    private static readonly string[] ScriptProbeTokens =
+    private static readonly string[] DefaultScriptProbeTokens =
     [
-        "shell", "cmd=", "powershell", ".php", ".aspx", ".jsp", ".cgi", ".sh", "phpmyadmin", "wp-admin", "wp-login", "test", "debug"
+        "shell", "cmd=", "powershell", ".php", ".aspx", ".jsp", ".cgi", ".sh", "phpmyadmin", "wp-admin", "wp-login", "test", "debug",
+        "eval(", "base64_decode", "system(", "exec(", "passthru(", "cmd.exe", "/bin/sh", "/bin/bash"
     ];
+    private static readonly string[] DefaultPriorityUrlTokens =
+    [
+        "board", "search", "view", "download", "inform.aspx", "list.aspx", "bbs", "article", "notice", "read"
+    ];
+    private static IReadOnlyList<string> AdminProbeTokens = DefaultAdminProbeTokens;
+    private static IReadOnlyList<string> BackupProbeTokens = DefaultBackupProbeTokens;
+    private static IReadOnlyList<string> ConfigProbeTokens = DefaultConfigProbeTokens;
+    private static IReadOnlyList<string> ScriptProbeTokens = DefaultScriptProbeTokens;
+    private static IReadOnlyList<string> PriorityUrlTokens = DefaultPriorityUrlTokens;
 
     private static List<ErrorIpItem> GetErrorIps(List<ParsedLogRow> rows, int take)
     {
@@ -2809,36 +3222,74 @@
         }
 
         var reasons = new List<string>();
-        var lower = query.ToLowerInvariant();
+        var normalizedQueries = ExpandQueryVariants(query);
+        var lowerVariants = normalizedQueries
+            .Select(x => x.ToLowerInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
 
         if (query.Length >= 120)
         {
             reasons.Add("long_query");
         }
 
-        if (lower.Contains("%2e%2e") || lower.Contains("../") || lower.Contains("..\\") || lower.Contains("%5c") || lower.Contains("%2f"))
+        if (lowerVariants.Any(lower =>
+                lower.Contains("%2e%2e") || lower.Contains("../") || lower.Contains("..\\") ||
+                lower.Contains("%5c") || lower.Contains("%2f") || lower.Contains("%252e%252e") ||
+                lower.Contains("..%2f") || lower.Contains("..%5c")))
         {
             reasons.Add("traversal_or_encoded_path");
         }
 
-        if (lower.Contains("<script") || lower.Contains("onerror=") || lower.Contains("alert(") || lower.Contains("javascript:"))
+        if (lowerVariants.Any(lower =>
+                lower.Contains("<script") || lower.Contains("%3cscript") || lower.Contains("onerror=") ||
+                lower.Contains("onload=") || lower.Contains("alert(") || lower.Contains("javascript:") ||
+                lower.Contains("document.cookie") || lower.Contains("svg/onload") || lower.Contains("img src=x")))
         {
             reasons.Add("xss_pattern");
         }
 
-        if (lower.Contains("union select") || lower.Contains("information_schema") || lower.Contains(" or 1=1") || lower.Contains("sleep(") || lower.Contains("benchmark(") || lower.Contains("xp_cmdshell"))
+        if (lowerVariants.Any(lower =>
+                lower.Contains("union select") || lower.Contains("information_schema") || lower.Contains(" or 1=1") ||
+                lower.Contains("' or '1'='1") || lower.Contains("\" or \"1\"=\"1") || lower.Contains("sleep(") ||
+                lower.Contains("benchmark(") || lower.Contains("waitfor delay") || lower.Contains("xp_cmdshell") ||
+                lower.Contains("select@@version") || lower.Contains("cast(") || lower.Contains("convert(")))
         {
             reasons.Add("sqli_pattern");
         }
 
-        if (lower.Contains("cmd=") || lower.Contains("exec=") || lower.Contains("powershell") || lower.Contains("wget ") || lower.Contains("curl ") || lower.Contains("bash "))
+        if (lowerVariants.Any(lower =>
+                lower.Contains("cmd=") || lower.Contains("exec=") || lower.Contains("powershell") ||
+                lower.Contains("wget ") || lower.Contains("curl ") || lower.Contains("bash ") ||
+                lower.Contains("cmd.exe") || lower.Contains("/bin/sh") || lower.Contains("/bin/bash") ||
+                lower.Contains("nc -e") || lower.Contains("certutil") || lower.Contains("tftp ")))
         {
             reasons.Add("command_injection_pattern");
         }
 
-        if (lower.Contains("/etc/passwd") || lower.Contains("web.config") || lower.Contains("win.ini") || lower.Contains("administrator") || lower.Contains("phpmyadmin") || lower.Contains("wp-"))
+        if (lowerVariants.Any(lower =>
+                lower.Contains("/etc/passwd") || lower.Contains("web.config") || lower.Contains("win.ini") ||
+                lower.Contains("administrator") || lower.Contains("phpmyadmin") || lower.Contains("wp-") ||
+                lower.Contains(".git/config") || lower.Contains(".svn/entries") || lower.Contains("id_rsa") ||
+                lower.Contains("docker-compose") || lower.Contains("application.properties")))
         {
             reasons.Add("probing_pattern");
+        }
+
+        if (lowerVariants.Any(lower =>
+                lower.Contains("file=") || lower.Contains("path=") || lower.Contains("page=") ||
+                lower.Contains("include=") || lower.Contains("template=") || lower.Contains("php://") ||
+                lower.Contains("file://") || lower.Contains("data://") || lower.Contains("expect://")))
+        {
+            reasons.Add("lfi_or_rfi_pattern");
+        }
+
+        if (lowerVariants.Any(lower =>
+                lower.Contains("${jndi:") || lower.Contains("${::-j}") || lower.Contains("#{") ||
+                lower.Contains("class.module.classloader") || lower.Contains("_method=delete") ||
+                lower.Contains("_method=put") || lower.Contains("deserialize") || lower.Contains("ysoserial")))
+        {
+            reasons.Add("rce_or_framework_probe_pattern");
         }
 
         if (query.Count(ch => ch == '&') >= 6)
@@ -2852,6 +3303,35 @@
         }
 
         return new SuspiciousQueryMatch(query, reasons);
+    }
+
+    private static IReadOnlyList<string> ExpandQueryVariants(string query)
+    {
+        var values = new List<string> { query };
+        var current = query;
+
+        for (var i = 0; i < 2; i++)
+        {
+            string decoded;
+            try
+            {
+                decoded = WebUtility.UrlDecode(current);
+            }
+            catch
+            {
+                break;
+            }
+
+            if (string.IsNullOrWhiteSpace(decoded) || values.Contains(decoded, StringComparer.OrdinalIgnoreCase))
+            {
+                break;
+            }
+
+            values.Add(decoded);
+            current = decoded;
+        }
+
+        return values;
     }
 
     private static bool IsMissingField(string? value)
@@ -2924,6 +3404,10 @@
         public IReadOnlyList<UrlAttackDetailItem> BoardAttackCandidates { get; init; } = [];
         public IReadOnlyList<CountItem> Top404Urls { get; init; } = [];
         public IReadOnlyList<CountItem> Top404Ips { get; init; } = [];
+        public IReadOnlyList<CountItem> AdminPageProbes { get; init; } = [];
+        public IReadOnlyList<CountItem> BackupFileProbes { get; init; } = [];
+        public IReadOnlyList<CountItem> ConfigFileProbes { get; init; } = [];
+        public IReadOnlyList<CountItem> ScriptProbeUrls { get; init; } = [];
         public string? Question { get; init; }
     }
 
@@ -3057,6 +3541,12 @@
     private sealed record IpRepeatItem(string Ip, IReadOnlyList<CountItem> Repeats)
     {
         public int TotalCount => Repeats.Sum(x => x.Count);
+    }
+
+    private sealed class AnalysisSection(string title)
+    {
+        public string Title { get; } = title;
+        public List<string> Lines { get; } = [];
     }
 
     private sealed record IpUrlStatusRepeatItem(string Ip, IReadOnlyList<CountItem> Repeats)
@@ -3233,6 +3723,10 @@
         var distributedUrls = payload.UrlAttackDetails.Where(x => x.IsDistributedAttackCandidate).OrderByDescending(x => x.Score).Take(3).ToList();
         var singleIpUrls = payload.UrlAttackDetails.Where(x => !x.IsDistributedAttackCandidate && x.TopIpRatio >= 0.7).OrderByDescending(x => x.Score).Take(3).ToList();
         var highRisk404Ips = payload.NotFoundScanIps.Where(x => x.RecommendedAction is "Block" or "RateLimit").Take(5).ToList();
+        var adminProbes = payload.AdminPageProbes.Take(5).ToList();
+        var backupProbes = payload.BackupFileProbes.Take(5).ToList();
+        var configProbes = payload.ConfigFileProbes.Take(5).ToList();
+        var scriptProbes = payload.ScriptProbeUrls.Take(5).ToList();
         var topBlockUrl = topAttackUrls.FirstOrDefault(x => x.RecommendedAction == "Block") ?? topAttackUrls.FirstOrDefault();
         var topBlockIp = payload.ScoredIps.FirstOrDefault(x => x.RecommendedAction == "Block")
             ?? payload.ScoredIps.FirstOrDefault(x => x.RecommendedAction == "RateLimit")
@@ -3289,6 +3783,18 @@
                 : "차단 또는 제한 후보 IP가 충분하지 않습니다.",
             top404Ips.Count > 0
                 ? $"404 스캔 후보: {string.Join("; ", top404Ips.Select(x => $"{x.Ip}({x.RecommendedAction}, 404={x.NotFoundCount:N0}, 민감탐색={x.SensitiveProbeCount:N0}, Referer 없음 {x.RefererMissingRatio:P0}, 근거 {FormatReasons(x.Reasons, 3)})"))}"
+                : string.Empty,
+            adminProbes.Count > 0
+                ? $"관리자 페이지 접근 시도: {string.Join("; ", adminProbes.Select(x => $"{x.Value}({x.Count:N0})"))}"
+                : string.Empty,
+            backupProbes.Count > 0
+                ? $"백업 파일 접근 시도: {string.Join("; ", backupProbes.Select(x => $"{x.Value}({x.Count:N0})"))}"
+                : string.Empty,
+            configProbes.Count > 0
+                ? $"설정 파일 접근 시도: {string.Join("; ", configProbes.Select(x => $"{x.Value}({x.Count:N0})"))}"
+                : string.Empty,
+            scriptProbes.Count > 0
+                ? $"스크립트/익스플로잇 탐색 시도: {string.Join("; ", scriptProbes.Select(x => $"{x.Value}({x.Count:N0})"))}"
                 : string.Empty,
             suspiciousQueries.Count > 0
                 ? $"의심 QueryString: {string.Join("; ", suspiciousQueries.Select(x => $"{x.QueryString}({x.Count:N0}회, {FormatReasons(x.Reasons, 2)})"))}"
@@ -3404,6 +3910,19 @@
         }
 
         return string.Join(" ", actions);
+    }
+
+    private static bool IsFallbackResponse(string? response)
+    {
+        if (string.IsNullOrWhiteSpace(response))
+        {
+            return false;
+        }
+
+        return response.Contains("로컬 집계 기반 fallback", StringComparison.OrdinalIgnoreCase)
+            || response.Contains("[전체 요약]", StringComparison.Ordinal)
+               && response.Contains("[차단 후보]", StringComparison.Ordinal)
+               && response.Contains("[대응 방안]", StringComparison.Ordinal);
     }
 
     private static bool LooksTrivialAnalysis(string? response)

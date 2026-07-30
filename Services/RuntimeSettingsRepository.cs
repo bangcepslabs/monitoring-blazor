@@ -25,6 +25,10 @@ public sealed class RuntimeSettingsRepository
 
     public void SaveLogImport(LogImportRuntimeSettings settings) => Save("log-import-runtime.json", settings);
 
+    public LogAnalysisRuntimeSettings LoadLogAnalysis(LogAnalysisRuntimeSettings fallback) => Load("log-analysis-runtime.json", fallback);
+
+    public void SaveLogAnalysis(LogAnalysisRuntimeSettings settings) => Save("log-analysis-runtime.json", settings);
+
     private T Load<T>(string fileName, T fallback)
     {
         lock (_lock)
@@ -101,4 +105,14 @@ public sealed class LogImportRuntimeSettings
     public int TargetDateOffsetDays { get; set; } = 1;
     public string StateFilePath { get; set; } = string.Empty;
     public string ServerName { get; set; } = "HOST-01";
+}
+
+public sealed class LogAnalysisRuntimeSettings
+{
+    public List<string> ExcludedIpPatterns { get; set; } = [];
+    public List<string> PriorityUrlTokens { get; set; } = [];
+    public List<string> AdminProbeTokens { get; set; } = [];
+    public List<string> BackupProbeTokens { get; set; } = [];
+    public List<string> ConfigProbeTokens { get; set; } = [];
+    public List<string> ScriptProbeTokens { get; set; } = [];
 }

@@ -258,24 +258,30 @@
             var reportSections = ParseAnalysisSections(AnalyzeMessage);
             <section class="analysis-inline-report mb-3" aria-label="AI analysis report">
                 <div class="analysis-inline-report__header">
-                    <button type="button" class="analysis-inline-report__toggle" @onclick="ToggleAnalysisReportCollapsed">
-                        <div class="analysis-inline-report__eyebrow">AI 분석 리포트</div>
-                        <div class="analysis-inline-report__title">SOC Summary</div>
+                    <button type="button" class="analysis-inline-report__toggle" @onclick="ToggleAnalysisReportCollapsed" aria-expanded="@(!IsAnalysisReportCollapsed)">
+                        <span class="analysis-inline-report__icon">
+                            <i class="bi @(IsAnalysisReportCollapsed ? "bi-chevron-right" : "bi-chevron-down")"></i>
+                        </span>
+                        <span class="analysis-inline-report__content">
+                            <span class="analysis-inline-report__eyebrow">AI 분석 리포트</span>
+                            <span class="analysis-inline-report__subtitle">공격 URL, 의심 IP, 대응 권고를 한 번에 확인합니다.</span>
+                        </span>
                     </button>
                     <div class="analysis-inline-report__meta">
-                        <span class="badge @(LastAnalysisUsedFallback ? "text-bg-warning" : "text-bg-success")">@(LastAnalysisUsedFallback ? "Fallback" : "LLM")</span>
-                        @if (!string.IsNullOrWhiteSpace(LastAnalysisSourceLabel))
-                        {
-                            <span class="badge text-bg-secondary">@LastAnalysisSourceLabel</span>
-                        }
-                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleAnalysisReportCollapsed">
-                            @(IsAnalysisReportCollapsed ? "펼치기" : "접기")
+                        <button type="button" class="analysis-inline-report__action" @onclick="ToggleAnalysisReportCollapsed">
+                            @(IsAnalysisReportCollapsed ? "열기" : "접기")
                         </button>
                     </div>
                 </div>
 
                 @if (!IsAnalysisReportCollapsed && reportSections.Count > 0)
                 {
+                    @if (LastAnalysisUsedFallback)
+                    {
+                        <div class="analysis-inline-report__notice">
+                            자동 요약이 충분하지 않아 집계 기반 분석 결과로 표시되었습니다.
+                        </div>
+                    }
                     <div class="analysis-section-grid">
                         @foreach (var section in reportSections)
                         {
@@ -296,22 +302,19 @@
 
                                     @if (detailLines.Count > 0)
                                     {
-                                        <details class="analysis-section-card__details">
-                                            <summary>상세 보기</summary>
-                                            <div class="analysis-section-card__details-body">
-                                                @foreach (var line in detailLines)
+                                        <div class="analysis-section-card__list">
+                                            @foreach (var line in detailLines)
+                                            {
+                                                if (line.StartsWith("- "))
                                                 {
-                                                    if (line.StartsWith("- "))
-                                                    {
-                                                        <div class="analysis-section-card__bullet">@line.Substring(2)</div>
-                                                    }
-                                                    else
-                                                    {
-                                                        <p>@line</p>
-                                                    }
+                                                    <div class="analysis-section-card__bullet">@line.Substring(2)</div>
                                                 }
-                                            </div>
-                                        </details>
+                                                else
+                                                {
+                                                    <p>@line</p>
+                                                }
+                                            }
+                                        </div>
                                     }
                                 </div>
                             </article>
@@ -333,13 +336,18 @@
             <section class="analysis-history-panel" aria-label="Recent analysis history">
                 <div class="analysis-history-panel__header">
                     <button type="button" class="analysis-inline-report__toggle" @onclick="ToggleRecentReportsCollapsed">
-                        <div class="analysis-inline-report__eyebrow">Recent Reports</div>
-                        <div class="analysis-inline-report__title">Analysis History</div>
+                        <span class="analysis-inline-report__icon">
+                            <i class="bi @(IsRecentReportsCollapsed ? "bi-chevron-right" : "bi-chevron-down")"></i>
+                        </span>
+                        <span class="analysis-inline-report__content">
+                            <span class="analysis-inline-report__eyebrow">Recent Reports</span>
+                            <span class="analysis-inline-report__subtitle">최근 생성한 AI 분석 결과를 다시 불러옵니다.</span>
+                        </span>
                     </button>
                     <div class="analysis-inline-report__meta">
-                        <button class="btn btn-sm btn-outline-secondary" @onclick="LoadRecentAnalysisHistoryAsync">Refresh</button>
-                        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleRecentReportsCollapsed">
-                            @(IsRecentReportsCollapsed ? "펼치기" : "접기")
+                        <button class="analysis-inline-report__action analysis-inline-report__action--secondary" @onclick="LoadRecentAnalysisHistoryAsync">새로고침</button>
+                        <button type="button" class="analysis-inline-report__action" @onclick="ToggleRecentReportsCollapsed">
+                            @(IsRecentReportsCollapsed ? "열기" : "접기")
                         </button>
                     </div>
                 </div>
@@ -351,12 +359,14 @@
                             <button type="button" class="analysis-history-item" @onclick="() => LoadHistoryEntry(entry)">
                                 <div class="analysis-history-item__top">
                                     <strong>@entry.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</strong>
-                                    <span class="badge @(IsFallbackResponse(entry.Response) ? "text-bg-warning" : "text-bg-success")">@(IsFallbackResponse(entry.Response) ? "Fallback" : "LLM")</span>
                                 </div>
                                 <div class="analysis-history-item__meta">
-                                    <span>@entry.Source</span>
                                     <span>@(entry.LogDate?.ToString() ?? "-")</span>
                                     <span>@entry.TotalRows.ToString("N0") rows</span>
+                                    @if (IsFallbackResponse(entry.Response))
+                                    {
+                                        <span>집계 기반</span>
+                                    }
                                 </div>
                             </button>
                         }
@@ -369,28 +379,35 @@
             </section>
         }
     </div>
+    <div class="log-entries-toolbar">
+        <div class="log-entries-toolbar__hint">
+            <i class="bi bi-arrows-expand-vertical"></i>
+            헤더 오른쪽 경계를 드래그해서 열 너비를 조절할 수 있습니다.
+        </div>
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ResetColumnWidthsAsync">열 너비 초기화</button>
+    </div>
     <div class="table-responsive log-entries-table">
-        <table class="table table-sm table-striped mb-0 log-entries-grid">
+        <table id="log-entries-grid" class="table table-sm table-striped mb-0 log-entries-grid">
             <colgroup>
-                <col class="col-date" />
-                <col class="col-time" />
-                <col class="col-ip" />
-                <col class="col-method" />
-                <col class="col-uri" />
-                <col class="col-status" />
-                <col class="col-referer" />
-                <col class="col-agent" />
+                <col class="col-date" data-column="date" />
+                <col class="col-time" data-column="time" />
+                <col class="col-ip" data-column="ip" />
+                <col class="col-method" data-column="method" />
+                <col class="col-uri" data-column="uri" />
+                <col class="col-status" data-column="status" />
+                <col class="col-referer" data-column="referer" />
+                <col class="col-agent" data-column="agent" />
             </colgroup>
             <thead>
             <tr>
-                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Date))">Date <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Date))"></i></span></button></th>
-                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Time))">Time <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Time))"></i></span></button></th>
-                <th class="cell-ip"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Ip))">IP <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Ip))"></i></span></button></th>
-                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Method))">Method <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Method))"></i></span></button></th>
-                <th class="cell-wide"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Uri))">URI <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Uri))"></i></span></button></th>
-                <th class="cell-compact"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Status))">Status <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Status))"></i></span></button></th>
-                <th class="cell-medium"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Referrer))">Referer <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Referrer))"></i></span></button></th>
-                <th class="cell-agent"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.UserAgent))">User-Agent <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.UserAgent))"></i></span></button></th>
+                <th class="cell-compact" data-column="date"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Date))">Date <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Date))"></i></span></button><span class="column-resizer" data-column="date" title="Resize Date column"></span></div></th>
+                <th class="cell-compact" data-column="time"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Time))">Time <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Time))"></i></span></button><span class="column-resizer" data-column="time" title="Resize Time column"></span></div></th>
+                <th class="cell-ip" data-column="ip"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Ip))">IP <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Ip))"></i></span></button><span class="column-resizer" data-column="ip" title="Resize IP column"></span></div></th>
+                <th class="cell-compact" data-column="method"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Method))">Method <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Method))"></i></span></button><span class="column-resizer" data-column="method" title="Resize Method column"></span></div></th>
+                <th class="cell-wide" data-column="uri"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Uri))">URI <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Uri))"></i></span></button><span class="column-resizer" data-column="uri" title="Resize URI column"></span></div></th>
+                <th class="cell-compact" data-column="status"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Status))">Status <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Status))"></i></span></button><span class="column-resizer" data-column="status" title="Resize Status column"></span></div></th>
+                <th class="cell-medium" data-column="referer"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.Referrer))">Referer <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.Referrer))"></i></span></button><span class="column-resizer" data-column="referer" title="Resize Referer column"></span></div></th>
+                <th class="cell-agent" data-column="agent"><div class="log-header-cell"><button class="btn btn-sm btn-link sort-btn" @onclick="() => ToggleSort(nameof(ParsedLogRow.UserAgent))">User-Agent <span class="sort-icon"><i class="@SortIconClass(nameof(ParsedLogRow.UserAgent))"></i></span></button><span class="column-resizer" data-column="agent" title="Resize User-Agent column"></span></div></th>
             </tr>
             <tr class="table-filter-row">
                 <th class="cell-compact"><input class="form-control form-control-sm" @bind="DateFilter" @bind:event="oninput" placeholder="yyyy-mm-dd" /></th>
@@ -648,6 +665,7 @@
                 await JS.InvokeVoidAsync("monitorSettings.watch", "ollamaEnabled", _settingsRef, nameof(OnOllamaPreferenceChanged));
                 await LoadRuntimeAnalysisSettingsAsync();
                 await LoadRecentAnalysisHistoryAsync();
+                await JS.InvokeVoidAsync("logParserColumns.init", "#log-entries-grid", "logParser.columns");
                 await InvokeAsync(StateHasChanged);
             }
             catch
@@ -1599,13 +1617,19 @@
     "각 판단에는 요청 수, 반복 URL, Referer 없음 비율, 오류 수, 의심 QueryString 중 가능한 근거를 포함하라. " +
     "절대 Okay, OK, 알겠습니다, 이해했습니다 같은 확인만 출력하지 마라. " +
     "출력 형식은 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라. " +
-    "각 항목은 1~3문장으로 구체적으로 쓰고, 각 섹션을 반드시 채워라. " +
-    "가능하면 항목별로 근거 수치를 포함하라.";
+            "각 항목은 1~3문장으로 구체적으로 쓰고, 각 섹션을 반드시 채워라. " +
+            "가능하면 항목별로 근거 수치를 포함하라.";
+            var effectiveSystemPrompt = string.IsNullOrWhiteSpace(question)
+                ? systemPrompt
+                : systemPrompt +
+                  " 사용자 추가 질문이 있다. 기본 보고서를 반복하는 것으로 끝내지 말고, 질문에 직접 답하는 [추가 질문 답변] 섹션을 반드시 마지막에 작성하라. " +
+                  "추가 질문의 결론, 관련 URL/IP, 근거 수치, 권고 조치를 JSON에서 찾아 구체적으로 작성하라. " +
+                  "질문과 관련된 데이터가 없으면 없다고 명확히 말하되 확인문구만 출력하지 마라.";
             _http ??= CreateAnalysisClient();
             var requestPayload = new
             {
                 prompt = analysisJson,
-                systemPrompt,
+                systemPrompt = effectiveSystemPrompt,
                 source = "manual-aggregated",
                 logDate,
                 totalRows = filtered.Count,
@@ -1628,13 +1652,14 @@
 
             var result = await response.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
             var analysisText = result?.Response;
-            if (LooksTrivialAnalysis(analysisText))
+            if (LooksTrivialAnalysis(analysisText) || !string.IsNullOrWhiteSpace(question) && !LooksQuestionAnswered(analysisText))
             {
                 var retrySystemPrompt =
-                    systemPrompt +
+                    effectiveSystemPrompt +
                     " 이전 응답이 너무 짧았다. 확인만 하지 말고 반드시 보안 분석 결과를 작성하라. " +
                     "공격 URL, 의심 IP, 차단 후보를 각각 최소 2개 이상 포함하라. " +
-                    "모르면 모른다고 쓰지 말고 JSON에 있는 항목만 근거로 판단하라.";
+                    "모르면 모른다고 쓰지 말고 JSON에 있는 항목만 근거로 판단하라. " +
+                    (string.IsNullOrWhiteSpace(question) ? string.Empty : "사용자 질문에 직접 답하는 [추가 질문 답변] 섹션을 반드시 포함하라.");
 
                 using var retryResponse = await _http.PostAsJsonAsync("api/ollama/analyze", new
                 {
@@ -1655,22 +1680,16 @@
                 }
             }
 
-            var questionSpecific = !string.IsNullOrWhiteSpace(question)
-                ? BuildQuestionSpecificAnalysis(filtered, analysisPayload, question)
-                : null;
             var finalText = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
             var isTrivialAnalysis = LooksTrivialAnalysis(finalText);
+            var shouldUseQuestionFallback = !string.IsNullOrWhiteSpace(question)
+                && !LooksQuestionAnswered(finalText);
 
-            if (!string.IsNullOrWhiteSpace(questionSpecific))
+            if (isTrivialAnalysis || shouldUseQuestionFallback)
             {
-                AnalyzeMessage = isTrivialAnalysis
-                    ? questionSpecific
-                    : string.Join(Environment.NewLine + Environment.NewLine, new[] { finalText, questionSpecific }.Where(x => !string.IsNullOrWhiteSpace(x)));
-                LastAnalysisUsedFallback = isTrivialAnalysis;
-            }
-            else if (isTrivialAnalysis)
-            {
-                AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload, question);
+                AnalyzeMessage = !string.IsNullOrWhiteSpace(question)
+                    ? BuildQuestionSpecificAnalysis(filtered, analysisPayload, question)
+                    : BuildFallbackAnalysisReport(analysisPayload, question);
                 LastAnalysisUsedFallback = true;
             }
             else
@@ -1862,6 +1881,9 @@
             return matches.Select(m => m.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         }
 
+        static bool ContainsAny(string text, params string[] keywords)
+            => keywords.Any(keyword => text.Contains(keyword, StringComparison.OrdinalIgnoreCase));
+
         static int GetActionRank(string action) => action switch
         {
             "Block" => 4,
@@ -1879,119 +1901,238 @@
             _ => "즉시 차단 근거 부족"
         };
 
-        var questionIps = ExtractQuestionIps(question);
-        if (questionIps.Count == 0)
+        static string FormatCountItems(IEnumerable<CountItem> items, int take = 5)
         {
-            return string.Empty;
+            var values = items.Take(take).Select(x => $"{x.Value}({x.Count:N0})").ToList();
+            return values.Count == 0 ? "없음" : string.Join(", ", values);
         }
+
+        var normalizedQuestion = question.Trim();
+        var questionIps = ExtractQuestionIps(normalizedQuestion);
+        var isAdminQuestion = ContainsAny(normalizedQuestion, "관리자", "admin", "console", "dashboard", "manager", "login");
+        var isConfigQuestion = ContainsAny(normalizedQuestion, "설정 파일", "config", "web.config", "appsettings", ".env", "credentials", "service-account", "serviceaccount");
+        var isBackupQuestion = ContainsAny(normalizedQuestion, "백업", "backup", ".bak", ".old", ".zip");
+        var isScriptProbeQuestion = ContainsAny(normalizedQuestion, "스크립트", "script", "shell", "phpmyadmin", "wp-admin", "wp-login", "exploit");
+        var isXssQuestion = ContainsAny(normalizedQuestion, "xss", "스크립트 인젝션", "querystring", "쿼리스트링", "sql injection", "sqli", "인젝션");
+        var isCrawlingQuestion = ContainsAny(normalizedQuestion, "크롤링", "크롤러", "스크래핑", "스크래퍼", "scraping", "crawler", "봇", "bot", "자동화", "대량 접근", "분산 접근", "ddos", "디도스");
 
         var lines = new List<string>
         {
             "[추가 질문 답변]",
-            $"질문에서 추출된 IP {questionIps.Count:N0}개를 현재 필터된 원본 로그와 다시 대조해 차단 적절성을 재평가했습니다."
+            $"질문: {normalizedQuestion}"
         };
 
-        var blockIps = new List<string>();
-        var rateLimitIps = new List<string>();
-        var monitorIps = new List<string>();
-        var matchedRowsIps = new List<string>();
-        var existingCandidateIps = payload.ScoredIps.Select(x => x.Ip)
-            .Concat(payload.NotFoundScanIps.Select(x => x.Ip))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-        foreach (var ip in questionIps)
+        if (questionIps.Count > 0)
         {
-            var ipRows = rows.Where(x => string.Equals(x.Ip?.Trim(), ip, StringComparison.OrdinalIgnoreCase)).ToList();
-            if (ipRows.Count == 0)
-            {
-                lines.Add($"- {ip}: 현재 분석 대상 로그에서 직접 보이지 않습니다.");
-                continue;
-            }
+            lines.Add($"질문에서 추출된 IP {questionIps.Count:N0}개를 현재 필터된 원본 로그와 다시 대조해 차단 적절성을 재평가했습니다.");
 
-            matchedRowsIps.Add(ip);
-
-            var total = ipRows.Count;
-            var count200 = ipRows.Count(x => string.Equals(x.Status?.Trim(), "200", StringComparison.OrdinalIgnoreCase));
-            var count404 = ipRows.Count(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase));
-            var missingReferer = ipRows.Count(x => string.IsNullOrWhiteSpace(x.Referrer) || x.Referrer == "-");
-            var topUrls = ipRows.Where(x => !string.IsNullOrWhiteSpace(x.Uri))
-                .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
-                .Select(g => new CountItem(g.Key, g.Count()))
-                .OrderByDescending(x => x.Count)
-                .Take(3)
-                .ToList();
-            var topUrl = topUrls.FirstOrDefault();
-            var rescored = BuildScoredIp(ip, ipRows, rows.Count);
-            var rescanned404 = count404 > 0
-                ? BuildNotFoundScanIp(ip, ipRows.Where(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase)).ToList())
-                : null;
-            var action = GetActionRank(rescored.RecommendedAction) >= GetActionRank(rescanned404?.RecommendedAction ?? string.Empty)
-                ? rescored.RecommendedAction
-                : rescanned404!.RecommendedAction;
-            var reasons = rescored.Reasons
-                .Concat(rescanned404?.Reasons ?? Array.Empty<string>())
+            var blockIps = new List<string>();
+            var rateLimitIps = new List<string>();
+            var monitorIps = new List<string>();
+            var matchedRowsIps = new List<string>();
+            var existingCandidateIps = payload.ScoredIps.Select(x => x.Ip)
+                .Concat(payload.NotFoundScanIps.Select(x => x.Ip))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var ip in questionIps)
+            {
+                var ipRows = rows.Where(x => string.Equals(x.Ip?.Trim(), ip, StringComparison.OrdinalIgnoreCase)).ToList();
+                if (ipRows.Count == 0)
+                {
+                    lines.Add($"- {ip}: 현재 분석 대상 로그에서 직접 보이지 않습니다.");
+                    continue;
+                }
+
+                matchedRowsIps.Add(ip);
+
+                var total = ipRows.Count;
+                var count200 = ipRows.Count(x => string.Equals(x.Status?.Trim(), "200", StringComparison.OrdinalIgnoreCase));
+                var count404 = ipRows.Count(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase));
+                var missingReferer = ipRows.Count(x => string.IsNullOrWhiteSpace(x.Referrer) || x.Referrer == "-");
+                var topUrls = ipRows.Where(x => !string.IsNullOrWhiteSpace(x.Uri))
+                    .GroupBy(x => x.Uri.Trim(), StringComparer.OrdinalIgnoreCase)
+                    .Select(g => new CountItem(g.Key, g.Count()))
+                    .OrderByDescending(x => x.Count)
+                    .Take(3)
+                    .ToList();
+                var topUrl = topUrls.FirstOrDefault();
+                var rescored = BuildScoredIp(ip, ipRows, rows.Count);
+                var rescanned404 = count404 > 0
+                    ? BuildNotFoundScanIp(ip, ipRows.Where(x => string.Equals(x.Status?.Trim(), "404", StringComparison.OrdinalIgnoreCase)).ToList())
+                    : null;
+                var action = GetActionRank(rescored.RecommendedAction) >= GetActionRank(rescanned404?.RecommendedAction ?? string.Empty)
+                    ? rescored.RecommendedAction
+                    : rescanned404!.RecommendedAction;
+                var reasons = rescored.Reasons
+                    .Concat(rescanned404?.Reasons ?? Array.Empty<string>())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var dominantUrl = !string.IsNullOrWhiteSpace(rescored.DominantUrl)
+                    ? $"{rescored.DominantUrl} {rescored.DominantUrlRatio:P0}"
+                    : "-";
+                var verdict = GetReviewVerdict(action);
+
+                lines.Add($"- {ip}: 총 {total:N0}건, 200={count200:N0}, 404={count404:N0}, Referer 없음 {missingReferer / (double)total:P0}, 재평가 {action} ({verdict}).");
+                if (topUrl is not null)
+                {
+                    lines.Add($"  주요 URL: {string.Join(", ", topUrls.Select(x => $"{x.Value}({x.Count:N0})"))}");
+                }
+                lines.Add($"  집중도: 상위 URL 비중 {rescored.DominantUrlRatio:P0}, 대표 URL {dominantUrl}");
+                if (reasons.Count > 0)
+                {
+                    lines.Add($"  근거: {string.Join(", ", reasons.Take(4))}");
+                }
+                if (existingCandidateIps.Contains(ip))
+                {
+                    lines.Add("  기존 AI 요약 후보 목록에도 포함되어 있었습니다.");
+                }
+
+                switch (action)
+                {
+                    case "Block":
+                        blockIps.Add(ip);
+                        break;
+                    case "RateLimit":
+                        rateLimitIps.Add(ip);
+                        break;
+                    default:
+                        monitorIps.Add(ip);
+                        break;
+                }
+            }
+
+            if (matchedRowsIps.Count > 0)
+            {
+                lines.Add($"질문 IP 중 현재 로그에 실제로 존재한 IP: {string.Join(", ", matchedRowsIps)}");
+            }
+
+            if (blockIps.Count > 0)
+            {
+                lines.Add($"결론: 즉시 차단 유지 권고 IP는 {string.Join(", ", blockIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
+            }
+            else if (rateLimitIps.Count > 0)
+            {
+                lines.Add($"결론: 우선 속도 제한 권고 IP는 {string.Join(", ", rateLimitIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
+            }
+            else if (monitorIps.Count > 0)
+            {
+                lines.Add($"결론: 현재는 모니터링 우선 대상 IP는 {string.Join(", ", monitorIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
+            }
+
+            var likelyOverblocked = monitorIps.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (likelyOverblocked.Count > 0)
+            {
+                lines.Add($"재검토: 즉시 차단보다는 모니터링 또는 속도 제한이 더 자연스러운 IP는 {string.Join(", ", likelyOverblocked)} 입니다.");
+            }
+        }
+
+        if (isAdminQuestion || isConfigQuestion || isBackupQuestion || isScriptProbeQuestion || isXssQuestion || isCrawlingQuestion)
+        {
+            if (isAdminQuestion)
+            {
+                lines.Add(payload.AdminPageProbes.Count > 0
+                    ? $"관리자 페이지 접근 시도는 있습니다. 상위 패턴은 {FormatCountItems(payload.AdminPageProbes)} 입니다."
+                    : "현재 집계 기준으로는 관리자 페이지 접근 시도가 두드러지게 잡히지 않았습니다.");
+            }
+
+            if (isConfigQuestion)
+            {
+                lines.Add(payload.ConfigFileProbes.Count > 0
+                    ? $"설정 파일 접근 시도는 있습니다. 상위 패턴은 {FormatCountItems(payload.ConfigFileProbes)} 입니다."
+                    : "현재 집계 기준으로는 설정 파일 접근 시도가 두드러지게 잡히지 않았습니다.");
+            }
+
+            if (isBackupQuestion)
+            {
+                lines.Add(payload.BackupFileProbes.Count > 0
+                    ? $"백업 파일 접근 시도는 있습니다. 상위 패턴은 {FormatCountItems(payload.BackupFileProbes)} 입니다."
+                    : "현재 집계 기준으로는 백업 파일 접근 시도가 두드러지게 잡히지 않았습니다.");
+            }
+
+            if (isScriptProbeQuestion)
+            {
+                lines.Add(payload.ScriptProbeUrls.Count > 0
+                    ? $"스크립트/관리도구/익스플로잇 탐색 시도는 있습니다. 상위 패턴은 {FormatCountItems(payload.ScriptProbeUrls)} 입니다."
+                    : "현재 집계 기준으로는 스크립트/익스플로잇 탐색 시도가 두드러지게 잡히지 않았습니다.");
+            }
+
+            if (isXssQuestion)
+            {
+                lines.Add(payload.SuspiciousQueryStrings.Count > 0
+                    ? $"의심 QueryString 또는 XSS/인젝션성 요청 흔적은 있습니다. 상위 패턴은 {string.Join(", ", payload.SuspiciousQueryStrings.Take(5).Select(x => $"{x.QueryString}({x.Count:N0}회, {string.Join("/", x.Reasons.Take(2))})"))} 입니다."
+                    : "현재 집계 기준으로는 XSS/인젝션성 QueryString 흔적이 뚜렷하게 잡히지 않았습니다.");
+            }
+
+            if (isCrawlingQuestion)
+            {
+                var crawlerUrls = payload.UrlAttackDetails
+                    .Where(x => x.IsDistributedCrawler || x.IsDistributedDdosCandidate || x.Http200Count > 0 && x.NoRefererRatio >= 0.5)
+                    .OrderByDescending(x => x.Score)
+                    .ThenByDescending(x => x.TotalRequests)
+                    .Take(5)
+                    .ToList();
+                var singleIpUrls = payload.UrlAttackDetails
+                    .Where(x => !x.IsDistributedAccess && x.TopIpRatio >= 0.5)
+                    .OrderByDescending(x => x.Score)
+                    .ThenByDescending(x => x.TotalRequests)
+                    .Take(5)
+                    .ToList();
+                var crawlerIps = payload.ScoredIps
+                    .Where(x => x.RecommendedAction is "Block" or "RateLimit" or "Monitor")
+                    .Where(x => x.BoardAccessCount > 0 || x.DominantUrlRatio >= 0.7 || x.RefererMissingRatio >= 0.8)
+                    .OrderByDescending(x => x.Score)
+                    .Take(8)
+                    .ToList();
+
+                if (crawlerUrls.Count > 0)
+                {
+                    lines.Add($"크롤링/자동화 접근 후보 URL은 {string.Join("; ", crawlerUrls.Select(x => $"{x.Url}({x.RecommendedAction}, 총 {x.TotalRequests:N0}회, 200={x.Http200Count:N0}, 고유 IP {x.UniqueIpCount:N0}, Referer 없음 {x.NoRefererRatio:P0}, Top IP {x.TopIp} {x.TopIpRatio:P0})"))} 입니다.");
+                    var distributed = crawlerUrls.Where(x => x.IsDistributedCrawler || x.IsDistributedDdosCandidate).ToList();
+                    if (distributed.Count > 0)
+                    {
+                        lines.Add($"분산형 후보: {string.Join(", ", distributed.Select(x => $"{x.Url}(분산점수 {x.DistributedAccessScore}, Top10 {x.Top10IpRatio:P0})"))}. 여러 IP가 동일 URL을 반복한 패턴이라 IP 하나만 차단하기보다 URL RateLimit, 캐시/CDN, WAF를 우선 검토하세요.");
+                    }
+                }
+                else
+                {
+                    lines.Add("현재 집계에서 200 정상 응답을 포함한 반복·분산 크롤링 후보 URL이 뚜렷하게 확인되지 않았습니다.");
+                }
+
+                if (singleIpUrls.Count > 0)
+                {
+                    lines.Add($"단일 IP 집중형 후보: {string.Join("; ", singleIpUrls.Select(x => $"{x.Url}(상위 IP {x.TopIp} {x.TopIpRatio:P0}, 총 {x.TotalRequests:N0}회)"))}. 대표 IP는 차단 또는 RateLimit을 URL 보호와 함께 적용하는 것이 적절합니다.");
+                }
+
+                if (crawlerIps.Count > 0)
+                {
+                    lines.Add($"크롤링 의심 IP: {string.Join(", ", crawlerIps.Select(x => $"{x.Ip}({x.RecommendedAction}, score={x.Score}, 주요 URL {x.DominantUrl} {x.DominantUrlRatio:P0}, Referer 없음 {x.RefererMissingRatio:P0})"))}");
+                }
+
+                lines.Add(crawlerUrls.Any(x => x.IsDistributedDdosCandidate)
+                    ? "판단: 분산 DDoS 가능성이 있는 URL이 있어 IP 개별 차단만으로는 부족합니다. URL별 속도 제한과 WAF/CDN 방어를 우선 적용하세요."
+                    : crawlerUrls.Any(x => x.IsDistributedCrawler)
+                        ? "판단: 분산 크롤링/스크래핑 패턴이 우선 의심됩니다. 게시판·조회 URL의 호출 빈도와 Referer 없는 200 요청을 제한하세요."
+                        : singleIpUrls.Count > 0
+                            ? "판단: 현재는 단일 IP 집중형 자동화 접근이 더 뚜렷합니다. 해당 IP와 반복 URL을 함께 제한하세요."
+                            : "판단: 명확한 크롤링 후보가 적어 모니터링을 유지하고 반복 URL 추이를 확인하세요.");
+            }
+
+            var related404Ips = payload.NotFoundScanIps
+                .Where(x =>
+                    (isAdminQuestion && x.HasAdminProbe) ||
+                    (isConfigQuestion && x.HasConfigProbe) ||
+                    (isBackupQuestion && x.HasBackupProbe))
+                .Take(5)
                 .ToList();
-            var dominantUrl = !string.IsNullOrWhiteSpace(rescored.DominantUrl)
-                ? $"{rescored.DominantUrl} {rescored.DominantUrlRatio:P0}"
-                : "-";
-            var verdict = GetReviewVerdict(action);
 
-            lines.Add($"- {ip}: 총 {total:N0}건, 200={count200:N0}, 404={count404:N0}, Referer 없음 {missingReferer / (double)total:P0}, 재평가 {action} ({verdict}).");
-            if (topUrl is not null)
+            if (related404Ips.Count > 0)
             {
-                lines.Add($"  주요 URL: {string.Join(", ", topUrls.Select(x => $"{x.Value}({x.Count:N0})"))}");
-            }
-            lines.Add($"  집중도: 상위 URL 비중 {rescored.DominantUrlRatio:P0}, 대표 URL {dominantUrl}");
-            if (reasons.Count > 0)
-            {
-                lines.Add($"  근거: {string.Join(", ", reasons.Take(4))}");
-            }
-            if (existingCandidateIps.Contains(ip))
-            {
-                lines.Add("  기존 AI 요약 후보 목록에도 포함되어 있었습니다.");
-            }
-
-            switch (action)
-            {
-                case "Block":
-                    blockIps.Add(ip);
-                    break;
-                case "RateLimit":
-                    rateLimitIps.Add(ip);
-                    break;
-                default:
-                    monitorIps.Add(ip);
-                    break;
+                lines.Add($"관련 차단/제한 후보 IP: {string.Join(", ", related404Ips.Select(x => $"{x.Ip}({x.RecommendedAction}, 404={x.NotFoundCount:N0})"))}");
             }
         }
 
-        if (matchedRowsIps.Count > 0)
-        {
-            lines.Add($"질문 IP 중 현재 로그에 실제로 존재한 IP: {string.Join(", ", matchedRowsIps)}");
-        }
-
-        if (blockIps.Count > 0)
-        {
-            lines.Add($"결론: 즉시 차단 유지 권고 IP는 {string.Join(", ", blockIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
-        }
-        else if (rateLimitIps.Count > 0)
-        {
-            lines.Add($"결론: 우선 속도 제한 권고 IP는 {string.Join(", ", rateLimitIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
-        }
-        else if (monitorIps.Count > 0)
-        {
-            lines.Add($"결론: 현재는 모니터링 우선 대상 IP는 {string.Join(", ", monitorIps.Distinct(StringComparer.OrdinalIgnoreCase))} 입니다.");
-        }
-
-        var likelyOverblocked = monitorIps.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        if (likelyOverblocked.Count > 0)
-        {
-            lines.Add($"재검토: 즉시 차단보다는 모니터링 또는 속도 제한이 더 자연스러운 IP는 {string.Join(", ", likelyOverblocked)} 입니다.");
-        }
-
-        return string.Join(Environment.NewLine, lines);
+        return lines.Count > 2 ? string.Join(Environment.NewLine, lines) : string.Empty;
     }
 
     private static bool IsExcludedAnalysisIp(string? ip)
@@ -3386,6 +3527,11 @@
         await JS.InvokeVoidAsync("window.scrollTo", new { top = 0, left = 0, behavior = "smooth" });
     }
 
+    private async Task ResetColumnWidthsAsync()
+    {
+        await JS.InvokeVoidAsync("logParserColumns.reset", "#log-entries-grid", "logParser.columns");
+    }
+
     private sealed record CompactLogAnalysisPayload
     {
         public DateTime GeneratedUtc { get; init; }
@@ -3955,6 +4101,17 @@
         }
 
         return false;
+    }
+
+    private static bool LooksQuestionAnswered(string? response)
+    {
+        if (LooksTrivialAnalysis(response))
+        {
+            return false;
+        }
+
+        return response!.Contains("[추가 질문 답변]", StringComparison.Ordinal)
+            || response.Contains("추가 질문", StringComparison.Ordinal);
     }
 }
 

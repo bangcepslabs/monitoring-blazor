@@ -356,8 +356,109 @@
   display: block;
   font-size: 0.92rem;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: color-mix(in srgb, var(--text-primary) 68%, var(--accent));
   word-break: keep-all;
+}
+
+.analysis-history-panel {
+  margin-top: 0.9rem;
+  padding: 0.85rem 1rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 92%, var(--accent));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--card-bg) 96%, var(--accent-subtle));
+  box-shadow: 0 8px 22px rgba(14, 29, 46, 0.05);
+}
+
+.analysis-history-panel .analysis-inline-report__header {
+  margin-bottom: 0.7rem;
+}
+
+.analysis-history-panel .analysis-inline-report__toggle {
+  min-height: 3.65rem;
+  padding: 0.65rem 0.8rem;
+  border-radius: 12px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.analysis-history-panel .analysis-inline-report__toggle:hover {
+  background: color-mix(in srgb, var(--accent-subtle) 55%, transparent);
+  transform: none;
+}
+
+.analysis-history-panel .analysis-inline-report__icon {
+  width: 1.8rem;
+  height: 1.8rem;
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.analysis-history-panel__subtitle {
+  display: block;
+  font-size: 0.84rem;
+  line-height: 1.4;
+  color: color-mix(in srgb, var(--text-primary) 58%, var(--accent));
+}
+
+.analysis-history-list {
+  display: grid;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
+}
+
+.analysis-history-item {
+  appearance: none;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 78%, var(--accent));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--card-bg) 98%, var(--accent-subtle));
+  color: var(--text-primary);
+  text-align: left;
+  box-shadow: 0 2px 8px rgba(14, 29, 46, 0.035);
+  cursor: pointer;
+  transition: border-color 0.18s ease, background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.analysis-history-item:hover,
+.analysis-history-item:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 48%, var(--card-border));
+  background: color-mix(in srgb, var(--accent-subtle) 48%, var(--card-bg));
+  box-shadow: 0 5px 14px rgba(14, 29, 46, 0.08);
+  transform: translateY(-1px);
+  outline: none;
+}
+
+.analysis-history-item__top {
+  min-width: 0;
+  font-size: 0.88rem;
+  letter-spacing: 0.01em;
+}
+
+.analysis-history-item__top strong {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.analysis-history-item__meta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  color: var(--text-secondary);
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+
+.analysis-history-item__meta span {
+  padding: 0.2rem 0.5rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 72%, var(--accent));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-subtle) 38%, var(--card-bg));
 }
 
 .analysis-inline-report__meta {

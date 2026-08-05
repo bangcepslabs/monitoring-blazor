@@ -340,8 +340,8 @@
                             <i class="bi @(IsRecentReportsCollapsed ? "bi-chevron-right" : "bi-chevron-down")"></i>
                         </span>
                         <span class="analysis-inline-report__content">
-                            <span class="analysis-inline-report__eyebrow">Recent Reports</span>
-                            <span class="analysis-inline-report__subtitle">최근 생성한 AI 분석 결과를 다시 불러옵니다.</span>
+                            <span class="analysis-inline-report__eyebrow">분석 기록</span>
+                            <span class="analysis-history-panel__subtitle">최근 분석 결과를 선택해 다시 확인할 수 있습니다.</span>
                         </span>
                     </button>
                     <div class="analysis-inline-report__meta">
@@ -699,9 +699,10 @@
                 continue;
             }
 
-            if (line.StartsWith("[", StringComparison.Ordinal) && line.EndsWith("]", StringComparison.Ordinal) && line.Length > 2)
+            var sectionTitle = NormalizeAnalysisSectionTitle(line);
+            if (sectionTitle is not null)
             {
-                current = new AnalysisSection(line[1..^1]);
+                current = new AnalysisSection(sectionTitle);
                 sections.Add(current);
                 continue;
             }
@@ -716,6 +717,42 @@
         }
 
         return sections;
+    }
+
+    private static string? NormalizeAnalysisSectionTitle(string line)
+    {
+        var normalized = line.Trim();
+
+        // Ollama may decorate the requested section marker with Markdown.
+        while (normalized.StartsWith("#", StringComparison.Ordinal) ||
+               normalized.StartsWith("*", StringComparison.Ordinal) ||
+               normalized.StartsWith("_", StringComparison.Ordinal) ||
+               normalized.StartsWith("`", StringComparison.Ordinal))
+        {
+            normalized = normalized[1..].TrimStart();
+        }
+
+        while (normalized.EndsWith("*", StringComparison.Ordinal) ||
+               normalized.EndsWith("_", StringComparison.Ordinal) ||
+               normalized.EndsWith("`", StringComparison.Ordinal))
+        {
+            normalized = normalized[..^1].TrimEnd();
+        }
+
+        if (normalized.StartsWith("[", StringComparison.Ordinal) &&
+            normalized.EndsWith("]", StringComparison.Ordinal) &&
+            normalized.Length > 2)
+        {
+            return normalized[1..^1].Trim();
+        }
+
+        var knownTitles = new[]
+        {
+            "전체 요약", "위험도", "공격 URL", "의심 IP", "차단 후보", "대응 방안", "추가 질문 답변"
+        };
+
+        return knownTitles.FirstOrDefault(title =>
+            string.Equals(normalized, title, StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task LoadRuntimeAnalysisSettingsAsync()
@@ -1652,6 +1689,10 @@
 
             var result = await response.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
             var analysisText = result?.Response;
+            // Retry only when the model returned an actually trivial answer or
+            // failed to address an explicit question. A malformed/English answer
+            // is handled by the local Korean card fallback below, avoiding a
+            // second slow Ollama call.
             if (LooksTrivialAnalysis(analysisText) || !string.IsNullOrWhiteSpace(question) && !LooksQuestionAnswered(analysisText))
             {
                 var retrySystemPrompt =
@@ -1681,20 +1722,40 @@
             }
 
             var finalText = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
-            var isTrivialAnalysis = LooksTrivialAnalysis(finalText);
+            var isUsefulQuestionResponse = !string.IsNullOrWhiteSpace(question)
+                && IsUsefulQuestionResponse(finalText);
+            var isTrivialAnalysis = NeedsStructuredAnalysisFallback(finalText)
+                && !isUsefulQuestionResponse;
             var shouldUseQuestionFallback = !string.IsNullOrWhiteSpace(question)
-                && !LooksQuestionAnswered(finalText);
+                && !LooksQuestionAnswered(finalText)
+                && isTrivialAnalysis;
 
             if (isTrivialAnalysis || shouldUseQuestionFallback)
             {
-                AnalyzeMessage = !string.IsNullOrWhiteSpace(question)
-                    ? BuildQuestionSpecificAnalysis(filtered, analysisPayload, question)
-                    : BuildFallbackAnalysisReport(analysisPayload, question);
+                if (!string.IsNullOrWhiteSpace(question))
+                {
+                    var questionReport = BuildQuestionSpecificAnalysis(filtered, analysisPayload, question);
+                    // An additional question must never replace the base report.
+                    // Keep the normal Korean card report and append the question result.
+                    AnalyzeMessage = string.IsNullOrWhiteSpace(questionReport)
+                        ? BuildFallbackAnalysisReport(analysisPayload, question)
+                        : string.Concat(
+                            BuildFallbackAnalysisReport(analysisPayload, null),
+                            Environment.NewLine,
+                            Environment.NewLine,
+                            questionReport);
+                }
+                else
+                {
+                    AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload, null);
+                }
                 LastAnalysisUsedFallback = true;
             }
             else
             {
-                AnalyzeMessage = finalText;
+                AnalyzeMessage = isUsefulQuestionResponse
+                    ? EnsureQuestionSection(finalText)
+                    : finalText;
                 LastAnalysisUsedFallback = false;
             }
 
@@ -4103,6 +4164,43 @@
         return false;
     }
 
+    private static bool NeedsStructuredAnalysisFallback(string? response)
+    {
+        if (LooksTrivialAnalysis(response) || string.IsNullOrWhiteSpace(response))
+        {
+            return true;
+        }
+
+        // Do not show an English/free-form answer as the Korean report UI.
+        var koreanCharacterCount = response.Count(character => character is >= '\uAC00' and <= '\uD7A3');
+        if (koreanCharacterCount < 5)
+        {
+            return true;
+        }
+
+        // The report renderer is card-based; a response without section markers
+        // cannot be presented consistently, even when its prose is otherwise valid.
+        return ParseAnalysisSections(response).Count < 2;
+    }
+
+    private static bool IsUsefulQuestionResponse(string? response)
+    {
+        if (LooksTrivialAnalysis(response) || string.IsNullOrWhiteSpace(response))
+        {
+            return false;
+        }
+
+        var koreanCharacterCount = response.Count(character => character is >= '\uAC00' and <= '\uD7A3');
+        return koreanCharacterCount >= 5 && response.Trim().Length >= 40;
+    }
+
+    private static string EnsureQuestionSection(string response)
+    {
+        return response.Contains("[추가 질문 답변]", StringComparison.Ordinal)
+            ? response
+            : string.Concat("[추가 질문 답변]", Environment.NewLine, response.Trim());
+    }
+
     private static bool LooksQuestionAnswered(string? response)
     {
         if (LooksTrivialAnalysis(response))
@@ -4111,7 +4209,8 @@
         }
 
         return response!.Contains("[추가 질문 답변]", StringComparison.Ordinal)
-            || response.Contains("추가 질문", StringComparison.Ordinal);
+            || response.Contains("추가 질문", StringComparison.Ordinal)
+            || IsUsefulQuestionResponse(response);
     }
 }
 

@@ -349,6 +349,7 @@ else if (BatchResults.Count > 0)
     private List<IpApiResult> BatchResults { get; set; } = [];
     private IpAnalysisTab ActiveTab { get; set; } = IpAnalysisTab.Single;
     private DateTimeOffset? _lastBatchAnalyzeUtc;
+    private bool _mapInitializationPending;
 
     private string DisplayIp => ipResult?.Ip ?? "-";
     private string LocationSummary
@@ -409,7 +410,9 @@ else if (BatchResults.Count > 0)
             {
                 if (HasValidCoordinates(result))
                 {
-                    await JSRuntime.InvokeVoidAsync("setupMap", "map", result.Lat, result.Lon);
+                    // The map is initialized after the result is rendered, so the target element
+                    // is guaranteed to exist even when the user has just changed tabs.
+                    _mapInitializationPending = true;
                 }
                 else
                 {
@@ -435,13 +438,14 @@ else if (BatchResults.Count > 0)
     private async Task ClearResultAsync()
     {
         ipResult = null;
+        _mapInitializationPending = false;
         ErrorMessage = null;
         InfoMessage = null;
         IpInput = string.Empty;
         await Task.CompletedTask;
     }
 
-    private async Task SetTabAsync(IpAnalysisTab tab)
+    private Task SetTabAsync(IpAnalysisTab tab)
     {
         ActiveTab = tab;
         ErrorMessage = null;
@@ -449,8 +453,27 @@ else if (BatchResults.Count > 0)
 
         if (tab == IpAnalysisTab.Single && ipResult is not null && HasValidCoordinates(ipResult))
         {
-            await JSRuntime.InvokeVoidAsync("setupMap", "map", ipResult.Lat, ipResult.Lon);
+            // The #map element is conditionally rendered. Deferring this until
+            // OnAfterRenderAsync prevents Leaflet from receiving a missing element.
+            _mapInitializationPending = true;
         }
+        else if (tab == IpAnalysisTab.Batch)
+        {
+            _mapInitializationPending = false;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!_mapInitializationPending || ActiveTab != IpAnalysisTab.Single || ipResult is null || !HasValidCoordinates(ipResult))
+        {
+            return;
+        }
+
+        _mapInitializationPending = false;
+        await JSRuntime.InvokeVoidAsync("setupMap", "map", ipResult.Lat, ipResult.Lon);
     }
 
     private async Task AnalyzeBatchAsync()

@@ -229,6 +229,16 @@
                             <input class="form-control" @bind="OllamaSettings.AnalysisOutputFolder" placeholder="F:\\iis_log\\analysis" />
                             <div class="form-text">This is where the latest IIS analysis JSON is saved and loaded from.</div>
                         </div>
+                        <div class="col-12">
+                            <label class="form-label">AI analysis system prompt</label>
+                            <textarea class="form-control font-monospace" rows="10" @bind="LogAnalysisSettings.AnalysisSystemPrompt"></textarea>
+                            <div class="form-text">This prompt controls the base card report. Leave it unchanged to use the built-in default.</div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Additional question instructions</label>
+                            <textarea class="form-control font-monospace" rows="4" @bind="LogAnalysisSettings.QuestionInstructions"></textarea>
+                            <div class="form-text">Appended only when a user enters an additional question.</div>
+                        </div>
                     </div>
                 </div>
 

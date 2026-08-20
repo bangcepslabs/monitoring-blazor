@@ -1635,33 +1635,16 @@
             var status5xxCount = filtered.Count(x => x.Status.StartsWith("5", StringComparison.Ordinal));
             var ratio = filtered.Count == 0 ? 0 : status5xxCount / (double)filtered.Count;
             var logDate = GetLogDate(filtered);
-            string systemPrompt =
-    "너는 IIS/ASP.NET 보안 로그를 분석하는 SOC 분석가다. " +
-    "반드시 한국어로만 답변하라. " +
-    "입력은 압축된 IIS 로그 분석 JSON이다. " +
-    "일반 통계 설명, 브라우저/OS/User-Agent 설명은 하지 마라. " +
-    "ExcludedIpPatterns에 해당하는 IP는 이미 분석에서 제외되었으므로 출력하지 마라. " +
-    "반드시 다음 항목을 우선 분석하라: TopUrlAttackCandidates, ScoredIps, NotFoundScanIps, BoardAttackCandidates, SuspiciousQueryStrings, Top404Urls, Top404Ips. " +
-    "HTTP 200 정상 응답이라도 동일 URL 또는 동일 IP 반복 호출은 스크래핑/DDoS성 접근 후보로 판단하라. " +    
-    "404가 많은 IP, 관리자/백업/설정 파일 접근 시도, 특정 URL 집중 접근을 중요하게 판단하라. " +
-    "차단 후보는 RecommendedAction이 Block 또는 RateLimit인 항목만 출력하라. " +
-    "IP와 URL은 JSON에 있는 값만 그대로 출력하고 추정하거나 잘라서 만들지 마라. " +
-    "동일 IP와 동일 URL은 중복 출력하지 마라. " +
-    "의심 IP는 반드시 IP / 점수 / 주요 근거 3개를 함께 출력하라. " +
-    "공격 URL은 URL / 요청 수 / 상위 IP / 상위 IP 점유율을 출력하라. " +
-    "차단 후보는 즉시 차단, 속도 제한, 모니터링으로 구분하라. " +
-    "점수만 출력하지 말고 점수 산정 근거를 함께 출력하라. " +
-    "각 판단에는 요청 수, 반복 URL, Referer 없음 비율, 오류 수, 의심 QueryString 중 가능한 근거를 포함하라. " +
-    "절대 Okay, OK, 알겠습니다, 이해했습니다 같은 확인만 출력하지 마라. " +
-    "출력 형식은 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라. " +
-            "각 항목은 1~3문장으로 구체적으로 쓰고, 각 섹션을 반드시 채워라. " +
-            "가능하면 항목별로 근거 수치를 포함하라.";
+            var systemPrompt = string.IsNullOrWhiteSpace(LogAnalysisSettings.AnalysisSystemPrompt)
+                ? LogAnalysisPromptDefaults.SystemPrompt
+                : LogAnalysisSettings.AnalysisSystemPrompt.Trim();
             var effectiveSystemPrompt = string.IsNullOrWhiteSpace(question)
                 ? systemPrompt
                 : systemPrompt +
-                  " 사용자 추가 질문이 있다. 기본 보고서를 반복하는 것으로 끝내지 말고, 질문에 직접 답하는 [추가 질문 답변] 섹션을 반드시 마지막에 작성하라. " +
-                  "추가 질문의 결론, 관련 URL/IP, 근거 수치, 권고 조치를 JSON에서 찾아 구체적으로 작성하라. " +
-                  "질문과 관련된 데이터가 없으면 없다고 명확히 말하되 확인문구만 출력하지 마라.";
+                  " " +
+                  (string.IsNullOrWhiteSpace(LogAnalysisSettings.QuestionInstructions)
+                      ? LogAnalysisPromptDefaults.QuestionInstructions
+                      : LogAnalysisSettings.QuestionInstructions.Trim());
             _http ??= CreateAnalysisClient();
             var requestPayload = new
             {
@@ -1693,7 +1676,10 @@
             // failed to address an explicit question. A malformed/English answer
             // is handled by the local Korean card fallback below, avoiding a
             // second slow Ollama call.
-            if (LooksTrivialAnalysis(analysisText) || !string.IsNullOrWhiteSpace(question) && !LooksQuestionAnswered(analysisText))
+            // A retry can nearly double the wait time. For an additional question we can
+            // reliably add a data-backed answer locally below, so reserve retries for a
+            // genuinely unusable base report only.
+            if (string.IsNullOrWhiteSpace(question) && LooksTrivialAnalysis(analysisText))
             {
                 var retrySystemPrompt =
                     effectiveSystemPrompt +
@@ -1722,19 +1708,17 @@
             }
 
             var finalText = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
-            var isUsefulQuestionResponse = !string.IsNullOrWhiteSpace(question)
-                && IsUsefulQuestionResponse(finalText);
-            var isTrivialAnalysis = NeedsStructuredAnalysisFallback(finalText)
-                && !isUsefulQuestionResponse;
-            var shouldUseQuestionFallback = !string.IsNullOrWhiteSpace(question)
-                && !LooksQuestionAnswered(finalText)
-                && isTrivialAnalysis;
+            var hasQuestion = !string.IsNullOrWhiteSpace(question);
+            var hasQuestionSection = finalText.Contains("[추가 질문 답변]", StringComparison.Ordinal);
+            var questionReport = hasQuestion && !hasQuestionSection
+                ? BuildQuestionSpecificAnalysis(filtered, analysisPayload, question)
+                : string.Empty;
+            var isTrivialAnalysis = NeedsStructuredAnalysisFallback(finalText);
 
-            if (isTrivialAnalysis || shouldUseQuestionFallback)
+            if (isTrivialAnalysis)
             {
-                if (!string.IsNullOrWhiteSpace(question))
+                if (hasQuestion)
                 {
-                    var questionReport = BuildQuestionSpecificAnalysis(filtered, analysisPayload, question);
                     // An additional question must never replace the base report.
                     // Keep the normal Korean card report and append the question result.
                     AnalyzeMessage = string.IsNullOrWhiteSpace(questionReport)
@@ -1753,9 +1737,12 @@
             }
             else
             {
-                AnalyzeMessage = isUsefulQuestionResponse
-                    ? EnsureQuestionSection(finalText)
-                    : finalText;
+                // Preserve the AI's section cards. If it omitted the requested question
+                // section, append the same deterministic, log-backed card instead of
+                // issuing a second complete model request.
+                AnalyzeMessage = string.IsNullOrWhiteSpace(questionReport)
+                    ? finalText
+                    : string.Concat(finalText.Trim(), Environment.NewLine, Environment.NewLine, questionReport);
                 LastAnalysisUsedFallback = false;
             }
 
@@ -1913,7 +1900,7 @@
         builder.AppendLine("특히 UrlAttackDetails의 Top3IpRatio, Top10IpRatio, Top30IpRatio, RemainingIpCount, RemainingRequestCount, DistributedAccessScore, IsDistributedAccess, IsDistributedCrawler, IsDistributedDdosCandidate를 반드시 확인하라.");
         builder.AppendLine("분석 결과에서는 단일 IP 공격, 분산 크롤링, 분산 DDoS 의심을 명확히 구분하라.");
         builder.AppendLine("출력 형식은 반드시 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라.");
-        builder.AppendLine("각 섹션에는 JSON에 있는 항목과 수치를 근거로 최소 1문장 이상 작성하라.");
+        builder.AppendLine("각 섹션에는 JSON에 있는 항목과 수치를 근거로 최소 1문장 이상 작성하되, 한 문장에는 핵심 수치 3개까지만 사용하라.");
 
         if (!string.IsNullOrWhiteSpace(question))
         {
@@ -2249,10 +2236,17 @@
         var compactScoredIps = ipStats
             .Where(x => x.RecommendedAction is "Block" or "RateLimit" or "Monitor")
             .DistinctBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(x => x.SensitiveProbeCount > 0)
+            .ThenByDescending(x => x.RecommendedAction == "Block")
+            .ThenByDescending(x => x.Score)
             .Take(15)
             .ToList();
         var compactNotFoundScanIps = notFoundScanIps
             .DistinctBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
+            .OrderByDescending(x => x.SensitiveProbeCount > 0)
+            .ThenByDescending(x => x.RecommendedAction == "Block")
+            .ThenByDescending(x => x.Score)
+            .ThenByDescending(x => x.NotFoundCount)
             .Take(15)
             .ToList();
         var compactTop404Urls = top404Urls.Take(15).ToList();
@@ -2353,9 +2347,40 @@
         var topBoardUrlCount = topBoardUrl?.Count ?? 0;
         var dominantUrlRatio = requestCount == 0 ? 0 : topUrlCount / (double)requestCount;
         var boardUrlRatio = requestCount == 0 ? 0 : board200Count / (double)requestCount;
+        var adminProbeCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, AdminProbeTokens));
+        var adminProbeErrorCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, AdminProbeTokens) && IsErrorStatus(x.Status));
+        var backupProbeCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, BackupProbeTokens));
+        var configProbeCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, ConfigProbeTokens));
+        var scriptProbeCount = rows.Count(x => x.Uri is not null && ContainsAny(x.Uri, ScriptProbeTokens));
+        var sensitiveProbeCount = adminProbeCount + backupProbeCount + configProbeCount + scriptProbeCount;
 
         var reasons = new List<string>();
         var score = 0;
+
+        // 민감 경로 탐색은 단순 트래픽 양보다 우선해 차단 후보에 반영한다.
+        if (configProbeCount > 0)
+        {
+            score += 70;
+            reasons.Add($"설정 파일 접근 시도 ({configProbeCount:N0})");
+        }
+
+        if (backupProbeCount > 0)
+        {
+            score += 60;
+            reasons.Add($"백업 파일 접근 시도 ({backupProbeCount:N0})");
+        }
+
+        if (scriptProbeCount > 0)
+        {
+            score += 55;
+            reasons.Add($"스크립트/관리 도구 탐색 ({scriptProbeCount:N0})");
+        }
+
+        if (adminProbeCount > 0)
+        {
+            score += adminProbeCount >= 2 || adminProbeErrorCount > 0 ? 45 : 25;
+            reasons.Add($"관리자 경로 접근 시도 ({adminProbeCount:N0})");
+        }
 
         var requestRatio = totalCount == 0 ? 0 : requestCount / (double)totalCount;
         if (requestCount >= 100)
@@ -2481,6 +2506,15 @@
             recommendedAction = score >= 80 ? "Block" : "RateLimit";
         }
 
+        if (configProbeCount > 0 || backupProbeCount > 0 || scriptProbeCount > 0 || adminProbeCount >= 2 || adminProbeErrorCount > 0)
+        {
+            recommendedAction = "Block";
+        }
+        else if (adminProbeCount > 0 || sensitiveProbeCount > 0)
+        {
+            recommendedAction = "RateLimit";
+        }
+
         if (score == 0 && requestCount > 0)
         {
             score = Math.Min(5, requestCount);
@@ -2511,7 +2545,12 @@
             DominantUrl = topUrlValue,
             BoardAccessCount = board200Count,
             NoReferer200Count = http200RefererMissingCount,
-            DominantUrlRatio = dominantUrlRatio
+            DominantUrlRatio = dominantUrlRatio,
+            AdminProbeCount = adminProbeCount,
+            BackupProbeCount = backupProbeCount,
+            ConfigProbeCount = configProbeCount,
+            ScriptProbeCount = scriptProbeCount,
+            SensitiveProbeCount = sensitiveProbeCount
         };
     }
 
@@ -2705,8 +2744,10 @@
             .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
             .Select(g => BuildNotFoundScanIp(g.Key, g.ToList()))
             .Where(x => x.RecommendedAction is not "Allow")
-            .OrderByDescending(x => x.NotFoundCount)
+            .OrderByDescending(x => x.SensitiveProbeCount > 0)
+            .ThenByDescending(x => x.RecommendedAction == "Block")
             .ThenByDescending(x => x.SensitiveProbeCount)
+            .ThenByDescending(x => x.NotFoundCount)
             .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
             .Take(take)
             .ToList();
@@ -2789,8 +2830,8 @@
         }
 
         var recommendedAction =
-            notFoundCount >= 20 || sensitiveProbeCount >= 3 ? "Block" :
-            notFoundCount >= 10 || sensitiveProbeCount > 0 ? "RateLimit" :
+            notFoundCount >= 20 || sensitiveProbeCount >= 1 ? "Block" :
+            notFoundCount >= 10 ? "RateLimit" :
             notFoundCount >= 5 ? "Monitor" :
             "Allow";
 
@@ -3662,6 +3703,11 @@
         public int BoardAccessCount { get; init; }
         public int NoReferer200Count { get; init; }
         public double DominantUrlRatio { get; init; }
+        public int AdminProbeCount { get; init; }
+        public int BackupProbeCount { get; init; }
+        public int ConfigProbeCount { get; init; }
+        public int ScriptProbeCount { get; init; }
+        public int SensitiveProbeCount { get; init; }
     }
 
     private sealed record UrlAttackCandidateItem(
@@ -3850,31 +3896,6 @@
             return "반복 접근 패턴 관찰";
         }
 
-        static string DescribeIpPattern(ScoredIpItem item)
-        {
-            if (item.BoardAccessCount >= 20 && item.DominantUrlRatio >= 0.7)
-            {
-                return "게시판 URL 단일 경로 집중형";
-            }
-
-            if (item.Http200Count > 0 && item.NoReferer200Count >= 20)
-            {
-                return "정상 응답 기반 반복 호출형";
-            }
-
-            if (item.ErrorCount >= 20)
-            {
-                return "오류 유발 또는 탐색형";
-            }
-
-            if (item.RefererMissingRatio >= 0.8)
-            {
-                return "Referer 없는 자동화 접근형";
-            }
-
-            return "반복 호출 관찰";
-        }
-
         static string DescribeAction(string action) => action switch
         {
             "Block" => "즉시 차단 권고",
@@ -3940,56 +3961,56 @@
             ?? payload.ScoredIps.FirstOrDefault();
 
         var summaryText = topAttack.TopTargetUrlRequestCount > 0
-            ? $"{topAttack.TopTargetUrl}가 현재 가장 우선순위가 높은 공격 대상 URL로 보이며, 총 {topAttack.TopTargetUrlRequestCount:N0}회 요청 중 고유 IP {topAttack.TopTargetUrlUniqueIpCount:N0}개가 관여했습니다."
+            ? $"최우선 대상은 {topAttack.TopTargetUrl}이며, {topAttack.TopTargetUrlRequestCount:N0}건의 요청이 집중되었습니다."
             : "뚜렷한 단일 공격 대상 URL은 제한적이지만, 반복 접근과 404 스캐닝 흔적은 확인됩니다.";
 
         var riskText =
             blockUrlCount >= 3 || blockCandidates.Count >= 5
-                ? $"높음. Block 권고 URL {blockUrlCount:N0}개, Block 권고 IP {blockCandidates.Count:N0}개가 확인되어 단순 관찰 단계는 지났습니다."
+                ? "높음 — 즉시 차단 또는 속도 제한이 필요한 항목이 확인되었습니다."
                 : rateLimitUrlCount >= 2 || rateLimitCandidates.Count >= 3
-                    ? $"중간 이상. RateLimit 또는 Block이 필요한 URL/IP가 여럿 보여 선제 대응이 필요합니다."
-                    : "관찰 필요. 즉시 차단까지는 아니어도 반복 접근 패턴은 지속 모니터링이 필요합니다.";
+                    ? "중간 이상 — 선제적인 속도 제한과 추적이 필요합니다."
+                    : "관찰 필요 — 반복 접근 패턴을 계속 추적하세요.";
 
         var lines = new List<string>
         {
             "[전체 요약]",
-            $"원본 {payload.TotalRequestCount:N0}건 중 분석 대상은 {payload.AnalyzedRequestCount:N0}건이고, 제외 IP 패턴 {string.Join(", ", payload.ExcludedIpPatterns)}로 {payload.ExcludedRequestCount:N0}건이 분석에서 빠졌습니다. 전체 분석 대상의 Referer 없음 비율은 {payload.RefererMissingRatio:P0}입니다.",
+            $"분석 대상 {payload.AnalyzedRequestCount:N0}건 · 제외 {payload.ExcludedRequestCount:N0}건 · Referer 없음 {payload.RefererMissingRatio:P0}",
             summaryText,
             topBlockUrl is not null
-                ? $"가장 우선 대응할 URL은 {topBlockUrl.Url}이며, 패턴은 {DescribeUrlPattern(topBlockUrl)}이고 현재 권고는 {DescribeAction(topBlockUrl.RecommendedAction)}입니다."
+                ? $"우선 조치 URL: {topBlockUrl.Url} · {DescribeAction(topBlockUrl.RecommendedAction)}"
                 : string.Empty,
             topBlockIp is not null
-                ? $"가장 우선 대응할 IP는 {topBlockIp.Ip}이며, 패턴은 {DescribeIpPattern(topBlockIp)}이고 현재 권고는 {DescribeAction(topBlockIp.RecommendedAction)}입니다."
+                ? $"우선 조치 IP: {topBlockIp.Ip} · {DescribeAction(topBlockIp.RecommendedAction)}"
                 : string.Empty,
             "",
             "[위험도]",
             riskText,
             distributedUrls.Count > 0
-                ? $"분산형 접근 후보 URL이 {distributedUrls.Count:N0}개 확인되어 단일 IP 차단만으로는 충분하지 않을 가능성이 있습니다."
-                : "현재 상위 후보 중 분산형 접근보다는 단일 IP 또는 소수 IP 집중형 패턴이 더 뚜렷합니다.",
+                ? $"분산 접근 후보 {distributedUrls.Count:N0}개 — IP 차단만으로는 부족할 수 있습니다."
+                : "현재 후보는 단일 IP 또는 소수 IP 집중형 패턴이 우세합니다.",
             "",
             "[공격 URL]",
             topAttackUrls.Count > 0
                 ? string.Join(Environment.NewLine, topAttackUrls.Select(x =>
-                    $"- {x.Url}: {DescribeUrlPattern(x)}. 권고 {x.RecommendedAction}, 총 {x.TotalRequests:N0}회, 200={x.Http200Count:N0}, 404={x.Http404Count:N0}, 고유 IP {x.UniqueIpCount:N0}, 상위 IP {x.TopIp} {x.TopIpRatio:P0}, Top10 점유율 {x.Top10IpRatio:P0}, Referer 없음 {x.NoRefererRatio:P0}, 근거 {FormatReasons(x.Reasons, 4)}"))
+                    $"- {x.Url} · {DescribeAction(x.RecommendedAction)} · 요청 {x.TotalRequests:N0} · 고유 IP {x.UniqueIpCount:N0} · 상위 IP 점유 {x.TopIpRatio:P0}"))
                 : "뚜렷한 공격 URL 후보가 충분하지 않습니다.",
             boardUrls.Count > 0
-                ? $"우선 주시할 게시판/조회성 URL: {string.Join("; ", boardUrls.Select(x => $"{x.Url}({x.RecommendedAction}, {DescribeUrlPattern(x)}, {x.TotalRequests:N0}회, 상위 IP {x.TopIp} {x.TopIpRatio:P0})"))}"
+                ? $"게시판/조회성 URL: {string.Join(" · ", boardUrls.Select(x => $"{x.Url} ({x.TotalRequests:N0}건)"))}"
                 : string.Empty,
             distributedUrls.Count > 0
-                ? $"분산 접근 후보 URL: {string.Join("; ", distributedUrls.Select(x => $"{x.Url}(Top3 {x.Top3IpRatio:P0}, Top10 {x.Top10IpRatio:P0}, 고유 IP {x.UniqueIpCount:N0}, 분산점수 {x.DistributedAccessScore})"))}"
+                ? $"분산 접근: {string.Join(" · ", distributedUrls.Select(x => $"{x.Url} (고유 IP {x.UniqueIpCount:N0})"))}"
                 : string.Empty,
             singleIpUrls.Count > 0
-                ? $"단일 IP 집중형 URL: {string.Join("; ", singleIpUrls.Select(x => $"{x.Url}(상위 IP {x.TopIp} {x.TopIpRatio:P0}, 총 {x.TotalRequests:N0}회)"))}"
+                ? $"단일 IP 집중: {string.Join(" · ", singleIpUrls.Select(x => $"{x.Url} ({x.TopIpRatio:P0})"))}"
                 : string.Empty,
             "",
             "[의심 IP]",
             topScoredIps.Count > 0
                 ? string.Join(Environment.NewLine, topScoredIps.Select(x =>
-                    $"- {x.Ip}: {DescribeIpPattern(x)}. 권고 {x.RecommendedAction}, score={x.Score}, 요청={x.RequestCount:N0}, 200={x.Http200Count:N0}, 오류={x.ErrorCount:N0}, 주요 URL {x.DominantUrl} {x.DominantUrlRatio:P0}, Referer 없음 {x.RefererMissingRatio:P0}, 근거 {FormatReasons(x.Reasons, 4)}"))
+                    $"- {x.Ip} · {DescribeAction(x.RecommendedAction)} · 점수 {x.Score} · 요청 {x.RequestCount:N0} · 주요 URL {x.DominantUrl}"))
                 : "차단 또는 제한 후보 IP가 충분하지 않습니다.",
             top404Ips.Count > 0
-                ? $"404 스캔 후보: {string.Join("; ", top404Ips.Select(x => $"{x.Ip}({x.RecommendedAction}, 404={x.NotFoundCount:N0}, 민감탐색={x.SensitiveProbeCount:N0}, Referer 없음 {x.RefererMissingRatio:P0}, 근거 {FormatReasons(x.Reasons, 3)})"))}"
+                ? $"404 스캔: {string.Join(" · ", top404Ips.Select(x => $"{x.Ip} (404 {x.NotFoundCount:N0})"))}"
                 : string.Empty,
             adminProbes.Count > 0
                 ? $"관리자 페이지 접근 시도: {string.Join("; ", adminProbes.Select(x => $"{x.Value}({x.Count:N0})"))}"
@@ -4183,35 +4204,6 @@
         return ParseAnalysisSections(response).Count < 2;
     }
 
-    private static bool IsUsefulQuestionResponse(string? response)
-    {
-        if (LooksTrivialAnalysis(response) || string.IsNullOrWhiteSpace(response))
-        {
-            return false;
-        }
-
-        var koreanCharacterCount = response.Count(character => character is >= '\uAC00' and <= '\uD7A3');
-        return koreanCharacterCount >= 5 && response.Trim().Length >= 40;
-    }
-
-    private static string EnsureQuestionSection(string response)
-    {
-        return response.Contains("[추가 질문 답변]", StringComparison.Ordinal)
-            ? response
-            : string.Concat("[추가 질문 답변]", Environment.NewLine, response.Trim());
-    }
-
-    private static bool LooksQuestionAnswered(string? response)
-    {
-        if (LooksTrivialAnalysis(response))
-        {
-            return false;
-        }
-
-        return response!.Contains("[추가 질문 답변]", StringComparison.Ordinal)
-            || response.Contains("추가 질문", StringComparison.Ordinal)
-            || IsUsefulQuestionResponse(response);
-    }
 }
 
 

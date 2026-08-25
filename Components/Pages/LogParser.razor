@@ -255,7 +255,8 @@
         }
         @if (!string.IsNullOrWhiteSpace(AnalyzeMessage))
         {
-            var reportSections = ParseAnalysisSections(AnalyzeMessage);
+            var reportSections = ParseDisplayedAnalysisSections(AnalyzeMessage);
+            var topIpAccess = GetTopIpAccess(filtered, 5);
             <section class="analysis-inline-report mb-3" aria-label="AI analysis report">
                 <div class="analysis-inline-report__header">
                     <button type="button" class="analysis-inline-report__toggle" @onclick="ToggleAnalysisReportCollapsed" aria-expanded="@(!IsAnalysisReportCollapsed)">
@@ -320,6 +321,21 @@
                             </article>
                         }
                     </div>
+                    @if (topIpAccess.Count > 0)
+                    {
+                        <div class="analysis-ip-chart-card" aria-label="IP 접근 TOP 5">
+                            <div class="analysis-ip-chart-card__header">
+                                <div>
+                                    <h3>IP 접근 TOP 5</h3>
+                                    <p>현재 필터된 로그 기준 요청 수가 많은 IP입니다.</p>
+                                </div>
+                                <span class="analysis-ip-chart-card__badge">요청 수</span>
+                            </div>
+                            <div class="analysis-ip-chart-card__canvas-wrap">
+                                <canvas id="logParserTopIpChart" aria-label="IP 접근 TOP 5 차트"></canvas>
+                            </div>
+                        </div>
+                    }
                 }
                 else if (!IsAnalysisReportCollapsed)
                 {
@@ -673,6 +689,18 @@
                 UseOllama = true;
             }
         }
+
+        if (!string.IsNullOrWhiteSpace(AnalyzeMessage))
+        {
+            try
+            {
+                await JS.InvokeVoidAsync("logParserAnalysis.initTopIpChart", "logParserTopIpChart", GetTopIpAccess(GetFilteredRows(), 5));
+            }
+            catch
+            {
+                // Chart rendering is supplemental; the report remains usable without it.
+            }
+        }
     }
     private bool MultiSort { get; set; } = false;
     private List<SortSpec> Sorts { get; } = new()
@@ -717,6 +745,30 @@
         }
 
         return sections;
+    }
+
+    private static List<AnalysisSection> ParseDisplayedAnalysisSections(string? text)
+    {
+        var allowed = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "공격 URL", "의심 IP", "차단 후보", "대응 방안"
+        };
+
+        return ParseAnalysisSections(text)
+            .Where(section => allowed.Contains(section.Title))
+            .ToList();
+    }
+
+    private static List<CountItem> GetTopIpAccess(List<ParsedLogRow> rows, int take)
+    {
+        return rows
+            .Where(x => !IsExcludedAnalysisIp(x.Ip) && !string.IsNullOrWhiteSpace(x.Ip))
+            .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CountItem(group.Key, group.Count()))
+            .OrderByDescending(item => item.Count)
+            .ThenBy(item => item.Value, StringComparer.OrdinalIgnoreCase)
+            .Take(take)
+            .ToList();
     }
 
     private static string? NormalizeAnalysisSectionTitle(string line)

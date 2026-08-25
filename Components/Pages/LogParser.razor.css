@@ -590,6 +590,50 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 
+.analysis-ip-chart-card {
+  margin-top: 1rem;
+  padding: 1rem 1.1rem 1.1rem;
+  border: 1px solid color-mix(in srgb, var(--card-border) 86%, var(--accent));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--card-bg) 94%, var(--accent-subtle));
+}
+
+.analysis-ip-chart-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.65rem;
+}
+
+.analysis-ip-chart-card__header h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  font-weight: 700;
+}
+
+.analysis-ip-chart-card__header p {
+  margin: 0.22rem 0 0;
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+}
+
+.analysis-ip-chart-card__badge {
+  flex: 0 0 auto;
+  padding: 0.28rem 0.55rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 32%, var(--card-border));
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.analysis-ip-chart-card__canvas-wrap {
+  position: relative;
+  height: 218px;
+}
+
 .analysis-pre {
   background: color-mix(in srgb, var(--bg-overlay) 94%, var(--accent-subtle));
   border-color: color-mix(in srgb, var(--card-border) 88%, var(--accent));

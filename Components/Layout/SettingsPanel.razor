@@ -403,80 +403,50 @@
                 <div class="settings-section" id="chatops">
                         <div class="settings-section-title">@Language.T("알림", "Notifications")</div>
                         <div class="settings-section-help">@Language.T("서버 상태 알림을 받을 채널을 선택합니다. Dooray는 채널 ID와 API 토큰을 사용하고 Discord·카카오워크는 Incoming Webhook을 사용합니다.", "Choose which channels receive server health alerts. Dooray uses its channel ID and API token; Discord and Kakao Work use incoming webhooks.")</div>
-                        <div class="row g-2 align-items-end">
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Notifications</label>
-                                <select class="form-select" @bind="NotificationsEnabledChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Slack</label>
-                                <select class="form-select" @bind="SlackEnabledChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Slack Webhook URL</label>
-                                <input class="form-control" @bind="NotificationSettings.SlackWebhookUrl" placeholder="https://hooks.slack.com/..." />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Teams</label>
-                                <select class="form-select" @bind="TeamsEnabledChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Teams Webhook URL</label>
-                                <input class="form-control" @bind="NotificationSettings.TeamsWebhookUrl" placeholder="https://outlook.office.com/webhook/..." />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" id="doorayEnabled" @bind="NotificationSettings.DoorayEnabled" />
-                                    <label class="form-check-label" for="doorayEnabled">Dooray</label>
+                        <div class="notification-channels">
+                            <div class="notification-channel notification-channel--master">
+                                <div class="notification-channel__copy">
+                                    <strong>@Language.T("서버 알림", "Server notifications")</strong>
+                                    <span>@Language.T("모든 알림 채널의 전송을 켜거나 끕니다.", "Enable or disable delivery to all notification channels.")</span>
                                 </div>
+                                <label class="form-switch-control" for="notificationsEnabled">
+                                    <input id="notificationsEnabled" type="checkbox" @bind="NotificationSettings.Enabled" />
+                                    <span class="form-switch-control__track" aria-hidden="true"></span>
+                                    <span class="form-switch-control__state">@(NotificationSettings.Enabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span>
+                                </label>
                             </div>
-                            <div class="col-12 col-md-4">
-                                <label class="form-label">Dooray Channel ID</label>
-                                <input class="form-control" @bind="NotificationSettings.DoorayChannelId" placeholder="Channel ID" />
-                            </div>
-                            <div class="col-12 col-md-5">
-                                <label class="form-label">Dooray API Token</label>
-                                <input class="form-control" type="password" @bind="NotificationSettings.DoorayApiToken" placeholder="API token" />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" id="discordEnabled" @bind="NotificationSettings.DiscordEnabled" />
-                                    <label class="form-check-label" for="discordEnabled">Discord</label>
+
+                            <div class="notification-channel-grid">
+                                <div class="notification-channel">
+                                    <div class="notification-channel__copy"><strong>Slack</strong><span>Slack Webhook</span></div>
+                                    <label class="form-switch-control" for="slackEnabled"><input id="slackEnabled" type="checkbox" @bind="NotificationSettings.SlackEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.SlackEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
+                                    <input class="form-control notification-channel__input" @bind="NotificationSettings.SlackWebhookUrl" placeholder="https://hooks.slack.com/..." />
                                 </div>
-                            </div>
-                            <div class="col-12 col-md-9">
-                                <label class="form-label">Discord Webhook URL</label>
-                                <input class="form-control" @bind="NotificationSettings.DiscordWebhookUrl" placeholder="https://discord.com/api/webhooks/..." />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <div class="form-check form-switch mt-2">
-                                    <input class="form-check-input" type="checkbox" id="kakaoWorkEnabled" @bind="NotificationSettings.KakaoWorkEnabled" />
-                                    <label class="form-check-label" for="kakaoWorkEnabled">Kakao Work</label>
+                                <div class="notification-channel">
+                                    <div class="notification-channel__copy"><strong>Microsoft Teams</strong><span>Teams Webhook</span></div>
+                                    <label class="form-switch-control" for="teamsEnabled"><input id="teamsEnabled" type="checkbox" @bind="NotificationSettings.TeamsEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.TeamsEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
+                                    <input class="form-control notification-channel__input" @bind="NotificationSettings.TeamsWebhookUrl" placeholder="https://outlook.office.com/webhook/..." />
                                 </div>
-                            </div>
-                            <div class="col-12 col-md-9">
-                                <label class="form-label">Kakao Work Incoming Webhook URL</label>
-                                <input class="form-control" @bind="NotificationSettings.KakaoWorkWebhookUrl" placeholder="https://hooks.kakao.work/..." />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Generic Webhook</label>
-                                <select class="form-select" @bind="WebhookEnabledChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-9">
-                                <label class="form-label">Webhook URL</label>
-                                <input class="form-control" @bind="NotificationSettings.WebhookUrl" placeholder="https://example.com/webhook" />
+                                <div class="notification-channel">
+                                    <div class="notification-channel__copy"><strong>Dooray</strong><span>@Language.T("채널 ID와 API 토큰", "Channel ID and API token")</span></div>
+                                    <label class="form-switch-control" for="doorayEnabled"><input id="doorayEnabled" type="checkbox" @bind="NotificationSettings.DoorayEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.DoorayEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
+                                    <div class="notification-channel__fields"><input class="form-control" @bind="NotificationSettings.DoorayChannelId" placeholder="@Language.T("채널 ID", "Channel ID")" /><input class="form-control" type="password" @bind="NotificationSettings.DoorayApiToken" placeholder="@Language.T("API 토큰", "API token")" /></div>
+                                </div>
+                                <div class="notification-channel">
+                                    <div class="notification-channel__copy"><strong>Discord</strong><span>Incoming Webhook</span></div>
+                                    <label class="form-switch-control" for="discordEnabled"><input id="discordEnabled" type="checkbox" @bind="NotificationSettings.DiscordEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.DiscordEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
+                                    <input class="form-control notification-channel__input" @bind="NotificationSettings.DiscordWebhookUrl" placeholder="https://discord.com/api/webhooks/..." />
+                                </div>
+                                <div class="notification-channel">
+                                    <div class="notification-channel__copy"><strong>Kakao Work</strong><span>Incoming Webhook</span></div>
+                                    <label class="form-switch-control" for="kakaoWorkEnabled"><input id="kakaoWorkEnabled" type="checkbox" @bind="NotificationSettings.KakaoWorkEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.KakaoWorkEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
+                                    <input class="form-control notification-channel__input" @bind="NotificationSettings.KakaoWorkWebhookUrl" placeholder="https://hooks.kakao.work/..." />
+                                </div>
+                                <div class="notification-channel">
+                                    <div class="notification-channel__copy"><strong>@Language.T("일반 Webhook", "Generic Webhook")</strong><span>Webhook URL</span></div>
+                                    <label class="form-switch-control" for="webhookEnabled"><input id="webhookEnabled" type="checkbox" @bind="NotificationSettings.WebhookEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.WebhookEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
+                                    <input class="form-control notification-channel__input" @bind="NotificationSettings.WebhookUrl" placeholder="https://example.com/webhook" />
+                                </div>
                             </div>
                         </div>
                 </div>

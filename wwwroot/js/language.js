@@ -38,6 +38,33 @@
         "Reset Zoom": "확대/축소 초기화", "Alert Rules": "알림 규칙", "Configuration": "구성", "Enabled": "사용",
         "Cooldown (min)": "재알림 대기(분)", "Maintenance Window": "점검 시간", "Start": "시작", "End": "종료",
         "View Details": "상세 보기", "Disk Used": "디스크 사용량", "Disk Total": "디스크 전체"
+        ,"OpsEye | Account": "OpsEye | 계정", "OpsEye | Audit Log": "OpsEye | 감사 로그",
+        "OpsEye | Change Report": "OpsEye | 변경 리포트", "OpsEye | Admin Users": "OpsEye | 관리자 사용자",
+        "OpsEye | Dependencies": "OpsEye | 의존 서비스", "OpsEye | Event Timeline": "OpsEye | 이벤트 타임라인",
+        "OpsEye | Alert History": "OpsEye | 알림 이력", "OpsEye | Server Compare": "OpsEye | 서버 비교",
+        "OpsEye | System Status": "OpsEye | 시스템 상태", "Java Log Parser": "Java 로그 파서",
+        "Java Log Analyzer": "Java 로그 분석기", "IIS Log Parser": "IIS 로그 파서", "Log Entries": "로그 항목",
+        "Analyzing...": "분석 중...", "Analyze": "분석", "Analyze Batch": "일괄 분석", "Analysis Snapshot": "분석 요약",
+        "Batch Export Preview": "일괄 내보내기 미리보기", "All": "전체", "Timestamp": "타임스탬프",
+        "Level": "레벨", "Thread": "스레드", "Logger": "로거", "Source": "소스", "IP": "IP",
+        "Country": "국가", "City": "도시", "ISP": "ISP", "AS": "AS", "Host": "호스트",
+        "Group": "그룹", "Tags": "태그", "SQL Access": "SQL 접근", "Alert Override": "알림 재정의",
+        "Target URL": "대상 URL", "DB Access": "DB 접근", "SQL Authentication": "SQL 인증",
+        "Windows / Integrated": "Windows / 통합 인증", "Host data not found.": "호스트 데이터를 찾을 수 없습니다.",
+        "Last 24h": "최근 24시간", "Last 7 days": "최근 7일", "Last 30 days": "최근 30일",
+        "Last 12 months": "최근 12개월", "Request ID:": "요청 ID:", "Not Found": "찾을 수 없음",
+        "Sorry, the content you are looking for does not exist.": "요청하신 콘텐츠가 존재하지 않습니다.",
+        "Verify Email": "이메일 인증", "Reset Password": "비밀번호 재설정", "Two-Factor Verification": "2차 인증",
+        "Development Mode": "개발 모드", "Backup archive": "백업 보관함", "File": "파일", "Size": "크기",
+        "When": "시각", "Members": "회원", "Create member": "회원 생성", "Selected member": "선택한 회원",
+        "User": "사용자", "Display": "표시 이름", "Role": "역할", "Actions": "작업", "Inactive": "비활성",
+        "Recent login attempts": "최근 로그인 시도", "All severity": "모든 심각도", "High": "높음",
+        "Medium": "중간", "Low": "낮음", "Value / Threshold": "값 / 임계값", "Metric": "지표",
+        "Type": "유형", "Ratio": "비율", "Statement": "문장", "Session": "세션", "Command": "명령",
+        "Elapsed(ms)": "경과(ms)", "CPU(ms)": "CPU(ms)", "Reads": "읽기", "Writes": "쓰기", "Wait": "대기",
+        "Block": "차단", "Top IO Queries": "상위 IO 쿼리", "TX Mbps": "TX Mbps", "RX Mbps": "RX Mbps",
+        "MEM": "메모리", "OS": "운영체제", "Memory": "메모리", "Disk": "디스크", "Enabled at": "활성화 시각",
+        "Failed logins": "로그인 실패 횟수", "Last failed login": "최근 로그인 실패", "Lockout until": "잠금 해제 시각"
     };
     function translate(root, korean) {
         if (!root) return;
@@ -51,7 +78,18 @@
             if (!original || !original.trim()) continue;
             const trimmed = original.trim();
             const value = korean ? dictionary[trimmed] : Object.keys(dictionary).find(k => dictionary[k] === trimmed);
-            if (value) node.nodeValue = original.replace(trimmed, value);
+            if (value) {
+                node.nodeValue = original.replace(trimmed, value);
+                continue;
+            }
+            const replacements = korean
+                ? Object.entries(dictionary)
+                : Object.entries(dictionary).map(([english, koreanText]) => [koreanText, english]);
+            let replaced = original;
+            for (const [from, to] of replacements.sort((a, b) => b[0].length - a[0].length)) {
+                if (replaced.includes(from)) replaced = replaced.split(from).join(to);
+            }
+            if (replaced !== original) node.nodeValue = replaced;
         }
     }
     let observer;
@@ -62,6 +100,7 @@
             currentKorean = korean;
             document.documentElement.lang = korean ? "ko" : "en";
             translate(document.body, korean);
+            translate(document.head, korean);
             if (!observer) {
                 observer = new MutationObserver(records => {
                     if (window.opsLanguage._busy) return;
@@ -70,7 +109,7 @@
                         if (node.nodeType === Node.ELEMENT_NODE) translate(node, currentKorean);
                     window.opsLanguage._busy = false;
                 });
-                observer.observe(document.body, { childList: true, subtree: true });
+                observer.observe(document.documentElement, { childList: true, subtree: true });
             }
         },
         _busy: false

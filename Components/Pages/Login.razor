@@ -91,7 +91,7 @@
         </div>
         <div class="login-visual-copy">
             <p class="login-visual-kicker">OPERATIONS VISIBILITY</p>
-            <h2>@Language.T("모든 핵심 시스템을<br />명확하게 확인하세요.", "Clarity for every<br />critical system.")</h2>
+            <h2>@Language.T("모든 핵심 시스템을", "Clarity for every")<br />@Language.T("명확하게 확인하세요.", "critical system.")</h2>
             <p>@Language.T("서비스 상태를 확인하고 이벤트를 조사하며 운영 현황을 한눈에 관리하세요.", "Monitor service health, investigate events, and keep your operations in view.")</p>
         </div>
         <div class="login-globe-stage">
@@ -140,7 +140,7 @@
 
         if (query.TryGetValue("success", out var emailSuccess) && emailSuccess.ToString() == "verification_sent")
         {
-            _message = Language.T("계정이 생성되었습니다. 로그인 전에 이메일에서 주소를 인증하세요.", "Account created. Please check your email to verify your address before signing in.");
+            _message = Language.T("계정이 생성되었습니다. 로그인 전에 이메일 인증을 완료하세요.", "Account created. Please check your email to verify your address before signing in.");
         }
 
         var baseSettings = Configuration.GetSection("Monitoring:Email").Get<EmailSettings>() ?? new EmailSettings();

@@ -1,5 +1,20 @@
 @inherits LayoutComponentBase
+@inject IJSRuntime JS
 
 <div class="login-layout">
     @Body
 </div>
+
+@code {
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "en");
+        Language.SetLanguage(savedLanguage);
+        await JS.InvokeVoidAsync("opsLanguage.apply", Language.Code);
+    }
+}

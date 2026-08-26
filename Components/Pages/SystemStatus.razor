@@ -24,7 +24,10 @@
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
-        <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+        <div class="alert system-status-message @(_isError ? "alert-danger" : "alert-success")" role="status" aria-live="polite">
+            <span class="system-status-message__icon" aria-hidden="true">@(_isError ? "!" : "✓")</span>
+            <span>@_message</span>
+        </div>
     }
 
     <div class="row g-3 mb-3">

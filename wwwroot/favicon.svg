@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="OpsEye">
+  <defs>
+    <linearGradient id="bg" x1="8" y1="4" x2="56" y2="60" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#246bdb"/>
+      <stop offset="1" stop-color="#123b80"/>
+    </linearGradient>
+    <linearGradient id="pulse" x1="13" y1="32" x2="51" y2="32" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8fd8ff"/>
+      <stop offset="1" stop-color="#fff"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#bg)"/>
+  <path d="M8 32c6.7-11.7 15-17.5 24-17.5S49.3 20.3 56 32c-6.7 11.7-15 17.5-24 17.5S14.7 43.7 8 32Z" fill="#0b285a" fill-opacity=".42" stroke="#d9f1ff" stroke-width="2.5"/>
+  <circle cx="32" cy="32" r="8.5" fill="#d9f1ff"/>
+  <circle cx="32" cy="32" r="4" fill="#123b80"/>
+  <path d="M11 35h10l3.2-7 4.2 13 4.2-18 4.1 12H53" fill="none" stroke="url(#pulse)" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.8"/>
+</svg>

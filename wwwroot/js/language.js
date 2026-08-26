@@ -135,6 +135,8 @@
         for (const node of nodes) {
             const parent = node.parentElement;
             if (!parent || ["SCRIPT", "STYLE", "TEXTAREA", "INPUT", "CODE"].includes(parent.tagName)) continue;
+            // Log values, URIs, IPs, messages, and other data cells must never be translated.
+            if (parent.closest("td, dd, pre, code, .text-break, [data-log-value]")) continue;
             const original = node.nodeValue;
             if (!original || !original.trim()) continue;
             const trimmed = original.trim();
@@ -147,8 +149,29 @@
                 ? Object.entries(dictionary)
                 : Object.entries(dictionary).map(([english, koreanText]) => [koreanText, english]);
             let replaced = original;
+            const protectedTokens = [
+                "User-Agent", "UserAgent", "RateLimit", "Webhook", "HTTP", "HTTPS", "IIS", "Ollama", "SMTP", "SQL",
+                "JSON", "CSV", "URL", "URI", "IP", "ISP", "ASN", "API", "Slack", "Teams", "Discord", "Dooray", "Kakao Work"
+            ];
+            const protectedValues = [];
+            for (const token of protectedTokens) {
+                if (!replaced.includes(token)) continue;
+                const marker = `\u0000${protectedValues.length}\u0000`;
+                protectedValues.push(token);
+                replaced = replaced.split(token).join(marker);
+            }
             for (const [from, to] of replacements.sort((a, b) => b[0].length - a[0].length)) {
-                if (replaced.includes(from)) replaced = replaced.split(from).join(to);
+                if (!from || !replaced.includes(from)) continue;
+                // Do not translate inside identifiers such as POST, IIS, or OS-level names.
+                if (/^[A-Za-z0-9]+$/.test(from)) {
+                    const escaped = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    replaced = replaced.replace(new RegExp(`(^|[^A-Za-z0-9])${escaped}(?=$|[^A-Za-z0-9])`, "g"), `$1${to}`);
+                } else {
+                    replaced = replaced.split(from).join(to);
+                }
+            }
+            for (let index = 0; index < protectedValues.length; index++) {
+                replaced = replaced.split(`\u0000${index}\u0000`).join(protectedValues[index]);
             }
             if (replaced !== original) node.nodeValue = replaced;
         }

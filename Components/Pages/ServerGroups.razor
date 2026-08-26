@@ -3,6 +3,7 @@
 @using Monitoring.Blazor.Services
 @inject MonitorStateService MonitorState
 @inject ServerCatalogRepository ServerCatalogRepository
+@inject IJSRuntime JS
 
 <PageTitle>OpsEye | @Language.T("서버 그룹", "Server Groups")</PageTitle>
 
@@ -103,7 +104,7 @@
         return InvokeAsync(StateHasChanged);
     }
 
-    private Task SaveAsync(RowModel row)
+    private async Task SaveAsync(RowModel row)
     {
         ServerCatalogRepository.Save(row.Hostname, new ServerMetadata
         {
@@ -113,7 +114,8 @@
 
         _message = Language.T($"{row.Hostname} 서버 정보를 저장했습니다.", $"Saved metadata for {row.Hostname}.");
         _isError = false;
-        return InvokeAsync(StateHasChanged);
+        await JS.InvokeVoidAsync("monitorSettings.showToast", _message, "success");
+        await InvokeAsync(StateHasChanged);
     }
 
     private sealed class RowModel

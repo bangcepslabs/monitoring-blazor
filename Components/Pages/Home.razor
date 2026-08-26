@@ -1568,7 +1568,16 @@ else
             return;
         }
 
-        await _http.PostAsJsonAsync("api/alerts/settings", AlertSettings);
+        try
+        {
+            var response = await _http.PostAsJsonAsync("api/alerts/settings", AlertSettings);
+            response.EnsureSuccessStatusCode();
+            await JS.InvokeVoidAsync("monitorSettings.showToast", Language.T("알림 규칙을 저장했습니다.", "Alert rules saved."), "success");
+        }
+        catch
+        {
+            await JS.InvokeVoidAsync("monitorSettings.showToast", Language.T("알림 규칙 저장에 실패했습니다.", "Alert rules could not be saved."), "danger");
+        }
     }
 
     private async Task LoadRecentAlertsAsync()
@@ -1644,6 +1653,12 @@ else
         {
             SlowQueryService.SaveSqlTargetSettings(SelectedHost.Info.Hostname, SqlTargetSettings);
             SqlTargetStatusMessage = $"Saved SQL access for {SelectedHost.Info.Hostname}.";
+            await JS.InvokeVoidAsync("monitorSettings.showToast", Language.T("SQL 접근 설정을 저장했습니다.", "SQL access settings saved."), "success");
+        }
+        catch
+        {
+            SqlTargetStatusMessage = "SQL access settings could not be saved.";
+            await JS.InvokeVoidAsync("monitorSettings.showToast", Language.T("SQL 접근 설정 저장에 실패했습니다.", "SQL access settings could not be saved."), "danger");
         }
         finally
         {

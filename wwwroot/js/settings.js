@@ -90,5 +90,33 @@ window.monitorSettings = (function () {
     }
   }
 
-  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText };
+  function showToast(message, kind) {
+    if (!message) return;
+
+    const tone = kind === 'danger' ? 'danger' : kind === 'warning' ? 'warning' : 'success';
+    let container = document.getElementById('ops-toast-region');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'ops-toast-region';
+      container.className = 'ops-toast-region';
+      container.setAttribute('aria-live', 'polite');
+      container.setAttribute('aria-atomic', 'true');
+      document.body.appendChild(container);
+    }
+
+    const toast = document.createElement('div');
+    toast.className = `ops-toast ops-toast--${tone}`;
+    toast.setAttribute('role', 'status');
+    toast.innerHTML = `<span class="ops-toast__icon" aria-hidden="true">${tone === 'danger' ? '!' : tone === 'warning' ? '!' : '✓'}</span><span class="ops-toast__message"></span><button type="button" class="ops-toast__close" aria-label="Close">×</button>`;
+    toast.querySelector('.ops-toast__message').textContent = message;
+    toast.querySelector('.ops-toast__close').addEventListener('click', () => toast.remove());
+    container.appendChild(toast);
+
+    window.setTimeout(() => {
+      toast.classList.add('ops-toast--leaving');
+      window.setTimeout(() => toast.remove(), 180);
+    }, 4200);
+  }
+
+  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, showToast };
 })();

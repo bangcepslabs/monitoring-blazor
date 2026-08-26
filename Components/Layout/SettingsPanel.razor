@@ -41,66 +41,45 @@
                 <div class="settings-section" id="alert-rules">
                     <div class="settings-section-title">@Language.T("서버 상태 알림", "Server Health Alerts")</div>
                     <div class="settings-section-help">@Language.T("CPU·메모리·디스크·복구·점검 시간에 경고를 발생시킬 조건을 설정합니다.", "Tune when the dashboard should raise warnings for CPU, memory, disk, recovery, or maintenance windows.")</div>
-                    <div class="row g-2">
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Enabled</label>
-                            <select class="form-select" @bind="AlertEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
-                            </select>
+                    <div class="settings-subsections">
+                        <div class="settings-subsection">
+                            <div class="settings-subsection-heading">
+                                <div class="settings-subsection-title">@Language.T("감지 기준", "Detection thresholds")</div>
+                                <div class="settings-subsection-help">@Language.T("알림을 사용할지와 CPU·메모리·디스크 경고 기준을 설정합니다.", "Enable alerts and set CPU, memory, and disk thresholds.")</div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-3">
+                                    <label class="form-label">Enabled</label>
+                                    <select class="form-select" @bind="AlertEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select>
+                                </div>
+                                <div class="col-12 col-md-3"><label class="form-label">CPU %</label><input class="form-control" type="number" @bind="AlertSettings.CpuThreshold" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">CPU Minutes</label><input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">RAM %</label><input class="form-control" type="number" @bind="AlertSettings.RamThreshold" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">Disk %</label><input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" /></div>
+                            </div>
                         </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">CPU %</label>
-                            <input class="form-control" type="number" @bind="AlertSettings.CpuThreshold" />
+                        <div class="settings-subsection">
+                            <div class="settings-subsection-heading">
+                                <div class="settings-subsection-title">@Language.T("알림 동작", "Alert behavior")</div>
+                                <div class="settings-subsection-help">@Language.T("반복 알림 간격과 복구·이상 징후 알림을 설정합니다.", "Control cooldowns and recovery or anomaly notifications.")</div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-3"><label class="form-label">Cooldown</label><input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">Recovery</label><select class="form-select" @bind="RecoveryEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                <div class="col-12 col-md-3"><label class="form-label">Recovery Cooldown</label><input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">Anomaly</label><select class="form-select" @bind="AnomalyEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                            </div>
                         </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">CPU Minutes</label>
-                            <input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" />
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">RAM %</label>
-                            <input class="form-control" type="number" @bind="AlertSettings.RamThreshold" />
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Disk %</label>
-                            <input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" />
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Cooldown</label>
-                            <input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" />
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Recovery</label>
-                            <select class="form-select" @bind="RecoveryEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Recovery Cooldown</label>
-                            <input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" />
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Anomaly</label>
-                            <select class="form-select" @bind="AnomalyEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Maintenance Window</label>
-                            <select class="form-select" @bind="MaintenanceWindowEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
-                            </select>
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Window Start</label>
-                            <input class="form-control" type="time" @bind="MaintenanceWindowStartValue" />
-                        </div>
-                        <div class="col-12 col-md-3">
-                            <label class="form-label">Window End</label>
-                            <input class="form-control" type="time" @bind="MaintenanceWindowEndValue" />
+                        <div class="settings-subsection">
+                            <div class="settings-subsection-heading">
+                                <div class="settings-subsection-title">@Language.T("점검 시간", "Maintenance window")</div>
+                                <div class="settings-subsection-help">@Language.T("정기 점검 중에는 일시적인 상태 변화를 알림에서 제외합니다.", "Suppress expected status changes during scheduled maintenance.")</div>
+                            </div>
+                            <div class="row g-2">
+                                <div class="col-12 col-md-4"><label class="form-label">Maintenance Window</label><select class="form-select" @bind="MaintenanceWindowEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Window Start</label><input class="form-control" type="time" @bind="MaintenanceWindowStartValue" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">Window End</label><input class="form-control" type="time" @bind="MaintenanceWindowEndValue" /></div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -340,62 +319,41 @@
                 <div class="settings-section" id="email">
                         <div class="settings-section-title">@Language.T("이메일 인증 / 재설정", "Email Verification / Reset")</div>
                         <div class="settings-section-help">@Language.T("이메일 회원가입 인증과 비밀번호 재설정을 켜거나 끈 뒤 아래 SMTP 서버를 설정하세요.", "Turn email-based signup verification and password reset on or off, then set the SMTP server below.")</div>
-                        <div class="row g-2 align-items-end">
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">SMTP auth mode</label>
-                                <select class="form-select" @bind="EmailEnabledChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
+                        <div class="settings-subsections">
+                            <div class="settings-subsection">
+                                <div class="settings-subsection-heading">
+                                    <div class="settings-subsection-title">@Language.T("기능 사용", "Feature switches")</div>
+                                    <div class="settings-subsection-help">@Language.T("SMTP 인증, 회원가입 인증, 비밀번호 재설정을 각각 독립적으로 켜고 끕니다.", "Enable SMTP, signup verification, and password reset independently.")</div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-12 col-md-4"><label class="form-label">SMTP auth mode</label><select class="form-select" @bind="EmailEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                    <div class="col-12 col-md-4"><label class="form-label">Signup verification</label><select class="form-select" @bind="EmailVerificationChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                    <div class="col-12 col-md-4"><label class="form-label">Password reset</label><select class="form-select" @bind="EmailPasswordResetChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Signup verification</label>
-                                <select class="form-select" @bind="EmailVerificationChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
+                            <div class="settings-subsection">
+                                <div class="settings-subsection-heading">
+                                    <div class="settings-subsection-title">SMTP connection</div>
+                                    <div class="settings-subsection-help">@Language.T("메일을 보낼 SMTP 호스트와 인증 정보를 입력합니다.", "Enter the SMTP host, port, encryption, and credentials used to send mail.")</div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-12 col-md-6"><label class="form-label">SMTP Host</label><input class="form-control" @bind="EmailSettings.SmtpHost" placeholder="smtp.example.com" /></div>
+                                    <div class="col-12 col-md-3"><label class="form-label">SMTP Port</label><input class="form-control" type="number" @bind="EmailSettings.SmtpPort" /></div>
+                                    <div class="col-12 col-md-3"><label class="form-label">SSL</label><select class="form-select" @bind="EmailSslChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Username</label><input class="form-control" @bind="EmailSettings.SmtpUsername" autocomplete="off" /></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">Password</label><input class="form-control" type="password" @bind="EmailSettings.SmtpPassword" autocomplete="new-password" /></div>
+                                </div>
                             </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Password reset</label>
-                                <select class="form-select" @bind="EmailPasswordResetChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">SMTP Host</label>
-                                <input class="form-control" @bind="EmailSettings.SmtpHost" placeholder="smtp.example.com" />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">SMTP Port</label>
-                                <input class="form-control" type="number" @bind="EmailSettings.SmtpPort" />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">SSL</label>
-                                <select class="form-select" @bind="EmailSslChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
-                                </select>
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Username</label>
-                                <input class="form-control" @bind="EmailSettings.SmtpUsername" autocomplete="off" />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">Password</label>
-                                <input class="form-control" type="password" @bind="EmailSettings.SmtpPassword" autocomplete="new-password" />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">From Address</label>
-                                <input class="form-control" @bind="EmailSettings.FromAddress" placeholder="noreply@example.com" />
-                            </div>
-                            <div class="col-12 col-md-3">
-                                <label class="form-label">From Name</label>
-                                <input class="form-control" @bind="EmailSettings.FromName" placeholder="OpsEye" />
-                            </div>
-                            <div class="col-12 col-md-6">
-                                <label class="form-label">Verification Subject</label>
-                                <input class="form-control" @bind="EmailSettings.VerificationSubject" />
+                            <div class="settings-subsection">
+                                <div class="settings-subsection-heading">
+                                    <div class="settings-subsection-title">Sender and message</div>
+                                    <div class="settings-subsection-help">@Language.T("사용자에게 표시될 발신자 정보와 인증 메일 제목을 설정합니다.", "Set the sender identity and the subject shown in verification emails.")</div>
+                                </div>
+                                <div class="row g-2">
+                                    <div class="col-12 col-md-6"><label class="form-label">From Address</label><input class="form-control" @bind="EmailSettings.FromAddress" placeholder="noreply@example.com" /></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">From Name</label><input class="form-control" @bind="EmailSettings.FromName" placeholder="OpsEye" /></div>
+                                    <div class="col-12"><label class="form-label">Verification Subject</label><input class="form-control" @bind="EmailSettings.VerificationSubject" /></div>
+                                </div>
                             </div>
                         </div>
                 </div>
@@ -792,11 +750,13 @@
             var logAnalysisResponse = await client.PostAsJsonAsync("api/runtime/log-analysis-rules", LogAnalysisSettings);
             logAnalysisResponse.EnsureSuccessStatusCode();
 
-            StatusMessage = "Settings saved.";
+            StatusMessage = Language.T("설정을 저장했습니다.", "Settings saved.");
+            await JS.InvokeVoidAsync("monitorSettings.showToast", StatusMessage, "success");
         }
         catch (Exception ex)
         {
             StatusMessage = ex.Message;
+            await JS.InvokeVoidAsync("monitorSettings.showToast", Language.T("설정 저장에 실패했습니다.", "Settings could not be saved."), "danger");
         }
         finally
         {

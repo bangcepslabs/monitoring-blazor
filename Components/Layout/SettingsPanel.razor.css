@@ -181,6 +181,35 @@
     color: var(--text-primary);
 }
 
+.settings-subsections {
+    display: grid;
+    gap: 0.85rem;
+}
+
+.settings-subsection {
+    padding: 0.95rem;
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    background: var(--bg-overlay);
+}
+
+.settings-subsection-heading {
+    margin-bottom: 0.75rem;
+}
+
+.settings-subsection-title {
+    color: var(--text-primary);
+    font-size: 0.94rem;
+    font-weight: 700;
+}
+
+.settings-subsection-help {
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
 .notification-channels {
     display: grid;
     gap: 0.75rem;

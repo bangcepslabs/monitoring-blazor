@@ -363,6 +363,9 @@
 .dashboard-toolbar {
   display: grid;
   gap: 0.75rem;
+  position: relative;
+  z-index: 100;
+  overflow: visible;
 }
 
 .dashboard-toolbar-primary {
@@ -432,6 +435,7 @@
 .dashboard-menu {
   position: relative;
   display: inline-block;
+  z-index: 101;
 }
 
 .dashboard-menu-backdrop {

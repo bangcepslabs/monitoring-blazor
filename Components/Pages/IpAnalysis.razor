@@ -12,7 +12,7 @@
 <PageTitle>@Language.T("IP 분석", "IP Analysis")</PageTitle>
 
 <div class="page-header mb-4">
-    <h3 class="mb-1">IP Analysis</h3>
+    <h3 class="mb-1">@Language.T("IP 분석", "IP Analysis")</h3>
     <div class="text-muted">IP 위치, ISP, ASN 정보를 확인하고 단일 또는 다중 조회 결과를 엑셀로 내려받을 수 있습니다.</div>
 </div>
 
@@ -36,7 +36,7 @@
         {
             <div class="row g-3 align-items-end">
                 <div class="col-12 col-lg-6">
-                    <label class="form-label">Find IP</label>
+                    <label class="form-label">@Language.T("IP 조회", "Find IP")</label>
                     <input class="form-control"
                            @bind="IpInput"
                            @bind:event="oninput"
@@ -49,11 +49,11 @@
                         @if (IsLoading)
                         {
                             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            <span>Analyzing...</span>
+                            <span>@Language.T("분석 중...", "Analyzing...")</span>
                         }
                         else
                         {
-                            <span>Analyze</span>
+                            <span>@Language.T("분석", "Analyze")</span>
                         }
                     </button>
                 </div>
@@ -68,7 +68,7 @@
         {
             <div class="row g-3">
                 <div class="col-12">
-                    <label class="form-label">Batch IPs</label>
+                    <label class="form-label">@Language.T("IP 일괄 조회", "Batch IPs")</label>
                     <textarea class="form-control batch-input"
                               rows="7"
                               @bind="BatchInput"
@@ -87,11 +87,11 @@
                         @if (IsLoadingBatch)
                         {
                             <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                            <span>Analyzing...</span>
+                            <span>@Language.T("분석 중...", "Analyzing...")</span>
                         }
                         else
                         {
-                            <span>Analyze Batch</span>
+                            <span>@Language.T("일괄 분석", "Analyze Batch")</span>
                         }
                     </button>
                 </div>
@@ -136,7 +136,7 @@
         <div class="col-12 col-md-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Selected IP</div>
+                    <div class="text-muted small">@Language.T("선택한 IP", "Selected IP")</div>
                     <div class="fs-5 fw-semibold">@DisplayIp</div>
                 </div>
             </div>
@@ -144,7 +144,7 @@
         <div class="col-12 col-md-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Status</div>
+                    <div class="text-muted small">@Language.T("상태", "Status")</div>
                     <div class="fs-5 fw-semibold">@(ipResult?.Status ?? "-")</div>
                 </div>
             </div>
@@ -152,7 +152,7 @@
         <div class="col-12 col-md-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Location</div>
+                    <div class="text-muted small">@Language.T("위치", "Location")</div>
                     <div class="fs-5 fw-semibold">@LocationSummary</div>
                 </div>
             </div>
@@ -165,7 +165,7 @@ else if (BatchResults.Count > 0)
         <div class="col-12 col-md-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Requested</div>
+                    <div class="text-muted small">@Language.T("요청 수", "Requested")</div>
                     <div class="fs-5 fw-semibold">@BatchRequestedCount</div>
                 </div>
             </div>
@@ -173,7 +173,7 @@ else if (BatchResults.Count > 0)
         <div class="col-12 col-md-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Succeeded</div>
+                    <div class="text-muted small">@Language.T("성공", "Succeeded")</div>
                     <div class="fs-5 fw-semibold">@BatchSuccessCount</div>
                 </div>
             </div>
@@ -181,7 +181,7 @@ else if (BatchResults.Count > 0)
         <div class="col-12 col-md-4">
             <div class="card h-100 shadow-sm">
                 <div class="card-body">
-                    <div class="text-muted small">Failed</div>
+                    <div class="text-muted small">@Language.T("실패", "Failed")</div>
                     <div class="fs-5 fw-semibold">@BatchFailureCount</div>
                 </div>
             </div>
@@ -206,16 +206,16 @@ else if (BatchResults.Count > 0)
                     {
                         <dl class="row mb-0 ip-analysis-dl">
                             <dt class="col-5">IP</dt><dd class="col-7">@ipResult.Ip</dd>
-                            <dt class="col-5">Country</dt><dd class="col-7">@DisplayOrDash(ipResult.Country)</dd>
-                            <dt class="col-5">Country Code</dt><dd class="col-7">@DisplayOrDash(ipResult.CountryCode)</dd>
-                            <dt class="col-5">Region</dt><dd class="col-7">@DisplayRegion</dd>
-                            <dt class="col-5">City</dt><dd class="col-7">@DisplayOrDash(ipResult.City)</dd>
-                            <dt class="col-5">Zip</dt><dd class="col-7">@DisplayOrDash(ipResult.Zip)</dd>
-                            <dt class="col-5">Latitude</dt><dd class="col-7">@FormatCoordinate(ipResult.Lat)</dd>
-                            <dt class="col-5">Longitude</dt><dd class="col-7">@FormatCoordinate(ipResult.Lon)</dd>
-                            <dt class="col-5">Timezone</dt><dd class="col-7">@DisplayOrDash(ipResult.Timezone)</dd>
+                            <dt class="col-5">@Language.T("국가", "Country")</dt><dd class="col-7">@DisplayOrDash(ipResult.Country)</dd>
+                            <dt class="col-5">@Language.T("국가 코드", "Country Code")</dt><dd class="col-7">@DisplayOrDash(ipResult.CountryCode)</dd>
+                            <dt class="col-5">@Language.T("지역", "Region")</dt><dd class="col-7">@DisplayRegion</dd>
+                            <dt class="col-5">@Language.T("도시", "City")</dt><dd class="col-7">@DisplayOrDash(ipResult.City)</dd>
+                            <dt class="col-5">우편번호</dt><dd class="col-7">@DisplayOrDash(ipResult.Zip)</dd>
+                            <dt class="col-5">위도</dt><dd class="col-7">@FormatCoordinate(ipResult.Lat)</dd>
+                            <dt class="col-5">경도</dt><dd class="col-7">@FormatCoordinate(ipResult.Lon)</dd>
+                            <dt class="col-5">시간대</dt><dd class="col-7">@DisplayOrDash(ipResult.Timezone)</dd>
                             <dt class="col-5">ISP</dt><dd class="col-7">@DisplayOrDash(ipResult.Isp)</dd>
-                            <dt class="col-5">Organization</dt><dd class="col-7">@DisplayOrDash(ipResult.Org)</dd>
+                            <dt class="col-5">조직</dt><dd class="col-7">@DisplayOrDash(ipResult.Org)</dd>
                             <dt class="col-5">AS</dt><dd class="col-7">@DisplayOrDash(ipResult.As)</dd>
                         </dl>
                     }
@@ -290,19 +290,19 @@ else if (BatchResults.Count > 0)
 {
     <div class="card shadow-sm">
         <div class="card-header bg-transparent">
-            <strong>Analysis Snapshot</strong>
+            <strong>@Language.T("분석 요약", "Analysis Snapshot")</strong>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-12 col-md-4">
                     <div class="analysis-pill">
-                        <div class="text-muted small">Summary</div>
+                        <div class="text-muted small">@Language.T("요약", "Summary")</div>
                         <div class="fw-semibold">@LocationSummary</div>
                     </div>
                 </div>
                 <div class="col-12 col-md-4">
                     <div class="analysis-pill">
-                        <div class="text-muted small">Network</div>
+                        <div class="text-muted small">@Language.T("네트워크", "Network")</div>
                         <div class="fw-semibold">@DisplayOrDash(ipResult.Isp)</div>
                     </div>
                 </div>
@@ -321,7 +321,7 @@ else if (BatchResults.Count > 0)
 {
     <div class="card shadow-sm mt-3">
         <div class="card-header bg-transparent">
-            <strong>Batch Export Preview</strong>
+            <strong>@Language.T("일괄 내보내기 미리보기", "Batch Export Preview")</strong>
         </div>
         <div class="card-body">
             <div class="text-muted mb-2">엑셀로 내려받을 때 동일한 컬럼으로 저장됩니다.</div>

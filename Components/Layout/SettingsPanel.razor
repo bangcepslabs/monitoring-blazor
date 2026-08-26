@@ -11,22 +11,22 @@
     <section class="settings-panel" aria-labelledby="settings-title">
         <div class="settings-header">
             <div>
-                <div class="settings-kicker">Configuration</div>
-                <h2 id="settings-title">Settings</h2>
+                <div class="settings-kicker">@Language.T("구성", "Configuration")</div>
+                <h2 id="settings-title">@Language.T("설정", "Settings")</h2>
             </div>
             <div class="d-flex gap-2">
-                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ReloadAsync" disabled="@IsSaving">Reload</button>
-                <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@IsSaving">Save</button>
-                <button type="button" class="settings-close" aria-label="Back" @onclick="CloseAsync">X</button>
+                <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ReloadAsync" disabled="@IsSaving">@Language.T("다시 불러오기", "Reload")</button>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@IsSaving">@Language.T("저장", "Save")</button>
+                <button type="button" class="settings-close" aria-label="@Language.T("뒤로", "Back")" @onclick="CloseAsync">X</button>
             </div>
         </div>
 
         <div class="settings-body">
             <div class="settings-tabs" role="tablist" aria-label="Settings categories">
-                <button type="button" class="@BasicTabButtonClass" @onclick="ShowBasicTab">Basic</button>
-                <button type="button" class="@CollectionTabButtonClass" @onclick="ShowCollectionTab">Log Pipeline</button>
-                <button type="button" class="@AnalysisTabButtonClass" @onclick="ShowAnalysisTab">AI & Reports</button>
-                <button type="button" class="@IntegrationsTabButtonClass" @onclick="ShowIntegrationsTab">Integrations</button>
+                <button type="button" class="@BasicTabButtonClass" @onclick="ShowBasicTab">@Language.T("기본", "Basic")</button>
+                <button type="button" class="@CollectionTabButtonClass" @onclick="ShowCollectionTab">@Language.T("로그 파이프라인", "Log Pipeline")</button>
+                <button type="button" class="@AnalysisTabButtonClass" @onclick="ShowAnalysisTab">@Language.T("AI 및 리포트", "AI & Reports")</button>
+                <button type="button" class="@IntegrationsTabButtonClass" @onclick="ShowIntegrationsTab">@Language.T("연동", "Integrations")</button>
             </div>
             <div class="settings-summary">
                 <div>
@@ -39,8 +39,8 @@
             @if (ActiveSettingsTab == "basic")
             {
                 <div class="settings-section" id="alert-rules">
-                    <div class="settings-section-title">Server Health Alerts</div>
-                    <div class="settings-section-help">Tune when the dashboard should raise warnings for CPU, memory, disk, recovery, or maintenance windows.</div>
+                    <div class="settings-section-title">@Language.T("서버 상태 알림", "Server Health Alerts")</div>
+                    <div class="settings-section-help">@Language.T("CPU·메모리·디스크·복구·점검 시간에 경고를 발생시킬 조건을 설정합니다.", "Tune when the dashboard should raise warnings for CPU, memory, disk, recovery, or maintenance windows.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-md-3">
                             <label class="form-label">Enabled</label>
@@ -106,8 +106,8 @@
                 </div>
 
                 <div class="settings-section" id="security">
-                    <div class="settings-section-title">Account Security</div>
-                    <div class="settings-section-help">Turn two-factor authentication on or off for the account system.</div>
+                    <div class="settings-section-title">@Language.T("계정 보안", "Account Security")</div>
+                    <div class="settings-section-help">@Language.T("계정 시스템의 2차 인증을 켜거나 끕니다.", "Turn two-factor authentication on or off for the account system.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-md-3">
                             <label class="form-label">Two-factor authentication</label>
@@ -123,8 +123,8 @@
             @if (ActiveSettingsTab == "collection")
             {
                 <div class="settings-section" id="collection">
-                    <div class="settings-section-title">IIS Log Collection</div>
-                    <div class="settings-section-help">These settings decide where IIS logs are read from and when they are copied into the reporting folder.</div>
+                    <div class="settings-section-title">@Language.T("IIS 로그 수집", "IIS Log Collection")</div>
+                    <div class="settings-section-help">@Language.T("IIS 로그를 읽을 위치와 리포트 폴더로 복사할 시점을 설정합니다.", "These settings decide where IIS logs are read from and when they are copied into the reporting folder.")</div>
                     <div class="row g-2 align-items-end">
                         <div class="col-12 col-md-3">
                             <label class="form-label">Daily log export</label>
@@ -191,8 +191,8 @@
             @if (ActiveSettingsTab == "analysis")
             {
                 <div class="settings-section" id="analysis">
-                        <div class="settings-section-title">AI Analysis</div>
-                        <div class="settings-section-help">These settings control whether the app sends IIS log data to Ollama and how long it waits for answers.</div>
+                        <div class="settings-section-title">@Language.T("AI 분석", "AI Analysis")</div>
+                        <div class="settings-section-help">@Language.T("IIS 로그를 Ollama에 보낼지와 응답 대기 시간을 설정합니다.", "These settings control whether the app sends IIS log data to Ollama and how long it waits for answers.")</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-3">
                                 <label class="form-label">AI Analysis</label>
@@ -243,8 +243,8 @@
                 </div>
 
                 <div class="settings-section" id="analysis-rules">
-                    <div class="settings-section-title">Log Analysis Rules</div>
-                    <div class="settings-section-help">Manage excluded IP patterns and custom detection tokens used by the IIS log analyzer. Enter one item per line.</div>
+                    <div class="settings-section-title">@Language.T("로그 분석 규칙", "Log Analysis Rules")</div>
+                    <div class="settings-section-help">@Language.T("IIS 로그 분석에 사용할 제외 IP 패턴과 탐지 토큰을 관리합니다. 한 줄에 하나씩 입력하세요.", "Manage excluded IP patterns and custom detection tokens used by the IIS log analyzer. Enter one item per line.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-lg-6">
                             <label class="form-label">Excluded IP patterns</label>
@@ -274,8 +274,8 @@
                 </div>
 
                 <div class="settings-section" id="report">
-                    <div class="settings-section-title">Reports</div>
-                    <div class="settings-section-help">View a human-readable IIS analysis report here, and open the raw JSON only when you need the source data.</div>
+                    <div class="settings-section-title">@Language.T("리포트", "Reports")</div>
+                    <div class="settings-section-help">@Language.T("사람이 읽기 쉬운 IIS 분석 리포트를 확인하고 필요할 때만 원본 JSON을 열어보세요.", "View a human-readable IIS analysis report here, and open the raw JSON only when you need the source data.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-lg-8">
                             <label class="form-label">Human-readable report</label>
@@ -317,8 +317,8 @@
             @if (ActiveSettingsTab == "integrations")
             {
                 <div class="settings-section" id="backup">
-                        <div class="settings-section-title">Backup & Restore</div>
-                        <div class="settings-section-help">Use this to export the current settings as JSON or restore them later.</div>
+                        <div class="settings-section-title">@Language.T("백업 및 복원", "Backup & Restore")</div>
+                        <div class="settings-section-help">@Language.T("현재 설정을 JSON으로 내보내거나 나중에 복원합니다.", "Use this to export the current settings as JSON or restore them later.")</div>
                         <div class="mb-2">
                             <label class="form-label">Import backup file</label>
                             <InputFile OnChange="LoadBackupFileAsync" class="form-control" accept=".json,application/json" />
@@ -338,8 +338,8 @@
                 </div>
 
                 <div class="settings-section" id="email">
-                        <div class="settings-section-title">Email Verification / Reset</div>
-                        <div class="settings-section-help">Turn email-based signup verification and password reset on or off, then set the SMTP server below.</div>
+                        <div class="settings-section-title">@Language.T("이메일 인증 / 재설정", "Email Verification / Reset")</div>
+                        <div class="settings-section-help">@Language.T("이메일 회원가입 인증과 비밀번호 재설정을 켜거나 끈 뒤 아래 SMTP 서버를 설정하세요.", "Turn email-based signup verification and password reset on or off, then set the SMTP server below.")</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-3">
                                 <label class="form-label">SMTP auth mode</label>
@@ -401,8 +401,8 @@
                 </div>
 
                 <div class="settings-section" id="chatops">
-                        <div class="settings-section-title">Notifications</div>
-                        <div class="settings-section-help">Choose which channels receive server health alerts. Dooray uses its channel ID and API token; Discord and Kakao Work use incoming webhooks.</div>
+                        <div class="settings-section-title">@Language.T("알림", "Notifications")</div>
+                        <div class="settings-section-help">@Language.T("서버 상태 알림을 받을 채널을 선택합니다. Dooray는 채널 ID와 API 토큰을 사용하고 Discord·카카오워크는 Incoming Webhook을 사용합니다.", "Choose which channels receive server health alerts. Dooray uses its channel ID and API token; Discord and Kakao Work use incoming webhooks.")</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-3">
                                 <label class="form-label">Notifications</label>

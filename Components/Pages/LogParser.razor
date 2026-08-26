@@ -17,7 +17,7 @@
 
 <div class="log-analyzer-page">
 <h1>@Language.T("IIS 로그 파서", "IIS Log Parser")</h1>
-<p class="text-muted mb-3">Upload `iis.log` files and analyze by status, URL, method, and IP.</p>
+<p class="text-muted mb-3">@Language.T("`iis.log` 파일을 업로드하고 상태 코드·URL·메서드·IP 기준으로 분석합니다.", "Upload `iis.log` files and analyze by status, URL, method, and IP.")</p>
 
 @if (IsAnalyzing)
 {
@@ -35,7 +35,7 @@
     <div class="card-body">
         <div class="row g-2 mb-3">
             <div class="col-12 col-md-4">
-                <label class="form-label">Server Name</label>
+                <label class="form-label">@Language.T("서버 이름", "Server Name")</label>
                 <input class="form-control" @bind="ServerName" placeholder="HOST-01" />
             </div>
             <div class="col-12 col-md-2">
@@ -88,9 +88,9 @@
         }
         <div class="row g-2">
             <div class="col-12 col-md-2">
-                <label class="form-label">Status Group</label>
+                <label class="form-label">@Language.T("상태 그룹", "Status Group")</label>
                 <select class="form-select" @bind="StatusGroup">
-                    <option value="">All</option>
+                    <option value="">@Language.T("전체", "All")</option>
                     <option value="2">2xx</option>
                     <option value="3">3xx</option>
                     <option value="4">4xx</option>
@@ -98,39 +98,39 @@
                 </select>
             </div>
             <div class="col-12 col-md-2">
-                <label class="form-label">Status Code</label>
+                <label class="form-label">@Language.T("상태 코드", "Status Code")</label>
                 <input class="form-control" @bind="StatusCode" @bind:event="oninput" placeholder="ex) 404" />
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label">URL Contains</label>
+                <label class="form-label">@Language.T("URL 포함", "URL Contains")</label>
                 <input class="form-control" @bind="UrlQuery" @bind:event="oninput" placeholder="/api/users" />
             </div>
             <div class="col-12 col-md-2">
-                <label class="form-label">Method</label>
+                <label class="form-label">@Language.T("메서드", "Method")</label>
                 <input class="form-control" @bind="MethodQuery" @bind:event="oninput" placeholder="GET" />
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label">IP / Text Search</label>
+                <label class="form-label">@Language.T("IP / 텍스트 검색", "IP / Text Search")</label>
                 <input class="form-control" @bind="TextQuery" @bind:event="oninput" placeholder="192.168 or keyword" />
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label">Exclude IPs</label>
+                <label class="form-label">@Language.T("제외 IP", "Exclude IPs")</label>
                 <input class="form-control" @bind="ExcludeIpQuery" @bind:event="oninput" placeholder="192.168.0.1, 10.0.0.2" />
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label">Presets</label>
+                <label class="form-label">@Language.T("프리셋", "Presets")</label>
                 <div class="d-flex gap-2 flex-wrap">
                     <button class="btn btn-sm btn-outline-secondary" @onclick='() => ApplyPreset("5xx")'>5xx</button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick='() => ApplyPreset("/api")'>/api</button>
                     <button class="btn btn-sm btn-outline-secondary" @onclick='() => ApplyPreset("POST")'>POST</button>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
                 </div>
             </div>
             <div class="col-12 col-md-3">
-                <label class="form-label">Render</label>
+                <label class="form-label">@Language.T("표시 방식", "Render")</label>
                 <div class="d-flex align-items-center gap-2">
                     <input type="checkbox" class="form-check-input" @bind="UseVirtualize" />
-                    <span class="text-muted">Virtual scroll</span>
+                    <span class="text-muted">@Language.T("가상 스크롤", "Virtual scroll")</span>
                 </div>
             </div>
         </div>
@@ -149,7 +149,7 @@
     <div class="col-12 col-md-4">
         <div class="card h-100">
             <div class="card-body">
-                <div class="metric-label">Total Requests</div>
+                <div class="metric-label">@Language.T("전체 요청 수", "Total Requests")</div>
                 <div class="metric-value">@filtered.Count.ToString("N0")</div>
             </div>
         </div>
@@ -157,7 +157,7 @@
     <div class="col-12 col-md-4">
         <div class="card h-100">
             <div class="card-body">
-                <div class="metric-label">Unique IPs</div>
+                <div class="metric-label">@Language.T("고유 IP 수", "Unique IPs")</div>
                 <div class="metric-value">@filtered.Select(x => x.Ip).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString("N0")</div>
             </div>
         </div>
@@ -165,7 +165,7 @@
     <div class="col-12 col-md-4">
         <div class="card h-100">
             <div class="card-body">
-                <div class="metric-label">Detected URLs</div>
+                <div class="metric-label">@Language.T("탐지된 URL", "Detected URLs")</div>
                 <div class="metric-value">@filtered.Select(x => x.Uri).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString("N0")</div>
             </div>
         </div>
@@ -175,11 +175,11 @@
 <div class="row g-3 mb-3">
     <div class="col-12 col-xl-6">
         <div class="card h-100">
-            <div class="card-header"><strong>Status Analysis</strong></div>
+            <div class="card-header"><strong>@Language.T("상태 코드 분석", "Status Analysis")</strong></div>
             <div class="card-body">
                 <table class="table table-sm mb-0">
                     <thead>
-                    <tr><th>Status</th><th class="text-end">Count</th></tr>
+                    <tr><th>@Language.T("상태", "Status")</th><th class="text-end">@Language.T("건수", "Count")</th></tr>
                     </thead>
                     <tbody>
                     @foreach (var item in statusSummary)
@@ -196,11 +196,11 @@
     </div>
     <div class="col-12 col-xl-6">
         <div class="card h-100">
-            <div class="card-header"><strong>Top URLs</strong></div>
+            <div class="card-header"><strong>@Language.T("상위 URL", "Top URLs")</strong></div>
             <div class="card-body">
                 <table class="table table-sm mb-0">
                     <thead>
-                    <tr><th>URL</th><th class="text-end">Hits</th></tr>
+                    <tr><th>URL</th><th class="text-end">@Language.T("호출 수", "Hits")</th></tr>
                     </thead>
                     <tbody>
                     @foreach (var item in topUrls)
@@ -220,29 +220,29 @@
 <div class="card log-entries-card">
     <div class="card-header log-entries-header">
         <div class="log-entries-header__title">
-            <strong>Log Entries</strong>
-            <div class="text-muted small">Filter, analyze, and export the currently visible log set.</div>
+            <strong>@Language.T("로그 항목", "Log Entries")</strong>
+            <div class="text-muted small">@Language.T("현재 표시된 로그를 필터링·분석·내보냅니다.", "Filter, analyze, and export the currently visible log set.")</div>
         </div>
         <div class="log-entries-actions">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">Run Export Now</button>
+            <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">@Language.T("지금 내보내기 실행", "Run Export Now")</button>
             <button class="btn btn-sm btn-outline-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)">AI 분석</button>
             <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">AI 분석 취소</button>
             <input class="form-control form-control-sm log-question-input" placeholder="추가 질문을 작성하실 수 있습니다." @bind="AiQuestion" @bind:event="oninput" />
             <button class="btn btn-sm btn-outline-secondary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze || string.IsNullOrWhiteSpace(AiQuestion))">질문 반영</button>
-            <button class="btn btn-sm btn-outline-dark" @onclick="CopyBlockCandidatesAsync" disabled="@(!CanCopyBlockCandidates)">Copy Block IPs</button>
-            <button class="btn btn-sm btn-outline-dark" @onclick="CopyRateLimitCandidatesAsync" disabled="@(!CanCopyRateLimitCandidates)">Copy RateLimit IPs</button>
-            <label class="form-label mb-0">Multi-sort</label>
+            <button class="btn btn-sm btn-outline-dark" @onclick="CopyBlockCandidatesAsync" disabled="@(!CanCopyBlockCandidates)">@Language.T("차단 IP 복사", "Copy Block IPs")</button>
+            <button class="btn btn-sm btn-outline-dark" @onclick="CopyRateLimitCandidatesAsync" disabled="@(!CanCopyRateLimitCandidates)">@Language.T("RateLimit IP 복사", "Copy RateLimit IPs")</button>
+            <label class="form-label mb-0">@Language.T("다중 정렬", "Multi-sort")</label>
             <input type="checkbox" class="form-check-input" @bind="MultiSort" />
             <span class="badge @(UseOllama ? "text-bg-success" : "text-bg-secondary")">Ollama: @(UseOllama ? "Y" : "N")</span>
             <span class="badge text-bg-info">제외 IP 필터 적용됨</span>
-            <label class="form-label mb-0">Rows</label>
+            <label class="form-label mb-0">@Language.T("행", "Rows")</label>
             <select class="form-select form-select-sm w-auto" value="@PageSize" @onchange="OnPageSizeChanged" disabled="@(UseVirtualize)">
                 <option value="10">10</option>
                 <option value="25">25</option>
                 <option value="50">50</option>
                 <option value="100">100</option>
             </select>
-            <button class="btn btn-sm btn-outline-primary" @onclick="ExportToExcel">Export Excel</button>
+            <button class="btn btn-sm btn-outline-primary" @onclick="ExportToExcel">@Language.T("Excel 내보내기", "Export Excel")</button>
         </div>
     </div>
     <div class="card-body log-entries-body">

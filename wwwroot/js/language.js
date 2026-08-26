@@ -65,9 +65,70 @@
         "Block": "차단", "Top IO Queries": "상위 IO 쿼리", "TX Mbps": "TX Mbps", "RX Mbps": "RX Mbps",
         "MEM": "메모리", "OS": "운영체제", "Memory": "메모리", "Disk": "디스크", "Enabled at": "활성화 시각",
         "Failed logins": "로그인 실패 횟수", "Last failed login": "최근 로그인 실패", "Lockout until": "잠금 해제 시각"
+        ,"Infrastructure": "인프라", "Server Name": "서버 이름", "Ollama": "Ollama", "Status Group": "상태 그룹",
+        "Status Code": "상태 코드", "URL Contains": "URL 포함", "Method": "메서드", "IP / Text Search": "IP / 텍스트 검색",
+        "Exclude IPs": "제외 IP", "Presets": "프리셋", "Render": "표시 방식", "Virtual scroll": "가상 스크롤",
+        "Total Requests": "전체 요청 수", "Unique IPs": "고유 IP 수", "Detected URLs": "탐지된 URL",
+        "Status Analysis": "상태 코드 분석", "Count": "건수", "Top URLs": "상위 URL", "Hits": "호출 수",
+        "Filter, analyze, and export the currently visible log set.": "현재 표시된 로그를 필터링·분석·내보냅니다.",
+        "Run Export Now": "지금 내보내기 실행", "Copy Block IPs": "차단 IP 복사", "Copy RateLimit IPs": "RateLimit IP 복사",
+        "Multi-sort": "다중 정렬", "Rows": "행", "Export Excel": "Excel 내보내기", "Export": "내보내기",
+        "Resize Date column": "날짜 열 크기 조정", "Resize Time column": "시간 열 크기 조정", "Resize IP column": "IP 열 크기 조정",
+        "Resize Method column": "메서드 열 크기 조정", "Resize URI column": "URI 열 크기 조정", "Resize Status column": "상태 열 크기 조정",
+        "Resize Referer column": "Referer 열 크기 조정", "Resize User-Agent column": "User-Agent 열 크기 조정",
+        "First": "처음", "Prev": "이전", "Last": "마지막", "Date": "날짜", "URI": "URI", "Referer": "Referer",
+        "Configuration": "구성", "Settings": "설정", "Basic": "기본", "Log Pipeline": "로그 파이프라인",
+        "AI & Reports": "AI 및 리포트", "Integrations": "연동", "Server Health Alerts": "서버 상태 알림",
+        "Tune when the dashboard should raise warnings for CPU, memory, disk, recovery, or maintenance windows.": "CPU·메모리·디스크·복구·점검 시간에 경고를 발생시킬 조건을 설정합니다.",
+        "CPU Minutes": "CPU 지속 시간(분)", "RAM %": "RAM %", "Cooldown": "재알림 대기", "Recovery Cooldown": "복구 재알림 대기",
+        "Anomaly Cooldown": "이상 징후 재알림 대기", "Window Start": "점검 시작", "Window End": "점검 종료",
+        "Account Security": "계정 보안", "Turn two-factor authentication on or off for the account system.": "계정 시스템의 2차 인증을 켜거나 끕니다.",
+        "IIS Log Collection": "IIS 로그 수집", "These settings decide where IIS logs are read from and when they are copied into the reporting folder.": "IIS 로그를 읽을 위치와 리포트 폴더로 복사할 시점을 설정합니다.",
+        "Daily log export": "일일 로그 내보내기", "IIS log folder": "IIS 로그 폴더", "Export folder": "내보내기 폴더",
+        "Export Hour": "내보내기 시", "Export Minute": "내보내기 분", "Export Offset Days": "내보내기 기준일 오프셋",
+        "Daily log import": "일일 로그 가져오기", "Import log folder": "가져오기 로그 폴더", "Import state file": "가져오기 상태 파일",
+        "Import Hour": "가져오기 시", "Import Minute": "가져오기 분", "Import Offset Days": "가져오기 기준일 오프셋",
+        "Server name for reports": "리포트용 서버 이름", "AI Analysis": "AI 분석",
+        "These settings control whether the app sends IIS log data to Ollama and how long it waits for answers.": "IIS 로그를 Ollama에 보낼지와 응답 대기 시간을 설정합니다.",
+        "AI Analysis": "AI 분석", "Ollama Base URL": "Ollama 기본 URL", "Ollama Model": "Ollama 모델",
+        "Ollama Timeout (sec)": "Ollama 제한 시간(초)", "Auto analyze": "자동 분석", "Auto Analyze Threshold": "자동 분석 기준",
+        "Analysis output folder": "분석 출력 폴더", "This is where the latest IIS analysis JSON is saved and loaded from.": "최신 IIS 분석 JSON을 저장하고 불러올 폴더입니다.",
+        "AI analysis system prompt": "AI 분석 시스템 프롬프트", "Additional question instructions": "추가 질문 지침",
+        "Log Analysis Rules": "로그 분석 규칙", "Excluded IP patterns": "제외 IP 패턴", "Priority URL tokens": "우선 URL 토큰",
+        "Admin probe tokens": "관리자 탐색 토큰", "Backup probe tokens": "백업 탐색 토큰", "Config probe tokens": "구성 파일 탐색 토큰",
+        "Script / exploit tokens": "스크립트 / 익스플로잇 토큰", "Reports": "리포트", "Human-readable report": "사람이 읽을 수 있는 리포트",
+        "No IIS analysis loaded yet.": "아직 IIS 분석을 불러오지 않았습니다.", "Load Latest IIS Report": "최신 IIS 리포트 불러오기",
+        "Run Log Export Now": "지금 로그 내보내기 실행", "Download JSON": "JSON 다운로드", "Raw JSON": "원본 JSON",
+        "Backup & Restore": "백업 및 복원", "Import backup file": "백업 파일 가져오기", "Backup JSON": "백업 JSON",
+        "Generate Backup": "백업 생성", "Download Backup": "백업 다운로드", "Restore Backup": "백업 복원",
+        "Email Verification / Reset": "이메일 인증 / 재설정", "SMTP auth mode": "SMTP 인증 모드", "Signup verification": "회원가입 이메일 인증",
+        "Password reset": "비밀번호 재설정", "SMTP Host": "SMTP 호스트", "SMTP Port": "SMTP 포트", "SSL": "SSL",
+        "Username": "사용자 이름", "From Address": "발신 주소", "From Name": "발신자 이름", "Verification Subject": "인증 제목",
+        "Notifications": "알림", "Choose which channels receive server health alerts.": "서버 상태 알림을 받을 채널을 선택합니다.",
+        "Slack Webhook URL": "Slack Webhook URL", "Teams Webhook URL": "Teams Webhook URL", "Dooray Channel ID": "Dooray 채널 ID",
+        "Dooray API Token": "Dooray API 토큰", "Discord Webhook URL": "Discord Webhook URL", "Kakao Work Incoming Webhook URL": "카카오워크 Incoming Webhook URL",
+        "Generic Webhook": "일반 Webhook", "Webhook URL": "Webhook URL",
+        "Database": "데이터베이스", "Healthy": "정상", "Unavailable": "사용 불가", "Error": "오류",
+        "Disabled": "비활성", "Configured": "설정됨", "Needs attention": "확인 필요", "Ready": "준비됨", "Missing": "누락",
+        "Connected to MonitoringDb.": "MonitoringDb에 연결됨", "Cannot connect to MonitoringDb.": "MonitoringDb에 연결할 수 없습니다.",
+        "No Ollama base URL configured.": "Ollama 기본 URL이 설정되지 않았습니다.", "Email/SMTP settings are incomplete.": "이메일/SMTP 설정이 완전하지 않습니다.",
+        "SQL Targets": "SQL 대상", "No SQL target entries configured.": "설정된 SQL 대상이 없습니다.", "Dependency checks": "의존 서비스 점검",
+        "Dependencies and backup status that need action.": "확인이 필요한 의존 서비스와 백업 상태입니다.", "Backup retention": "백업 보관 기간",
+        "Old archives are pruned automatically.": "오래된 보관 파일은 자동으로 정리됩니다.", "Latest backup age": "최근 백업 경과 시간",
+        "Stale backups are highlighted here.": "오래된 백업은 여기에서 강조 표시됩니다.", "Backup archive": "백업 보관함",
+        "Auto backup enabled": "자동 백업 사용 중", "No backup archives yet.": "아직 백업 보관 파일이 없습니다.",
+        "Log:": "로그:", "Output:": "출력:"
     };
     function translate(root, korean) {
         if (!root) return;
+        for (const element of [root, ...root.querySelectorAll("*")]) {
+            for (const attribute of ["placeholder", "title", "aria-label"]) {
+                const original = element.getAttribute?.(attribute);
+                if (!original) continue;
+                const value = korean ? dictionary[original] : Object.keys(dictionary).find(k => dictionary[k] === original);
+                if (value) element.setAttribute(attribute, value);
+            }
+        }
         const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
         const nodes = [];
         while (walker.nextNode()) nodes.push(walker.currentNode);

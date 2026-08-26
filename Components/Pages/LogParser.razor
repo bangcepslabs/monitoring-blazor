@@ -475,7 +475,7 @@
     <div class="card-footer d-flex justify-content-between align-items-center flex-wrap gap-2">
         @if (!UseVirtualize)
         {
-            <div class="text-muted">Showing @GetStartIndex(filtered.Count)-@GetEndIndex(filtered.Count) of @filtered.Count rows | Page @CurrentPage / @totalPages</div>
+            <div class="text-muted">@(Language.IsKorean ? $"전체 {GetStartIndex(filtered.Count)}-{GetEndIndex(filtered.Count)} / {filtered.Count}행 | {CurrentPage} / {totalPages}페이지" : $"Showing {GetStartIndex(filtered.Count)}-{GetEndIndex(filtered.Count)} of {filtered.Count} rows | Page {CurrentPage} / {totalPages}")</div>
             <div class="d-flex align-items-center gap-2">
                 <button type="button" class="btn btn-sm btn-outline-primary" @onclick="GoToFirstPage" disabled="@(CurrentPage <= 1)">First</button>
                 <button type="button" class="btn btn-sm btn-outline-primary" @onclick="PrevPage" disabled="@(CurrentPage <= 1)">Prev</button>

@@ -34,7 +34,7 @@
         "All categories": "모든 카테고리", "Alert": "알림", "Audit": "감사", "Rows per page": "페이지당 행 수",
         "Previous": "이전", "Next": "다음", "System": "시스템", "Dependency status": "의존 서비스 상태",
         "Event timeline": "이벤트 타임라인", "Slow Queries": "느린 쿼리", "Blocking": "블로킹", "Top IO": "상위 IO",
-        "Performance Charts": "성능 차트", "Current focus": "현재 초점", "Range": "범위", "Real-time": "실시간",
+        "Performance Charts": "성능 차트", "Current focus": "현재 기준", "Range": "범위", "Real-time": "실시간",
         "Reset Zoom": "확대/축소 초기화", "Alert Rules": "알림 규칙", "Configuration": "구성", "Enabled": "사용",
         "Cooldown (min)": "재알림 대기(분)", "Maintenance Window": "점검 시간", "Start": "시작", "End": "종료",
         "View Details": "상세 보기", "Disk Used": "디스크 사용량", "Disk Total": "디스크 전체"
@@ -60,7 +60,7 @@
         "User": "사용자", "Display": "표시 이름", "Role": "역할", "Actions": "작업", "Inactive": "비활성",
         "Recent login attempts": "최근 로그인 시도", "All severity": "모든 심각도", "High": "높음",
         "Medium": "중간", "Low": "낮음", "Value / Threshold": "값 / 임계값", "Metric": "지표",
-        "Type": "유형", "Ratio": "비율", "Statement": "문장", "Session": "세션", "Command": "명령",
+        "Type": "유형", "Ratio": "비율", "Statement": "SQL 문", "Session": "세션", "Command": "명령",
         "Elapsed(ms)": "경과(ms)", "CPU(ms)": "CPU(ms)", "Reads": "읽기", "Writes": "쓰기", "Wait": "대기",
         "Block": "차단", "Top IO Queries": "상위 IO 쿼리", "TX Mbps": "TX Mbps", "RX Mbps": "RX Mbps",
         "MEM": "메모리", "OS": "운영체제", "Memory": "메모리", "Disk": "디스크", "Enabled at": "활성화 시각",

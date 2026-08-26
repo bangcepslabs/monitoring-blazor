@@ -144,7 +144,7 @@
 
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
                 <div class="text-muted small">
-                    @Language.T("전체", "Showing") @DisplayRangeStart-@DisplayRangeEnd @Language.T("개 중", "of") @FilteredAlerts.Count @Language.T("개 항목", "item(s)")
+                    @(Language.IsKorean ? $"{DisplayRangeStart}-{DisplayRangeEnd}개 중 {FilteredAlerts.Count}개 항목" : $"Showing {DisplayRangeStart}-{DisplayRangeEnd} of {FilteredAlerts.Count} item(s)")
                 </div>
                 <div class="btn-group" role="group" aria-label="Pagination">
                     <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">@Language.T("이전", "Previous")</button>

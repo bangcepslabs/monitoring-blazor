@@ -11,10 +11,10 @@
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
-<PageTitle>OpsEye | Login</PageTitle>
+<PageTitle>OpsEye | @Language.T("로그인", "Login")</PageTitle>
 
 <div class="login-page">
-    <section class="login-auth-panel" aria-label="Login form">
+    <section class="login-auth-panel" aria-label="@Language.T("로그인 양식", "Login form")">
         <div class="login-shell">
         <div class="login-brand">
             <div class="login-brand-mark" aria-hidden="true">
@@ -22,16 +22,16 @@
             </div>
             <div>
                 <div class="login-brand-name">OpsEye</div>
-                <div class="login-brand-sub">Operations Dashboard</div>
+                <div class="login-brand-sub">@Language.T("운영 대시보드", "Operations Dashboard")</div>
             </div>
         </div>
 
         <div class="login-card card">
             <div class="card-body p-4 p-md-5">
                 <div class="mb-4">
-                    <h1 class="h3 mb-2">Sign in</h1>
+                    <h1 class="h3 mb-2">@Language.T("로그인", "Sign in")</h1>
                     <p class="text-secondary mb-0">
-                        Sign in with your account. If you do not have one yet, create a new account first.
+                        @Language.T("계정으로 로그인하세요. 계정이 없다면 먼저 회원가입을 진행하세요.", "Sign in with your account. If you do not have one yet, create a new account first.")
                     </p>
                 </div>
 
@@ -44,33 +44,33 @@
                     <input type="hidden" name="returnUrl" value="@_returnUrl" />
 
                     <div>
-                        <label class="form-label" for="login-user">User ID</label>
+                        <label class="form-label" for="login-user">@Language.T("사용자 ID", "User ID")</label>
                         <input id="login-user" name="userName" class="form-control" autocomplete="username" required value="@_lastUserName" />
                     </div>
 
                     <div>
-                        <label class="form-label" for="login-password">Password</label>
+                        <label class="form-label" for="login-password">@Language.T("비밀번호", "Password")</label>
                         <input id="login-password" name="password" type="password" class="form-control" autocomplete="current-password" required />
                     </div>
 
                     <div class="form-check">
                         <input id="login-remember" name="rememberMe" type="checkbox" class="form-check-input" value="true" checked />
-                        <label class="form-check-label" for="login-remember">Remember me</label>
+                        <label class="form-check-label" for="login-remember">@Language.T("로그인 상태 유지", "Remember me")</label>
                     </div>
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>Login
+                            <i class="bi bi-box-arrow-in-right me-2"></i>@Language.T("로그인", "Login")
                         </button>
                         @if (_passwordResetEnabled)
                         {
-                            <a class="btn btn-link text-decoration-none" href="/forgot-password">Forgot password?</a>
+                            <a class="btn btn-link text-decoration-none" href="/forgot-password">@Language.T("비밀번호를 잊으셨나요?", "Forgot password?")</a>
                         }
                         else
                         {
-                            <span class="text-secondary small">Password reset is managed by an administrator.</span>
+                            <span class="text-secondary small">@Language.T("비밀번호 재설정은 관리자에게 문의하세요.", "Password reset is managed by an administrator.")</span>
                         }
-                        <a class="btn btn-outline-secondary" href="/register?returnUrl=@Uri.EscapeDataString(_returnUrl)">Create an account</a>
+                        <a class="btn btn-outline-secondary" href="/register?returnUrl=@Uri.EscapeDataString(_returnUrl)">@Language.T("계정 만들기", "Create an account")</a>
                     </div>
                 </form>
             </div>
@@ -79,7 +79,7 @@
         <div class="login-footnote">
             <span>OpsEye</span>
             <span aria-hidden="true">&middot;</span>
-            <span>Local member authentication</span>
+            <span>@Language.T("로컬 회원 인증", "Local member authentication")</span>
         </div>
         </div>
     </section>
@@ -91,8 +91,8 @@
         </div>
         <div class="login-visual-copy">
             <p class="login-visual-kicker">OPERATIONS VISIBILITY</p>
-            <h2>Clarity for every<br />critical system.</h2>
-            <p>Monitor service health, investigate events, and keep your operations in view.</p>
+            <h2>@Language.T("모든 핵심 시스템을<br />명확하게 확인하세요.", "Clarity for every<br />critical system.")</h2>
+            <p>@Language.T("서비스 상태를 확인하고 이벤트를 조사하며 운영 현황을 한눈에 관리하세요.", "Monitor service health, investigate events, and keep your operations in view.")</p>
         </div>
         <div class="login-globe-stage">
             <canvas @ref="_globeCanvas" class="login-globe-canvas"></canvas>
@@ -121,26 +121,26 @@
         {
             _message = error.ToString() switch
             {
-                "invalid" => "Invalid username or password.",
-                "inactive" => "This account is inactive.",
-                "locked" => "This account is temporarily locked because of repeated failed sign-in attempts.",
-                "duplicate" => "This user name already exists.",
-                "password_mismatch" => "Passwords do not match.",
-                "password_policy" => "Password policy was not met.",
-                "required" => "Required fields are missing.",
-                "email_unverified" => "Please verify your email address before signing in.",
+                "invalid" => Language.T("사용자 ID 또는 비밀번호가 올바르지 않습니다.", "Invalid username or password."),
+                "inactive" => Language.T("비활성화된 계정입니다.", "This account is inactive."),
+                "locked" => Language.T("로그인 실패가 반복되어 계정이 일시적으로 잠겼습니다.", "This account is temporarily locked because of repeated failed sign-in attempts."),
+                "duplicate" => Language.T("이미 존재하는 사용자 이름입니다.", "This user name already exists."),
+                "password_mismatch" => Language.T("비밀번호가 일치하지 않습니다.", "Passwords do not match."),
+                "password_policy" => Language.T("비밀번호 정책을 충족하지 못했습니다.", "Password policy was not met."),
+                "required" => Language.T("필수 입력값이 누락되었습니다.", "Required fields are missing."),
+                "email_unverified" => Language.T("로그인 전에 이메일 주소를 인증하세요.", "Please verify your email address before signing in."),
                 _ => error.ToString()
             };
         }
 
         if (query.TryGetValue("success", out var success) && success.ToString() == "registered")
         {
-            _message = "Account created. Please sign in.";
+            _message = Language.T("계정이 생성되었습니다. 로그인하세요.", "Account created. Please sign in.");
         }
 
         if (query.TryGetValue("success", out var emailSuccess) && emailSuccess.ToString() == "verification_sent")
         {
-            _message = "Account created. Please check your email to verify your address before signing in.";
+            _message = Language.T("계정이 생성되었습니다. 로그인 전에 이메일에서 주소를 인증하세요.", "Account created. Please check your email to verify your address before signing in.");
         }
 
         var baseSettings = Configuration.GetSection("Monitoring:Email").Get<EmailSettings>() ?? new EmailSettings();

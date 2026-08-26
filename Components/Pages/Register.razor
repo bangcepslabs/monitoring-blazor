@@ -11,37 +11,37 @@
 @inject IConfiguration Configuration
 @inject NavigationManager NavigationManager
 
-<PageTitle>OpsEye | Register</PageTitle>
+<PageTitle>OpsEye | @Language.T("회원가입", "Register")</PageTitle>
 
 <div class="login-page">
-    <section class="login-shell" aria-label="Register form">
+    <section class="login-shell" aria-label="@Language.T("회원가입 양식", "Register form")">
         <div class="login-brand">
             <div class="login-brand-mark" aria-hidden="true">
                 <i class="bi bi-person-plus-fill"></i>
             </div>
             <div>
                 <div class="login-brand-name">OpsEye</div>
-                <div class="login-brand-sub">Operations Dashboard</div>
+                <div class="login-brand-sub">@Language.T("운영 대시보드", "Operations Dashboard")</div>
             </div>
         </div>
 
         <div class="login-card card">
             <div class="card-body p-4 p-md-5">
                 <div class="mb-4">
-                    <h1 class="h3 mb-2">Sign up</h1>
+                    <h1 class="h3 mb-2">@Language.T("회원가입", "Sign up")</h1>
                     <p class="text-secondary mb-0">
-                        Create a new account, or create the first administrator if this is the first run.
+                        @Language.T("새 계정을 만들거나 최초 실행 시 첫 관리자를 생성하세요.", "Create a new account, or create the first administrator if this is the first run.")
                     </p>
                 </div>
 
                 <div class="alert alert-info small" role="note">
-                    Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.
+                    @Language.T("비밀번호 정책: 12자 이상, 대문자·소문자·숫자·특수문자를 포함하고 공백은 사용할 수 없습니다.", "Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.")
                 </div>
 
                 @if (_emailAddressRequired)
                 {
                     <div class="alert alert-warning small" role="note">
-                        Email is required for account verification or password reset.
+                        @Language.T("계정 인증 또는 비밀번호 재설정을 위해 이메일이 필요합니다.", "Email is required for account verification or password reset.")
                     </div>
                 }
 
@@ -55,30 +55,30 @@
                     <input type="hidden" name="isBootstrap" value="@(_isBootstrap ? "true" : "false")" />
 
                     <div>
-                        <label class="form-label" for="register-user">User ID</label>
+                        <label class="form-label" for="register-user">@Language.T("사용자 ID", "User ID")</label>
                         <input id="register-user" name="userName" class="form-control" autocomplete="username" required />
                     </div>
 
                     <div>
-                        <label class="form-label" for="register-display">Display Name</label>
+                        <label class="form-label" for="register-display">@Language.T("표시 이름", "Display Name")</label>
                         <input id="register-display" name="displayName" class="form-control" autocomplete="nickname" required />
                     </div>
 
                     <div>
-                        <label class="form-label" for="register-email">Email address</label>
+                        <label class="form-label" for="register-email">@Language.T("이메일 주소", "Email address")</label>
                         <input id="register-email" name="email" type="email" class="form-control" autocomplete="email" required="@_emailAddressRequired" />
                         <div class="form-text">
-                            @(_emailAddressRequired ? "A verification or reset link will be sent here." : "Optional, but recommended for recovery flows.")
+                            @(_emailAddressRequired ? Language.T("인증 또는 재설정 링크가 이 주소로 전송됩니다.", "A verification or reset link will be sent here.") : Language.T("선택 사항이지만 계정 복구를 위해 권장합니다.", "Optional, but recommended for recovery flows."))
                         </div>
                     </div>
 
                     <div>
-                        <label class="form-label" for="register-password">Password</label>
+                        <label class="form-label" for="register-password">@Language.T("비밀번호", "Password")</label>
                         <input id="register-password" name="password" type="password" class="form-control" autocomplete="new-password" required />
                     </div>
 
                     <div>
-                        <label class="form-label" for="register-confirm">Confirm Password</label>
+                        <label class="form-label" for="register-confirm">@Language.T("비밀번호 확인", "Confirm Password")</label>
                         <input id="register-confirm" name="confirmPassword" type="password" class="form-control" autocomplete="new-password" required />
                     </div>
 
@@ -86,15 +86,15 @@
                     {
                         <input type="hidden" name="role" value="Admin" />
                         <div class="text-secondary small">
-                            The first account will be created as an administrator.
+                            @Language.T("첫 번째 계정은 관리자로 생성됩니다.", "The first account will be created as an administrator.")
                         </div>
                     }
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-person-check-fill me-2"></i>@(_isBootstrap ? "Create Admin" : "Create Account")
+                            <i class="bi bi-person-check-fill me-2"></i>@(_isBootstrap ? Language.T("관리자 생성", "Create Admin") : Language.T("계정 생성", "Create Account"))
                         </button>
-                        <a class="btn btn-outline-secondary" href="/login">Back to login</a>
+                        <a class="btn btn-outline-secondary" href="/login">@Language.T("로그인으로 돌아가기", "Back to login")</a>
                     </div>
                 </form>
             </div>
@@ -103,7 +103,7 @@
         <div class="login-footnote">
             <span>OpsEye</span>
             <span aria-hidden="true">&middot;</span>
-            <span>Local member authentication</span>
+            <span>@Language.T("로컬 회원 인증", "Local member authentication")</span>
         </div>
     </section>
 </div>
@@ -126,21 +126,21 @@
         {
             _message = error.ToString() switch
             {
-                "invalid" => "Invalid username or password.",
-                "duplicate" => "This user name already exists.",
-                "password_mismatch" => "Passwords do not match.",
-                "password_policy" => "Password policy was not met.",
-                "required" => "Required fields are missing.",
-                "email_required" => "Please enter an email address to receive the verification link.",
-                "email_send_failed" => "We could not send the verification email. Please check SMTP settings.",
-                "configured" => "Members already exist, so bootstrap mode is no longer available.",
+                "invalid" => Language.T("사용자 ID 또는 비밀번호가 올바르지 않습니다.", "Invalid username or password."),
+                "duplicate" => Language.T("이미 존재하는 사용자 이름입니다.", "This user name already exists."),
+                "password_mismatch" => Language.T("비밀번호가 일치하지 않습니다.", "Passwords do not match."),
+                "password_policy" => Language.T("비밀번호 정책을 충족하지 못했습니다.", "Password policy was not met."),
+                "required" => Language.T("필수 입력값이 누락되었습니다.", "Required fields are missing."),
+                "email_required" => Language.T("인증 링크를 받을 이메일 주소를 입력하세요.", "Please enter an email address to receive the verification link."),
+                "email_send_failed" => Language.T("인증 이메일을 보내지 못했습니다. SMTP 설정을 확인하세요.", "We could not send the verification email. Please check SMTP settings."),
+                "configured" => Language.T("이미 회원이 존재하여 최초 설정 모드를 사용할 수 없습니다.", "Members already exist, so bootstrap mode is no longer available."),
                 _ => error.ToString()
             };
         }
 
         if (query.TryGetValue("success", out var success) && success.ToString() == "verification_sent")
         {
-            _message = "Account created. Please check your email and verify your address before signing in.";
+            _message = Language.T("계정이 생성되었습니다. 로그인 전에 이메일에서 주소를 인증하세요.", "Account created. Please check your email and verify your address before signing in.");
         }
 
         var authState = await AuthenticationStateProvider.GetAuthenticationStateAsync();
@@ -154,7 +154,7 @@
         _isBootstrap = !await db.Members.AnyAsync();
         if (_isBootstrap)
         {
-            _message ??= "No members exist yet. Create the first admin account.";
+            _message ??= Language.T("아직 회원이 없습니다. 첫 관리자 계정을 생성하세요.", "No members exist yet. Create the first admin account.");
         }
 
         var baseSettings = Configuration.GetSection("Monitoring:Email").Get<EmailSettings>() ?? new EmailSettings();

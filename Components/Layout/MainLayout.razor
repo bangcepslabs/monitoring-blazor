@@ -104,6 +104,7 @@
 
         var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "en");
         Language.SetLanguage(savedLanguage);
+        await JS.InvokeVoidAsync("opsLanguage.apply", Language.Code);
         SidebarCollapsed = false;
         await JS.InvokeVoidAsync("monitorSettings.set", "sidebarCollapsed", SidebarCollapsed);
         SidebarStateLoaded = true;
@@ -114,6 +115,7 @@
     {
         Language.SetLanguage(Language.IsKorean ? "en" : "ko");
         await JS.InvokeVoidAsync("monitorSettings.set", "language", Language.Code);
+        await JS.InvokeVoidAsync("opsLanguage.apply", Language.Code);
     }
 
     private async Task ToggleSidebarAsync()

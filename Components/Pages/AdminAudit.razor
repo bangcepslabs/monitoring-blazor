@@ -7,16 +7,16 @@
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject IJSRuntime JS
 
-<PageTitle>OpsEye | Audit Log</PageTitle>
+<PageTitle>OpsEye | @Language.T("감사 로그", "Audit Log")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Admin Center</div>
-            <h1 class="h3 mb-1">Audit log</h1>
-            <p class="text-secondary mb-0">Member changes, authentication events, and administrative actions.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("관리자 센터", "Admin Center")</div>
+            <h1 class="h3 mb-1">@Language.T("감사 로그", "Audit log")</h1>
+            <p class="text-secondary mb-0">@Language.T("회원 변경, 인증 이벤트, 관리자 작업을 확인합니다.", "Member changes, authentication events, and administrative actions.")</p>
         </div>
-        <a class="btn btn-outline-secondary" href="/admin/users">Back to user management</a>
+        <a class="btn btn-outline-secondary" href="/admin/users">@Language.T("사용자 관리로 돌아가기", "Back to user management")</a>
     </div>
 
     <div class="card shadow-sm">

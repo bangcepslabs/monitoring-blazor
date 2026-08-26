@@ -7,18 +7,18 @@
 @inject MonitorStateService MonitorState
 @inject IJSRuntime JS
 
-<PageTitle>OpsEye | Alert History</PageTitle>
+<PageTitle>OpsEye | @Language.T("알림 이력", "Alert History")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Operations</div>
-            <h1 class="h3 mb-1">Alert history</h1>
-            <p class="text-secondary mb-0">Detailed alert events with thresholds, values, and recovery context.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("운영", "Operations")</div>
+            <h1 class="h3 mb-1">@Language.T("알림 이력", "Alert history")</h1>
+            <p class="text-secondary mb-0">@Language.T("임계값, 측정값, 복구 상황을 포함한 상세 알림 이벤트입니다.", "Detailed alert events with thresholds, values, and recovery context.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
-            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+            <a class="btn btn-outline-primary" href="/">@Language.T("대시보드로 돌아가기", "Back to dashboard")</a>
         </div>
     </div>
 
@@ -26,7 +26,7 @@
         <div class="col-12 col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Alerts loaded</div>
+                    <div class="text-muted small">@Language.T("불러온 알림", "Alerts loaded")</div>
                     <div class="fs-4 fw-semibold">@FilteredAlerts.Count</div>
                 </div>
             </div>
@@ -34,7 +34,7 @@
         <div class="col-6 col-md-2">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Threshold</div>
+                    <div class="text-muted small">@Language.T("임계값", "Threshold")</div>
                     <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Threshold)</div>
                 </div>
             </div>
@@ -42,7 +42,7 @@
         <div class="col-6 col-md-2">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Recovery</div>
+                    <div class="text-muted small">@Language.T("복구", "Recovery")</div>
                     <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Recovery)</div>
                 </div>
             </div>
@@ -50,7 +50,7 @@
         <div class="col-6 col-md-2">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Anomaly</div>
+                    <div class="text-muted small">@Language.T("이상 징후", "Anomaly")</div>
                     <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Anomaly)</div>
                 </div>
             </div>
@@ -61,11 +61,11 @@
         <div class="card-body">
             <div class="row g-2 mb-3">
                 <div class="col-12 col-md-3">
-                    <input class="form-control" placeholder="Search host / metric / message" @bind="SearchText" @bind:event="oninput" />
+                    <input class="form-control" placeholder="@Language.T("호스트 / 지표 / 메시지 검색", "Search host / metric / message")" @bind="SearchText" @bind:event="oninput" />
                 </div>
                 <div class="col-6 col-md-2">
                     <select class="form-select" @bind="HostFilter">
-                        <option value="">All hosts</option>
+                        <option value="">@Language.T("모든 호스트", "All hosts")</option>
                         @foreach (var host in Hosts)
                         {
                             <option value="@host">@host</option>
@@ -74,10 +74,10 @@
                 </div>
                 <div class="col-6 col-md-2">
                     <select class="form-select" @bind="TypeFilter">
-                        <option value="">All types</option>
-                        <option value="@AlertType.Threshold.ToString()">Threshold</option>
-                        <option value="@AlertType.Recovery.ToString()">Recovery</option>
-                        <option value="@AlertType.Anomaly.ToString()">Anomaly</option>
+                        <option value="">@Language.T("모든 유형", "All types")</option>
+                        <option value="@AlertType.Threshold.ToString()">@Language.T("임계값", "Threshold")</option>
+                        <option value="@AlertType.Recovery.ToString()">@Language.T("복구", "Recovery")</option>
+                        <option value="@AlertType.Anomaly.ToString()">@Language.T("이상 징후", "Anomaly")</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
@@ -87,9 +87,9 @@
                     <input class="form-control" type="date" @bind="ToDate" />
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
-                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
                     <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
-                        <span class="text-muted small">Rows per page</span>
+                        <span class="text-muted small">@Language.T("페이지당 행 수", "Rows per page")</span>
                         <select class="form-select form-select-sm w-auto" @bind="PageSize">
                             <option value="10">10</option>
                             <option value="30">30</option>
@@ -104,13 +104,13 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Host</th>
-                            <th>Metric</th>
-                            <th>Type</th>
-                            <th>Value / Threshold</th>
-                            <th>Ratio</th>
-                            <th>Message</th>
+                            <th>@Language.T("시간", "Time")</th>
+                            <th>@Language.T("호스트", "Host")</th>
+                            <th>@Language.T("지표", "Metric")</th>
+                            <th>@Language.T("유형", "Type")</th>
+                            <th>@Language.T("값 / 임계값", "Value / Threshold")</th>
+                            <th>@Language.T("비율", "Ratio")</th>
+                            <th>@Language.T("메시지", "Message")</th>
                             <th>IP</th>
                         </tr>
                     </thead>
@@ -135,7 +135,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="8" class="text-center text-secondary py-4">No alert events found.</td>
+                                <td colspan="8" class="text-center text-secondary py-4">@Language.T("알림 이벤트가 없습니다.", "No alert events found.")</td>
                             </tr>
                         }
                     </tbody>
@@ -144,11 +144,11 @@
 
             <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
                 <div class="text-muted small">
-                    Showing @DisplayRangeStart-@DisplayRangeEnd of @FilteredAlerts.Count item(s)
+                    @Language.T("전체", "Showing") @DisplayRangeStart-@DisplayRangeEnd @Language.T("개 중", "of") @FilteredAlerts.Count @Language.T("개 항목", "item(s)")
                 </div>
                 <div class="btn-group" role="group" aria-label="Pagination">
-                    <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">Previous</button>
-                    <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">Next</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">@Language.T("이전", "Previous")</button>
+                    <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">@Language.T("다음", "Next")</button>
                 </div>
             </div>
         </div>

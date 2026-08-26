@@ -3,19 +3,19 @@
 @inject DependencyStatusService DependencyStatusService
 @implements IDisposable
 
-<PageTitle>OpsEye | Dependencies</PageTitle>
+<PageTitle>OpsEye | @Language.T("의존 서비스", "Dependencies")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">System</div>
-            <h1 class="h3 mb-1">Dependency status</h1>
-            <p class="text-secondary mb-0">Check the services this dashboard depends on.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("시스템", "System")</div>
+            <h1 class="h3 mb-1">@Language.T("의존 서비스 상태", "Dependency status")</h1>
+            <p class="text-secondary mb-0">@Language.T("이 대시보드가 의존하는 서비스의 상태를 확인합니다.", "Check the services this dashboard depends on.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
-            <span class="align-self-center text-muted small">Auto refresh: @( _autoRefresh ? "On" : "Off")</span>
-            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+            <span class="align-self-center text-muted small">@Language.T("자동 새로고침", "Auto refresh"): @( _autoRefresh ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span>
+            <a class="btn btn-outline-primary" href="/">@Language.T("대시보드로 돌아가기", "Back to dashboard")</a>
         </div>
     </div>
 

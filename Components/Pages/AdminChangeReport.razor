@@ -5,18 +5,18 @@
 @using Monitoring.Blazor.Services
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 
-<PageTitle>OpsEye | Change Report</PageTitle>
+<PageTitle>OpsEye | @Language.T("변경 리포트", "Change Report")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Admin Center</div>
-            <h1 class="h3 mb-1">Change report</h1>
-            <p class="text-secondary mb-0">Review configuration, security, and permission changes with before/after details.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("관리자 센터", "Admin Center")</div>
+            <h1 class="h3 mb-1">@Language.T("변경 리포트", "Change report")</h1>
+            <p class="text-secondary mb-0">@Language.T("구성·보안·권한 변경의 전후 내용을 확인합니다.", "Review configuration, security, and permission changes with before/after details.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="LoadAsync">Refresh</button>
-            <a class="btn btn-outline-primary" href="/admin/audit">Audit log</a>
+            <button class="btn btn-outline-secondary" @onclick="LoadAsync">@Language.T("새로고침", "Refresh")</button>
+            <a class="btn btn-outline-primary" href="/admin/audit">@Language.T("감사 로그", "Audit log")</a>
         </div>
     </div>
 
@@ -24,7 +24,7 @@
         <div class="col-12 col-md-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Configuration changes</div>
+                    <div class="text-muted small">@Language.T("구성 변경", "Configuration changes")</div>
                     <div class="fs-4 fw-semibold">@_logs.Count(x => IsConfigAction(x.Action))</div>
                 </div>
             </div>
@@ -32,7 +32,7 @@
         <div class="col-12 col-md-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Security changes</div>
+                    <div class="text-muted small">@Language.T("보안 변경", "Security changes")</div>
                     <div class="fs-4 fw-semibold">@_logs.Count(x => IsSecurityAction(x.Action))</div>
                 </div>
             </div>
@@ -40,7 +40,7 @@
         <div class="col-12 col-md-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Restores</div>
+                    <div class="text-muted small">@Language.T("복원", "Restores")</div>
                     <div class="fs-4 fw-semibold">@_logs.Count(x => x.Action == "settings_restore")</div>
                 </div>
             </div>
@@ -48,7 +48,7 @@
         <div class="col-12 col-md-3">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Role / access changes</div>
+                    <div class="text-muted small">@Language.T("역할 / 접근 변경", "Role / access changes")</div>
                     <div class="fs-4 fw-semibold">@_logs.Count(x => x.Action is "member_role" or "member_active" or "member_update")</div>
                 </div>
             </div>

@@ -3,18 +3,18 @@
 @inject IJSRuntime JS
 @inject EventTimelineService TimelineService
 
-<PageTitle>OpsEye | Event Timeline</PageTitle>
+<PageTitle>OpsEye | @Language.T("이벤트 타임라인", "Event Timeline")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Operations</div>
-            <h1 class="h3 mb-1">Event timeline</h1>
-            <p class="text-secondary mb-0">Alerts, login attempts, and admin actions in one feed.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("운영", "Operations")</div>
+            <h1 class="h3 mb-1">@Language.T("이벤트 타임라인", "Event timeline")</h1>
+            <p class="text-secondary mb-0">@Language.T("알림, 로그인 시도, 관리자 작업을 하나의 피드에서 확인합니다.", "Alerts, login attempts, and admin actions in one feed.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
-            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+            <a class="btn btn-outline-primary" href="/">@Language.T("대시보드로 돌아가기", "Back to dashboard")</a>
         </div>
     </div>
 
@@ -22,14 +22,14 @@
         <div class="card-body">
             <div class="row g-2 mb-3">
                 <div class="col-12 col-md-4">
-                    <input class="form-control" placeholder="Search title / subject / message" @bind="SearchText" @bind:event="oninput" />
+                    <input class="form-control" placeholder="@Language.T("제목 / 대상 / 메시지 검색", "Search title / subject / message")" @bind="SearchText" @bind:event="oninput" />
                 </div>
                 <div class="col-6 col-md-2">
                     <select class="form-select" @bind="CategoryFilter">
-                        <option value="">All categories</option>
-                        <option value="Alert">Alert</option>
-                        <option value="Login">Login</option>
-                        <option value="Audit">Audit</option>
+                        <option value="">@Language.T("모든 카테고리", "All categories")</option>
+                        <option value="Alert">@Language.T("알림", "Alert")</option>
+                        <option value="Login">@Language.T("로그인", "Login")</option>
+                        <option value="Audit">@Language.T("감사", "Audit")</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-3">
@@ -39,10 +39,10 @@
                     <input class="form-control" type="date" @bind="ToDate" />
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
-                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
                     <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
-                        <span class="text-muted small">Rows per page</span>
+                        <span class="text-muted small">@Language.T("페이지당 행 수", "Rows per page")</span>
                         <select class="form-select form-select-sm w-auto" @bind="PageSize">
                             <option value="10">10</option>
                             <option value="30">30</option>
@@ -55,7 +55,7 @@
 
             @if (_items.Count == 0)
             {
-                <div class="text-muted">No events loaded.</div>
+                <div class="text-muted">@Language.T("불러온 이벤트가 없습니다.", "No events loaded.")</div>
             }
             else
             {
@@ -82,11 +82,11 @@
 
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
                     <div class="text-muted small">
-                        Showing @DisplayRangeStart-@DisplayRangeEnd of @FilteredItems.Count item(s)
+                        @Language.T("전체", "Showing") @DisplayRangeStart-@DisplayRangeEnd @Language.T("개 중", "of") @FilteredItems.Count @Language.T("개 항목", "item(s)")
                     </div>
                     <div class="btn-group" role="group" aria-label="Pagination">
-                        <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">Previous</button>
-                        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">Next</button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">@Language.T("이전", "Previous")</button>
+                        <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">@Language.T("다음", "Next")</button>
                     </div>
                 </div>
             }

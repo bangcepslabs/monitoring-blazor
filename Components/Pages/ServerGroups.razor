@@ -4,18 +4,18 @@
 @inject MonitorStateService MonitorState
 @inject ServerCatalogRepository ServerCatalogRepository
 
-<PageTitle>OpsEye | Server Groups</PageTitle>
+<PageTitle>OpsEye | @Language.T("서버 그룹", "Server Groups")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Infrastructure</div>
-            <h1 class="h3 mb-1">Server groups and tags</h1>
-            <p class="text-secondary mb-0">Assign a group and tags to each server card.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("인프라", "Infrastructure")</div>
+            <h1 class="h3 mb-1">@Language.T("서버 그룹 및 태그", "Server groups and tags")</h1>
+            <p class="text-secondary mb-0">@Language.T("각 서버 카드에 그룹과 태그를 지정하세요.", "Assign a group and tags to each server card.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
-            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+            <a class="btn btn-outline-primary" href="/">@Language.T("대시보드로 돌아가기", "Back to dashboard")</a>
         </div>
     </div>
 
@@ -30,12 +30,12 @@
                 <table class="table align-middle">
                     <thead>
                         <tr>
-                            <th>Host</th>
+                            <th>@Language.T("호스트", "Host")</th>
                             <th>IP</th>
-                            <th>Group</th>
-                            <th>Tags</th>
-                            <th>Status</th>
-                            <th class="text-end">Actions</th>
+                            <th>@Language.T("그룹", "Group")</th>
+                            <th>@Language.T("태그", "Tags")</th>
+                            <th>@Language.T("상태", "Status")</th>
+                            <th class="text-end">@Language.T("작업", "Actions")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -51,10 +51,10 @@
                                     <input class="form-control form-control-sm" @bind="row.Tags" placeholder="iis,linux,critical" />
                                 </td>
                                 <td>
-                                    <span class="badge @(row.IsOnline ? "text-bg-success" : "text-bg-danger")">@(row.IsOnline ? "Online" : "Offline")</span>
+                                    <span class="badge @(row.IsOnline ? "text-bg-success" : "text-bg-danger")">@(row.IsOnline ? Language.T("온라인", "Online") : Language.T("오프라인", "Offline"))</span>
                                 </td>
                                 <td class="text-end">
-                                    <button class="btn btn-sm btn-primary" @onclick="() => SaveAsync(row)">Save</button>
+                                    <button class="btn btn-sm btn-primary" @onclick="() => SaveAsync(row)">@Language.T("저장", "Save")</button>
                                 </td>
                             </tr>
                         }
@@ -98,7 +98,7 @@
     private Task ReloadAsync()
     {
         Reload();
-        _message = "Server group data refreshed.";
+        _message = Language.T("서버 그룹 정보를 새로 불러왔습니다.", "Server group data refreshed.");
         _isError = false;
         return InvokeAsync(StateHasChanged);
     }
@@ -111,7 +111,7 @@
             Tags = row.Tags?.Trim() ?? string.Empty
         });
 
-        _message = $"Saved metadata for {row.Hostname}.";
+        _message = Language.T($"{row.Hostname} 서버 정보를 저장했습니다.", $"Saved metadata for {row.Hostname}.");
         _isError = false;
         return InvokeAsync(StateHasChanged);
     }

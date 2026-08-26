@@ -7,18 +7,18 @@
 @inject SlowQueryService SlowQueryService
 @inject IConfiguration Configuration
 
-<PageTitle>OpsEye | Server Compare</PageTitle>
+<PageTitle>OpsEye | @Language.T("서버 비교", "Server Compare")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Infrastructure</div>
-            <h1 class="h3 mb-1">Server comparison</h1>
-            <p class="text-secondary mb-0">Compare health, group metadata, SQL access, and alert override coverage per server.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("인프라", "Infrastructure")</div>
+            <h1 class="h3 mb-1">@Language.T("서버 비교", "Server comparison")</h1>
+            <p class="text-secondary mb-0">@Language.T("서버별 상태, 그룹 정보, SQL 접근 및 알림 재정의를 비교합니다.", "Compare health, group metadata, SQL access, and alert override coverage per server.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">Refresh</button>
-            <a class="btn btn-outline-primary" href="/">Back to dashboard</a>
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+            <a class="btn btn-outline-primary" href="/">@Language.T("대시보드로 돌아가기", "Back to dashboard")</a>
         </div>
     </div>
 
@@ -26,7 +26,7 @@
         <div class="col-12 col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Servers</div>
+                    <div class="text-muted small">@Language.T("서버", "Servers")</div>
                     <div class="fs-4 fw-semibold">@_rows.Count</div>
                 </div>
             </div>
@@ -34,7 +34,7 @@
         <div class="col-6 col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">Online</div>
+                    <div class="text-muted small">@Language.T("온라인", "Online")</div>
                     <div class="fs-4 fw-semibold">@_rows.Count(x => x.IsOnline)</div>
                 </div>
             </div>
@@ -42,7 +42,7 @@
         <div class="col-6 col-md-4">
             <div class="card shadow-sm h-100">
                 <div class="card-body">
-                    <div class="text-muted small">SQL targets configured</div>
+                    <div class="text-muted small">@Language.T("SQL 대상 설정됨", "SQL targets configured")</div>
                     <div class="fs-4 fw-semibold">@_rows.Count(x => x.HasSqlTarget)</div>
                 </div>
             </div>
@@ -55,16 +55,16 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Host</th>
-                            <th>Status</th>
-                            <th>Group</th>
-                            <th>Tags</th>
+                            <th>@Language.T("호스트", "Host")</th>
+                            <th>@Language.T("상태", "Status")</th>
+                            <th>@Language.T("그룹", "Group")</th>
+                            <th>@Language.T("태그", "Tags")</th>
                             <th>CPU</th>
-                            <th>Memory</th>
-                            <th>Disk</th>
-                            <th>SQL Access</th>
-                            <th>Alert Override</th>
-                            <th>Target URL</th>
+                            <th>@Language.T("메모리", "Memory")</th>
+                            <th>@Language.T("디스크", "Disk")</th>
+                            <th>@Language.T("SQL 접근", "SQL Access")</th>
+                            <th>@Language.T("알림 재정의", "Alert Override")</th>
+                            <th>@Language.T("대상 URL", "Target URL")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -75,7 +75,7 @@
                                     <div class="fw-semibold">@row.Hostname</div>
                                     <div class="text-muted small">@row.Ip</div>
                                 </td>
-                                <td><span class="badge @(row.IsOnline ? "text-bg-success" : "text-bg-danger")">@(row.IsOnline ? "Online" : "Offline")</span></td>
+                                <td><span class="badge @(row.IsOnline ? "text-bg-success" : "text-bg-danger")">@(row.IsOnline ? Language.T("온라인", "Online") : Language.T("오프라인", "Offline"))</span></td>
                                 <td>@DisplayOrDash(row.Group)</td>
                                 <td class="text-break">@DisplayOrDash(row.Tags)</td>
                                 <td>@row.Cpu.ToString("0.0")%</td>
@@ -89,17 +89,17 @@
                                     }
                                     else
                                     {
-                                        <span class="text-muted">Not configured</span>
+                                        <span class="text-muted">@Language.T("설정되지 않음", "Not configured")</span>
                                     }
                                 </td>
                                 <td>
                                     @if (row.HasAlertOverride)
                                     {
-                                        <span class="badge text-bg-warning">Custom</span>
+                                        <span class="badge text-bg-warning">@Language.T("사용자 지정", "Custom")</span>
                                     }
                                     else
                                     {
-                                        <span class="text-muted">Default</span>
+                                        <span class="text-muted">@Language.T("기본값", "Default")</span>
                                     }
                                 </td>
                                 <td class="text-break">@DisplayOrDash(row.TargetUrl)</td>

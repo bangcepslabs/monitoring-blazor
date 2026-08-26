@@ -13,13 +13,13 @@
 @using Monitoring.Blazor.Services
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 
-<PageTitle>OpsEye | Dashboard</PageTitle>
+<PageTitle>OpsEye | @Language.T("대시보드", "Dashboard")</PageTitle>
 
 <div class="dashboard-page-heading">
     <div>
-        <div class="page-eyebrow">Overview</div>
-        <h1>Dashboard</h1>
-        <p>Monitor host health, alerts, and performance from one workspace.</p>
+        <div class="page-eyebrow">@Language.T("개요", "Overview")</div>
+        <h1>@Language.T("대시보드", "Dashboard")</h1>
+        <p>@Language.T("하나의 워크스페이스에서 서버 상태, 알림, 성능을 확인하세요.", "Monitor host health, alerts, and performance from one workspace.")</p>
     </div>
     <div class="dashboard-page-status" role="status">
         <span class="status-dot status-online" aria-hidden="true"></span>
@@ -29,13 +29,13 @@
 
 <div class="dashboard-toolbar mb-3">
     <div class="dashboard-toolbar-primary">
-        <button class="btn @(CurrentHost == DashboardView ? "btn-primary" : "btn-outline-primary")" @onclick="ShowDashboard"><i class="bi bi-grid-1x2 me-1"></i>Dashboard</button>
+        <button class="btn @(CurrentHost == DashboardView ? "btn-primary" : "btn-outline-primary")" @onclick="ShowDashboard"><i class="bi bi-grid-1x2 me-1"></i>@Language.T("대시보드", "Dashboard")</button>
         <button class="btn btn-outline-secondary" @onclick="ToggleAutoRefresh">
             <span class="status-dot @(AutoRefresh ? "status-online" : "status-offline")" aria-hidden="true"></span>Auto Refresh: @(AutoRefresh ? "On" : "Off")
         </button>
-        <button class="btn btn-outline-primary" @onclick="ManualRefreshAsync"><i class="bi bi-arrow-clockwise me-1"></i>Refresh Now</button>
+        <button class="btn btn-outline-primary" @onclick="ManualRefreshAsync"><i class="bi bi-arrow-clockwise me-1"></i>@Language.T("지금 새로고침", "Refresh Now")</button>
         <div class="dashboard-menu">
-            <button type="button" class="btn btn-outline-secondary" aria-expanded="@ShowManageMenu" @onclick="ToggleManageMenu">Manage <i class="bi bi-chevron-down ms-1"></i></button>
+            <button type="button" class="btn btn-outline-secondary" aria-expanded="@ShowManageMenu" @onclick="ToggleManageMenu">@Language.T("관리", "Manage") <i class="bi bi-chevron-down ms-1"></i></button>
             @if (ShowManageMenu)
             {
                 <div class="dashboard-menu-backdrop" @onclick="CloseManageMenu"></div>
@@ -50,10 +50,10 @@
                             </button>
                         </Authorized>
                     </AuthorizeView>
-                    <a class="dashboard-menu-item" href="/api/reports/dashboard" @onclick="CloseManageMenu"><i class="bi bi-download me-2"></i>Export Report</a>
-                    <a class="dashboard-menu-item" href="/server-groups" @onclick="CloseManageMenu"><i class="bi bi-tags me-2"></i>Server Groups</a>
-                    <a class="dashboard-menu-item" href="/events" @onclick="CloseManageMenu"><i class="bi bi-clock-history me-2"></i>Event Timeline</a>
-                    <a class="dashboard-menu-item" href="/dependencies" @onclick="CloseManageMenu"><i class="bi bi-diagram-3 me-2"></i>Dependencies</a>
+                    <a class="dashboard-menu-item" href="/api/reports/dashboard" @onclick="CloseManageMenu"><i class="bi bi-download me-2"></i>@Language.T("리포트 내보내기", "Export Report")</a>
+                    <a class="dashboard-menu-item" href="/server-groups" @onclick="CloseManageMenu"><i class="bi bi-tags me-2"></i>@Language.T("서버 그룹", "Server Groups")</a>
+                    <a class="dashboard-menu-item" href="/events" @onclick="CloseManageMenu"><i class="bi bi-clock-history me-2"></i>@Language.T("이벤트 타임라인", "Event Timeline")</a>
+                    <a class="dashboard-menu-item" href="/dependencies" @onclick="CloseManageMenu"><i class="bi bi-diagram-3 me-2"></i>@Language.T("의존 서비스", "Dependencies")</a>
                 </div>
             }
         </div>
@@ -82,7 +82,7 @@
         <div class="col-6 col-lg-3">
             <div class="card h-100 metric-card metric-card-compact">
                 <div class="card-body">
-                    <div class="metric-label">Hosts Online</div>
+                    <div class="metric-label">@Language.T("온라인 호스트", "Hosts Online")</div>
                     <div class="metric-value">@Hosts.Count(x => x.IsOnline).ToString("N0")</div>
                 </div>
             </div>
@@ -90,7 +90,7 @@
         <div class="col-6 col-lg-3">
             <div class="card h-100 metric-card metric-card-compact">
                 <div class="card-body">
-                    <div class="metric-label">Hosts Offline</div>
+                    <div class="metric-label">@Language.T("오프라인 호스트", "Hosts Offline")</div>
                     <div class="metric-value">@Hosts.Count(x => !x.IsOnline).ToString("N0")</div>
                 </div>
             </div>
@@ -98,7 +98,7 @@
         <div class="col-6 col-lg-3">
             <div class="card h-100 metric-card metric-card-compact" title="Warning: CPU is at or above 60%, memory is at or above 75%, or disk usage is at or above 85%." aria-label="Hosts Warning: CPU 60 percent or higher, memory 75 percent or higher, or disk 85 percent or higher.">
                 <div class="card-body">
-                    <div class="metric-label">Hosts Warning</div>
+                    <div class="metric-label">@Language.T("주의 호스트", "Hosts Warning")</div>
                     <div class="metric-value">@Hosts.Count(x => IsWarning(x.Info)).ToString("N0")</div>
                 </div>
             </div>
@@ -106,7 +106,7 @@
         <div class="col-6 col-lg-3">
             <div class="card h-100 metric-card metric-card-compact" title="Critical: CPU is at or above 85%, memory is at or above 90%, or disk usage is at or above 95%." aria-label="Hosts Critical: CPU 85 percent or higher, memory 90 percent or higher, or disk 95 percent or higher.">
                 <div class="card-body">
-                    <div class="metric-label">Hosts Critical</div>
+                    <div class="metric-label">@Language.T("위험 호스트", "Hosts Critical")</div>
                     <div class="metric-value">@Hosts.Count(x => IsCritical(x.Info)).ToString("N0")</div>
                 </div>
             </div>
@@ -117,7 +117,7 @@
         <div class="col-12 col-md-3">
             <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history to inspect all recent alerts." @onclick="OpenAlertHistory">
                 <div class="card-body">
-                    <div class="metric-label">Recent Alerts</div>
+                    <div class="metric-label">@Language.T("최근 알림", "Recent Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count.ToString("N0")</div>
                 </div>
             </div>
@@ -125,7 +125,7 @@
         <div class="col-12 col-md-3">
             <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review threshold events." @onclick="OpenAlertHistory">
                 <div class="card-body">
-                    <div class="metric-label">Threshold Alerts</div>
+                    <div class="metric-label">@Language.T("임계값 알림", "Threshold Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Threshold).ToString("N0")</div>
                 </div>
             </div>
@@ -133,7 +133,7 @@
         <div class="col-12 col-md-3">
             <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review recovery events." @onclick="OpenAlertHistory">
                 <div class="card-body">
-                    <div class="metric-label">Recovery Alerts</div>
+                    <div class="metric-label">@Language.T("복구 알림", "Recovery Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Recovery).ToString("N0")</div>
                 </div>
             </div>
@@ -141,7 +141,7 @@
         <div class="col-12 col-md-3">
             <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review anomaly events." @onclick="OpenAlertHistory">
                 <div class="card-body">
-                    <div class="metric-label">Anomaly Alerts</div>
+                    <div class="metric-label">@Language.T("이상 징후 알림", "Anomaly Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Anomaly).ToString("N0")</div>
                 </div>
             </div>
@@ -150,13 +150,13 @@
 
     <div class="card mb-3 dashboard-data-card">
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
-            <strong class="dashboard-data-title">Recent Alerts</strong>
-            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent alerts" @onclick="LoadRecentAlertsAsync">Refresh</button>
+            <strong class="dashboard-data-title">@Language.T("최근 알림", "Recent Alerts")</strong>
+            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent alerts" @onclick="LoadRecentAlertsAsync">@Language.T("새로고침", "Refresh")</button>
         </div>
         <div class="card-body">
             @if (RecentAlerts.Count == 0)
             {
-                <div class="text-muted">No recent alerts.</div>
+                <div class="text-muted">@Language.T("최근 알림이 없습니다.", "No recent alerts.")</div>
             }
             else
             {
@@ -191,13 +191,13 @@
 
     <div class="card mb-3 dashboard-data-card">
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
-            <strong class="dashboard-data-title">Recent Login Failures</strong>
-            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent failed sign-ins" @onclick="LoadRecentLoginFailuresAsync">Refresh</button>
+            <strong class="dashboard-data-title">@Language.T("최근 로그인 실패", "Recent Login Failures")</strong>
+            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent failed sign-ins" @onclick="LoadRecentLoginFailuresAsync">@Language.T("새로고침", "Refresh")</button>
         </div>
         <div class="card-body">
             @if (RecentLoginFailures.Count == 0)
             {
-                <div class="text-muted">No recent failed sign-ins.</div>
+                <div class="text-muted">@Language.T("최근 로그인 실패가 없습니다.", "No recent failed sign-ins.")</div>
             }
             else
             {

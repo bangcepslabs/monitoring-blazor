@@ -1,8 +1,10 @@
 @inherits LayoutComponentBase
+@implements IDisposable
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
+@inject Monitoring.Blazor.Services.LanguageState Language
 
-<a class="skip-link" href="#main-content">Skip to content</a>
+<a class="skip-link" href="#main-content">@Language.T("본문으로 건너뛰기", "Skip to content")</a>
 
 <div class="page @(SidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
     <aside class="sidebar" id="sidebar" role="navigation" aria-label="Sidebar navigation">
@@ -17,14 +19,19 @@
                 </button>
                 <div class="top-title-wrap">
                     <div class="top-kicker" aria-hidden="true">OpsEye</div>
-                    <div class="top-title">Operations Dashboard</div>
+                <div class="top-title">@Language.T("운영 대시보드", "Operations Dashboard")</div>
                 </div>
             </div>
             <div class="top-right">
                 <span class="pill live-pill" role="status" aria-label="Live stream active">
-                    <span class="dot" aria-hidden="true"></span>Live
+                    <span class="dot" aria-hidden="true"></span>@Language.T("실시간", "Live")
                 </span>
                 <span class="pill soft" aria-label="Auto refresh every 5 seconds">5s refresh</span>
+
+                <button type="button" class="theme-btn top-action language-toggle" @onclick="ToggleLanguageAsync" aria-label="Language" title="Switch language">
+                    <i class="bi bi-translate"></i>
+                    @(Language.IsKorean ? "ENG" : "KOR")
+                </button>
 
                 <AuthorizeView>
                     <Authorized Context="auth">
@@ -34,7 +41,7 @@
                         <form method="post" action="/auth/logout" class="d-inline">
                             <button type="submit" class="theme-btn top-action" aria-label="Logout" title="Logout">
                                 <i class="bi bi-box-arrow-right"></i>
-                                Logout
+                                @Language.T("로그아웃", "Logout")
                             </button>
                         </form>
                     </Authorized>
@@ -44,13 +51,13 @@
                     <Authorized>
                         <button type="button" class="theme-btn top-action" @onclick="OpenSettingsAsync" aria-label="Open settings" title="Settings">
                             <i class="bi bi-gear-fill"></i>
-                            Settings
+                            @Language.T("설정", "Settings")
                         </button>
                     </Authorized>
                 </AuthorizeView>
                 <button type="button" class="theme-btn top-action" onclick="themeManager.toggle()" aria-label="Toggle theme" title="Toggle light and dark theme">
                     <i class="bi bi-moon-stars-fill"></i>
-                    Theme
+                    @Language.T("테마", "Theme")
                 </button>
             </div>
         </header>
@@ -60,7 +67,7 @@
         </article>
 
         <footer class="footer" role="contentinfo">
-            <span>OpsEye Operations Console</span>
+            <span>@Language.T("OpsEye 운영 콘솔", "OpsEye Operations Console")</span>
         </footer>
     </main>
 </div>
@@ -75,6 +82,13 @@
     private bool SidebarCollapsed { get; set; }
     private bool SidebarStateLoaded { get; set; }
 
+    protected override void OnInitialized()
+    {
+        Language.Changed += OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged() => _ = InvokeAsync(StateHasChanged);
+
     private Task OpenSettingsAsync()
     {
         NavigationManager.NavigateTo("/settings");
@@ -88,15 +102,28 @@
             return;
         }
 
+        var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "en");
+        Language.SetLanguage(savedLanguage);
         SidebarCollapsed = false;
         await JS.InvokeVoidAsync("monitorSettings.set", "sidebarCollapsed", SidebarCollapsed);
         SidebarStateLoaded = true;
         StateHasChanged();
     }
 
+    private async Task ToggleLanguageAsync()
+    {
+        Language.SetLanguage(Language.IsKorean ? "en" : "ko");
+        await JS.InvokeVoidAsync("monitorSettings.set", "language", Language.Code);
+    }
+
     private async Task ToggleSidebarAsync()
     {
         SidebarCollapsed = !SidebarCollapsed;
         await JS.InvokeVoidAsync("monitorSettings.set", "sidebarCollapsed", SidebarCollapsed);
+    }
+
+    public void Dispose()
+    {
+        Language.Changed -= OnLanguageChanged;
     }
 }

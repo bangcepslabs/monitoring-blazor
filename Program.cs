@@ -85,6 +85,7 @@ builder.Services.AddSingleton<AlertSettingsRepository>();
 builder.Services.AddSingleton<SecuritySettingsRepository>();
 builder.Services.AddSingleton<EmailSettingsRepository>();
 builder.Services.AddSingleton<NotificationSettingsRepository>();
+builder.Services.AddScoped<LanguageState>();
 builder.Services.AddSingleton<RuntimeSettingsRepository>();
 builder.Services.AddSingleton<SqlTargetSettingsRepository>();
 builder.Services.AddSingleton<ServerCatalogRepository>();

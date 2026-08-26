@@ -8,28 +8,28 @@
     </div>
 
     <div class="menu-group">
-        <div class="menu-title" id="nav-overview">Overview</div>
+        <div class="menu-title" id="nav-overview">@Language.T("개요", "Overview")</div>
         <ul role="list" aria-labelledby="nav-overview" style="list-style:none;margin:0;padding:0;">
             <li>
                 <NavLink class="menu-link" href="" Match="NavLinkMatch.All" aria-label="Dashboard" title="Dashboard">
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-grid-1x2-fill"></i>
                     </span>
-                    <span class="nav-text">Dashboard</span>
+                    <span class="nav-text">@Language.T("대시보드", "Dashboard")</span>
                 </NavLink>
             </li>
         </ul>
     </div>
 
     <div class="menu-group">
-        <div class="menu-title" id="nav-ops">Operations</div>
+        <div class="menu-title" id="nav-ops">@Language.T("운영", "Operations")</div>
         <ul role="list" aria-labelledby="nav-ops" style="list-style:none;margin:0;padding:0;">
             <li>
                 <NavLink class="menu-link" href="server-groups" aria-label="Server Groups" title="Server Groups">
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-tags-fill"></i>
                     </span>
-                    <span class="nav-text">Server Groups</span>
+                    <span class="nav-text">@Language.T("서버 그룹", "Server Groups")</span>
                 </NavLink>
             </li>
             <li>
@@ -37,7 +37,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-columns-gap"></i>
                     </span>
-                    <span class="nav-text">Server Compare</span>
+                    <span class="nav-text">@Language.T("서버 비교", "Server Compare")</span>
                 </NavLink>
             </li>
             <li>
@@ -45,7 +45,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-clock-history"></i>
                     </span>
-                    <span class="nav-text">Event Timeline</span>
+                    <span class="nav-text">@Language.T("이벤트 타임라인", "Event Timeline")</span>
                 </NavLink>
             </li>
             <li>
@@ -53,7 +53,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-exclamation-triangle-fill"></i>
                     </span>
-                    <span class="nav-text">Incident Timeline</span>
+                    <span class="nav-text">@Language.T("인시던트 타임라인", "Incident Timeline")</span>
                 </NavLink>
             </li>
             <li>
@@ -61,7 +61,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-bell-fill"></i>
                     </span>
-                    <span class="nav-text">Alert History</span>
+                    <span class="nav-text">@Language.T("알림 이력", "Alert History")</span>
                 </NavLink>
             </li>
             <li>
@@ -69,7 +69,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-diagram-3-fill"></i>
                     </span>
-                    <span class="nav-text">Dependencies</span>
+                    <span class="nav-text">@Language.T("의존 서비스", "Dependencies")</span>
                 </NavLink>
             </li>
             <li>
@@ -77,21 +77,21 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-shield-check"></i>
                     </span>
-                    <span class="nav-text">System Status</span>
+                    <span class="nav-text">@Language.T("시스템 상태", "System Status")</span>
                 </NavLink>
             </li>
         </ul>
     </div>
 
     <div class="menu-group">
-        <div class="menu-title" id="nav-analysis">Analysis</div>
+        <div class="menu-title" id="nav-analysis">@Language.T("분석", "Analysis")</div>
         <ul role="list" aria-labelledby="nav-analysis" style="list-style:none;margin:0;padding:0;">
             <li>
                 <NavLink class="menu-link" href="log-parser" aria-label="IIS Log Parser" title="IIS Log Parser">
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-file-earmark-text-fill"></i>
                     </span>
-                    <span class="nav-text">IIS Log Parser</span>
+                    <span class="nav-text">@Language.T("IIS 로그 파서", "IIS Log Parser")</span>
                 </NavLink>
             </li>
             <li>
@@ -99,7 +99,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-braces"></i>
                     </span>
-                    <span class="nav-text">Java Log Parser</span>
+                    <span class="nav-text">@Language.T("Java 로그 파서", "Java Log Parser")</span>
                 </NavLink>
             </li>
             <li>
@@ -107,7 +107,7 @@
                     <span class="menu-icon" aria-hidden="true">
                         <i class="bi bi-globe"></i>
                     </span>
-                    <span class="nav-text">IP Analysis</span>
+                    <span class="nav-text">@Language.T("IP 분석", "IP Analysis")</span>
                 </NavLink>
             </li>
         </ul>
@@ -116,14 +116,14 @@
     <AuthorizeView>
         <Authorized>
             <div class="menu-group">
-                <div class="menu-title" id="nav-user">User Area</div>
+                <div class="menu-title" id="nav-user">@Language.T("사용자 영역", "User Area")</div>
                 <ul role="list" aria-labelledby="nav-user" style="list-style:none;margin:0;padding:0;">
                     <li>
                         <NavLink class="menu-link" href="account" aria-label="Account" title="Account">
                             <span class="menu-icon" aria-hidden="true">
                                 <i class="bi bi-person-gear"></i>
                             </span>
-                            <span class="nav-text">Account</span>
+                            <span class="nav-text">@Language.T("계정", "Account")</span>
                         </NavLink>
                     </li>
                 </ul>
@@ -131,14 +131,14 @@
         </Authorized>
         <NotAuthorized>
             <div class="menu-group">
-                <div class="menu-title" id="nav-auth">Guest Area</div>
+                <div class="menu-title" id="nav-auth">@Language.T("게스트 영역", "Guest Area")</div>
                 <ul role="list" aria-labelledby="nav-auth" style="list-style:none;margin:0;padding:0;">
                     <li>
                         <NavLink class="menu-link" href="login" aria-label="Login" title="Login">
                             <span class="menu-icon" aria-hidden="true">
                                 <i class="bi bi-box-arrow-in-right"></i>
                             </span>
-                            <span class="nav-text">Login</span>
+                            <span class="nav-text">@Language.T("로그인", "Login")</span>
                         </NavLink>
                     </li>
                     <li>
@@ -146,7 +146,7 @@
                             <span class="menu-icon" aria-hidden="true">
                                 <i class="bi bi-person-plus"></i>
                             </span>
-                            <span class="nav-text">Register</span>
+                            <span class="nav-text">@Language.T("회원가입", "Register")</span>
                         </NavLink>
                     </li>
                 </ul>
@@ -157,14 +157,14 @@
     <AuthorizeView Roles="Admin">
         <Authorized>
             <div class="menu-group">
-                <div class="menu-title" id="nav-admin">Admin Area</div>
+                <div class="menu-title" id="nav-admin">@Language.T("관리자 영역", "Admin Area")</div>
                 <ul role="list" aria-labelledby="nav-admin" style="list-style:none;margin:0;padding:0;">
                     <li>
                         <NavLink class="menu-link" href="admin/users" aria-label="Admin Users" title="Admin Users">
                             <span class="menu-icon" aria-hidden="true">
                                 <i class="bi bi-shield-lock-fill"></i>
                             </span>
-                            <span class="nav-text">Admin Users</span>
+                            <span class="nav-text">@Language.T("관리자 사용자", "Admin Users")</span>
                         </NavLink>
                     </li>
                     <li>
@@ -172,7 +172,7 @@
                             <span class="menu-icon" aria-hidden="true">
                                 <i class="bi bi-journal-text"></i>
                             </span>
-                            <span class="nav-text">Audit Log</span>
+                            <span class="nav-text">@Language.T("감사 로그", "Audit Log")</span>
                         </NavLink>
                     </li>
                     <li>
@@ -180,7 +180,7 @@
                             <span class="menu-icon" aria-hidden="true">
                                 <i class="bi bi-clipboard-data-fill"></i>
                             </span>
-                            <span class="nav-text">Change Report</span>
+                            <span class="nav-text">@Language.T("변경 리포트", "Change Report")</span>
                         </NavLink>
                     </li>
                 </ul>
@@ -190,8 +190,8 @@
 
     <div class="menu-group mt-auto">
         <div class="health-card" role="status" aria-label="Monitoring workspace active">
-            <div class="health-label">Workspace</div>
-            <div class="health-value"><span class="health-dot" aria-hidden="true"></span>Monitoring active</div>
+            <div class="health-label">@Language.T("워크스페이스", "Workspace")</div>
+            <div class="health-value"><span class="health-dot" aria-hidden="true"></span>@Language.T("모니터링 활성", "Monitoring active")</div>
             <div class="health-line" aria-hidden="true"></div>
         </div>
     </div>

@@ -74,6 +74,9 @@ public sealed class DependencyStatusService(
         var configured = settings.Enabled &&
                          ((settings.SlackEnabled && !string.IsNullOrWhiteSpace(settings.SlackWebhookUrl)) ||
                           (settings.TeamsEnabled && !string.IsNullOrWhiteSpace(settings.TeamsWebhookUrl)) ||
+                          (settings.DoorayEnabled && !string.IsNullOrWhiteSpace(settings.DoorayChannelId) && !string.IsNullOrWhiteSpace(settings.DoorayApiToken)) ||
+                          (settings.DiscordEnabled && !string.IsNullOrWhiteSpace(settings.DiscordWebhookUrl)) ||
+                          (settings.KakaoWorkEnabled && !string.IsNullOrWhiteSpace(settings.KakaoWorkWebhookUrl)) ||
                           (settings.WebhookEnabled && !string.IsNullOrWhiteSpace(settings.WebhookUrl)));
 
         var activeChannels = new List<string>();
@@ -85,6 +88,21 @@ public sealed class DependencyStatusService(
         if (settings.TeamsEnabled && !string.IsNullOrWhiteSpace(settings.TeamsWebhookUrl))
         {
             activeChannels.Add("Teams");
+        }
+
+        if (settings.DoorayEnabled && !string.IsNullOrWhiteSpace(settings.DoorayChannelId) && !string.IsNullOrWhiteSpace(settings.DoorayApiToken))
+        {
+            activeChannels.Add("Dooray");
+        }
+
+        if (settings.DiscordEnabled && !string.IsNullOrWhiteSpace(settings.DiscordWebhookUrl))
+        {
+            activeChannels.Add("Discord");
+        }
+
+        if (settings.KakaoWorkEnabled && !string.IsNullOrWhiteSpace(settings.KakaoWorkWebhookUrl))
+        {
+            activeChannels.Add("Kakao Work");
         }
 
         if (settings.WebhookEnabled && !string.IsNullOrWhiteSpace(settings.WebhookUrl))

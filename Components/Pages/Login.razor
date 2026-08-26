@@ -4,15 +4,18 @@
 @using Microsoft.AspNetCore.Components.Authorization
 @using Microsoft.AspNetCore.WebUtilities
 @using Monitoring.Blazor.Services
+@implements IAsyncDisposable
 @inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IConfiguration Configuration
 @inject EmailSettingsRepository EmailSettingsRepository
+@inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
 <PageTitle>OpsEye | Login</PageTitle>
 
 <div class="login-page">
-    <section class="login-shell" aria-label="Login form">
+    <section class="login-auth-panel" aria-label="Login form">
+        <div class="login-shell">
         <div class="login-brand">
             <div class="login-brand-mark" aria-hidden="true">
                 <i class="bi bi-eye-fill"></i>
@@ -78,7 +81,24 @@
             <span aria-hidden="true">&middot;</span>
             <span>Local member authentication</span>
         </div>
+        </div>
     </section>
+
+    <aside class="login-visual-panel" aria-hidden="true">
+        <div class="login-visual-brand">
+            <i class="bi bi-eye-fill"></i>
+            <span>OpsEye</span>
+        </div>
+        <div class="login-visual-copy">
+            <p class="login-visual-kicker">OPERATIONS VISIBILITY</p>
+            <h2>Clarity for every<br />critical system.</h2>
+            <p>Monitor service health, investigate events, and keep your operations in view.</p>
+        </div>
+        <div class="login-globe-stage">
+            <canvas @ref="_globeCanvas" class="login-globe-canvas"></canvas>
+            <div class="login-globe-wash"></div>
+        </div>
+    </aside>
 </div>
 
 @code {
@@ -86,6 +106,7 @@
     private string _lastUserName = string.Empty;
     private string? _message;
     private bool _passwordResetEnabled;
+    private ElementReference _globeCanvas;
 
     protected override async Task OnInitializedAsync()
     {
@@ -130,6 +151,35 @@
         if (authState.User.Identity?.IsAuthenticated == true)
         {
             NavigationManager.NavigateTo(_returnUrl, forceLoad: true);
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender)
+        {
+            return;
+        }
+
+        try
+        {
+            await JS.InvokeVoidAsync("loginGlobe.init", _globeCanvas);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The circuit can close while navigating away from the login page.
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JS.InvokeVoidAsync("loginGlobe.dispose", _globeCanvas);
+        }
+        catch (JSDisconnectedException)
+        {
+            // The browser context is already gone.
         }
     }
 }

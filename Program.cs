@@ -702,6 +702,11 @@ app.MapPost("/api/notification/settings", async (HttpRequest request, HttpContex
             new AuditChange("SlackWebhookUrl", before.SlackWebhookUrl, settings.SlackWebhookUrl),
             new AuditChange("TeamsEnabled", before.TeamsEnabled.ToString(), settings.TeamsEnabled.ToString()),
             new AuditChange("TeamsWebhookUrl", before.TeamsWebhookUrl, settings.TeamsWebhookUrl),
+            new AuditChange("DoorayEnabled", before.DoorayEnabled.ToString(), settings.DoorayEnabled.ToString()),
+            new AuditChange("DoorayChannelId", before.DoorayChannelId, settings.DoorayChannelId),
+            new AuditChange("DoorayApiToken", before.DoorayApiToken, settings.DoorayApiToken),
+            new AuditChange("DiscordEnabled", before.DiscordEnabled.ToString(), settings.DiscordEnabled.ToString()),
+            new AuditChange("KakaoWorkEnabled", before.KakaoWorkEnabled.ToString(), settings.KakaoWorkEnabled.ToString()),
             new AuditChange("WebhookEnabled", before.WebhookEnabled.ToString(), settings.WebhookEnabled.ToString()),
             new AuditChange("WebhookUrl", before.WebhookUrl, settings.WebhookUrl)
         ],

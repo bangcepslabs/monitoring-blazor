@@ -402,7 +402,7 @@
 
                 <div class="settings-section" id="chatops">
                         <div class="settings-section-title">Notifications</div>
-                        <div class="settings-section-help">Send alerts to Slack, Teams, or a custom webhook when important events happen.</div>
+                        <div class="settings-section-help">Choose which channels receive server health alerts. Dooray uses its channel ID and API token; Discord and Kakao Work use incoming webhooks.</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-3">
                                 <label class="form-label">Notifications</label>
@@ -432,6 +432,40 @@
                             <div class="col-12 col-md-6">
                                 <label class="form-label">Teams Webhook URL</label>
                                 <input class="form-control" @bind="NotificationSettings.TeamsWebhookUrl" placeholder="https://outlook.office.com/webhook/..." />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="doorayEnabled" @bind="NotificationSettings.DoorayEnabled" />
+                                    <label class="form-check-label" for="doorayEnabled">Dooray</label>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-4">
+                                <label class="form-label">Dooray Channel ID</label>
+                                <input class="form-control" @bind="NotificationSettings.DoorayChannelId" placeholder="Channel ID" />
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <label class="form-label">Dooray API Token</label>
+                                <input class="form-control" type="password" @bind="NotificationSettings.DoorayApiToken" placeholder="API token" />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="discordEnabled" @bind="NotificationSettings.DiscordEnabled" />
+                                    <label class="form-check-label" for="discordEnabled">Discord</label>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-9">
+                                <label class="form-label">Discord Webhook URL</label>
+                                <input class="form-control" @bind="NotificationSettings.DiscordWebhookUrl" placeholder="https://discord.com/api/webhooks/..." />
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <div class="form-check form-switch mt-2">
+                                    <input class="form-check-input" type="checkbox" id="kakaoWorkEnabled" @bind="NotificationSettings.KakaoWorkEnabled" />
+                                    <label class="form-check-label" for="kakaoWorkEnabled">Kakao Work</label>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-9">
+                                <label class="form-label">Kakao Work Incoming Webhook URL</label>
+                                <input class="form-control" @bind="NotificationSettings.KakaoWorkWebhookUrl" placeholder="https://hooks.kakao.work/..." />
                             </div>
                             <div class="col-12 col-md-3">
                                 <label class="form-label">Generic Webhook</label>

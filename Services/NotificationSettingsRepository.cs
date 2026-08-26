@@ -62,6 +62,13 @@ public sealed class NotificationSettings
     public string SlackWebhookUrl { get; set; } = string.Empty;
     public bool TeamsEnabled { get; set; } = false;
     public string TeamsWebhookUrl { get; set; } = string.Empty;
+    public bool DoorayEnabled { get; set; } = false;
+    public string DoorayChannelId { get; set; } = string.Empty;
+    public string DoorayApiToken { get; set; } = string.Empty;
+    public bool DiscordEnabled { get; set; } = false;
+    public string DiscordWebhookUrl { get; set; } = string.Empty;
+    public bool KakaoWorkEnabled { get; set; } = false;
+    public string KakaoWorkWebhookUrl { get; set; } = string.Empty;
     public bool WebhookEnabled { get; set; } = false;
     public string WebhookUrl { get; set; } = string.Empty;
 }

@@ -19,7 +19,6 @@ public sealed class AlertWorker(
             try
             {
                 await SaveAlertAsync(message, stoppingToken);
-                await SendDoorayAsync(message, stoppingToken);
                 await SendNotificationChannelsAsync(message, stoppingToken);
             }
             catch (Exception ex)
@@ -54,11 +53,15 @@ public sealed class AlertWorker(
         }
     }
 
-    private async Task SendDoorayAsync(AlertMessage message, CancellationToken ct)
+    private async Task SendDoorayAsync(AlertMessage message, NotificationSettings settings, CancellationToken ct)
     {
-        var enabled = configuration.GetValue("Monitoring:Dooray:Enabled", false);
-        var channelId = configuration["Monitoring:Dooray:ChannelId"];
-        var apiToken = configuration["Monitoring:Dooray:ApiToken"];
+        var enabled = settings.DoorayEnabled || configuration.GetValue("Monitoring:Dooray:Enabled", false);
+        var channelId = string.IsNullOrWhiteSpace(settings.DoorayChannelId)
+            ? configuration["Monitoring:Dooray:ChannelId"]
+            : settings.DoorayChannelId;
+        var apiToken = string.IsNullOrWhiteSpace(settings.DoorayApiToken)
+            ? configuration["Monitoring:Dooray:ApiToken"]
+            : settings.DoorayApiToken;
 
         if (!enabled || string.IsNullOrWhiteSpace(channelId) || string.IsNullOrWhiteSpace(apiToken))
         {
@@ -99,6 +102,7 @@ public sealed class AlertWorker(
     {
         var fallback = configuration.GetSection("Monitoring:Notifications").Get<NotificationSettings>() ?? new NotificationSettings();
         var settings = notificationSettingsRepository.Load(fallback);
+        await SendDoorayAsync(message, settings, ct);
         if (!settings.Enabled)
         {
             logger.LogInformation("Notification channels skipped (disabled).");
@@ -119,6 +123,17 @@ public sealed class AlertWorker(
         if (settings.TeamsEnabled && !string.IsNullOrWhiteSpace(settings.TeamsWebhookUrl))
         {
             tasks.Add(SendWebhookAsync("Teams", settings.TeamsWebhookUrl, payload, ct));
+        }
+
+        if (settings.DiscordEnabled && !string.IsNullOrWhiteSpace(settings.DiscordWebhookUrl))
+        {
+            var discordPayload = JsonSerializer.Serialize(new { content = BuildNotificationText(message) });
+            tasks.Add(SendWebhookAsync("Discord", settings.DiscordWebhookUrl, discordPayload, ct));
+        }
+
+        if (settings.KakaoWorkEnabled && !string.IsNullOrWhiteSpace(settings.KakaoWorkWebhookUrl))
+        {
+            tasks.Add(SendWebhookAsync("KakaoWork", settings.KakaoWorkWebhookUrl, payload, ct));
         }
 
         if (settings.WebhookEnabled && !string.IsNullOrWhiteSpace(settings.WebhookUrl))

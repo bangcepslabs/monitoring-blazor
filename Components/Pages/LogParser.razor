@@ -87,6 +87,17 @@
                 </div>
             </div>
         }
+        <div class="log-filter-header">
+            <div>
+                <strong>@Language.T("로그 필터", "Log Filters")</strong>
+                <span class="text-muted small ms-2">@Language.T("분석 범위를 좁혀 빠르게 확인합니다.", "Narrow the analysis scope.")</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleFilters">
+                @(IsFiltersCollapsed ? Language.T("필터 열기", "Show filters") : Language.T("필터 접기", "Hide filters"))
+            </button>
+        </div>
+        @if (!IsFiltersCollapsed)
+        {
         <div class="row g-2">
             <div class="col-12 col-md-2">
                 <label class="form-label">@Language.T("상태 그룹", "Status Group")</label>
@@ -108,7 +119,16 @@
             </div>
             <div class="col-12 col-md-2">
                 <label class="form-label">@Language.T("메서드", "Method")</label>
-                <input class="form-control" @bind="MethodQuery" @bind:event="oninput" placeholder="GET" />
+                <select class="form-select" @bind="MethodQuery">
+                    <option value="">@Language.T("전체 메서드", "All methods")</option>
+                    <option value="GET">GET</option>
+                    <option value="POST">POST</option>
+                    <option value="PUT">PUT</option>
+                    <option value="PATCH">PATCH</option>
+                    <option value="DELETE">DELETE</option>
+                    <option value="HEAD">HEAD</option>
+                    <option value="OPTIONS">OPTIONS</option>
+                </select>
             </div>
             <div class="col-12 col-md-3">
                 <label class="form-label">@Language.T("IP / 텍스트 검색", "IP / Text Search")</label>
@@ -135,6 +155,7 @@
                 </div>
             </div>
         </div>
+        }
     </div>
 </div>
 
@@ -144,6 +165,8 @@
     var topUrls = GetTopUrls(filtered, 8);
     var pageRows = UseVirtualize ? filtered : GetPagedRows(filtered);
     var totalPages = GetTotalPages(filtered.Count);
+    var blockCandidateIps = GetBlockCandidateIps();
+    var rateLimitCandidateIps = GetRateLimitCandidateIps();
 }
 
 <div class="row g-3 mb-3">
@@ -172,6 +195,36 @@
         </div>
     </div>
 </div>
+
+@if (!string.IsNullOrWhiteSpace(AnalyzeMessage) && (blockCandidateIps.Count > 0 || rateLimitCandidateIps.Count > 0))
+{
+    <section class="candidate-summary-card mb-3" aria-label="IP 대응 후보">
+        <div class="candidate-summary-card__header">
+            <div>
+                <div class="candidate-summary-card__eyebrow">AI SECURITY ACTIONS</div>
+                <h2>@Language.T("우선 대응 IP", "Priority IP Actions")</h2>
+                <p>@Language.T("AI 분석 근거에 따라 검토할 IP입니다. 자동 차단은 수행하지 않습니다.", "IPs to review based on the analysis. No automatic blocking is performed.")</p>
+            </div>
+            <i class="bi bi-shield-exclamation" aria-hidden="true"></i>
+        </div>
+        <div class="candidate-summary-card__grid">
+            <div class="candidate-summary-card__item candidate-summary-card__item--block">
+                <div class="candidate-summary-card__label">@Language.T("즉시 차단 검토", "Review for Block")</div>
+                <div class="candidate-summary-card__value">@(blockCandidateIps.Count > 0 ? string.Join(", ", blockCandidateIps) : "없음")</div>
+                <button class="btn btn-sm btn-outline-danger" @onclick="CopyBlockCandidatesAsync" disabled="@(blockCandidateIps.Count == 0)">
+                    @Language.T("IP 복사", "Copy IPs")
+                </button>
+            </div>
+            <div class="candidate-summary-card__item candidate-summary-card__item--limit">
+                <div class="candidate-summary-card__label">@Language.T("속도 제한 검토", "Review for Rate Limit")</div>
+                <div class="candidate-summary-card__value">@(rateLimitCandidateIps.Count > 0 ? string.Join(", ", rateLimitCandidateIps) : "없음")</div>
+                <button class="btn btn-sm btn-outline-warning" @onclick="CopyRateLimitCandidatesAsync" disabled="@(rateLimitCandidateIps.Count == 0)">
+                    @Language.T("IP 복사", "Copy IPs")
+                </button>
+            </div>
+        </div>
+    </section>
+}
 
 <div class="row g-3 mb-3">
     <div class="col-12 col-xl-6">
@@ -225,25 +278,29 @@
             <div class="text-muted small">@Language.T("현재 표시된 로그를 필터링·분석·내보냅니다.", "Filter, analyze, and export the currently visible log set.")</div>
         </div>
         <div class="log-entries-actions">
-            <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">@Language.T("지금 내보내기 실행", "Run Export Now")</button>
-            <button class="btn btn-sm btn-outline-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)">AI 분석</button>
-            <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">AI 분석 취소</button>
-            <input class="form-control form-control-sm log-question-input" placeholder="추가 질문을 작성하실 수 있습니다." @bind="AiQuestion" @bind:event="oninput" />
-            <button class="btn btn-sm btn-outline-secondary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze || string.IsNullOrWhiteSpace(AiQuestion))">질문 반영</button>
-            <button class="btn btn-sm btn-outline-dark" @onclick="CopyBlockCandidatesAsync" disabled="@(!CanCopyBlockCandidates)">@Language.T("차단 IP 복사", "Copy Block IPs")</button>
-            <button class="btn btn-sm btn-outline-dark" @onclick="CopyRateLimitCandidatesAsync" disabled="@(!CanCopyRateLimitCandidates)">@Language.T("RateLimit IP 복사", "Copy RateLimit IPs")</button>
-            <label class="form-label mb-0">@Language.T("다중 정렬", "Multi-sort")</label>
-            <input type="checkbox" class="form-check-input" @bind="MultiSort" />
-            <span class="badge @(UseOllama ? "text-bg-success" : "text-bg-secondary")">Ollama: @(UseOllama ? "Y" : "N")</span>
-            <span class="badge text-bg-info">제외 IP 필터 적용됨</span>
-            <label class="form-label mb-0">@Language.T("행", "Rows")</label>
-            <select class="form-select form-select-sm w-auto" value="@PageSize" @onchange="OnPageSizeChanged" disabled="@(UseVirtualize)">
-                <option value="10">10</option>
-                <option value="25">25</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-            </select>
-            <button class="btn btn-sm btn-outline-primary" @onclick="ExportToExcel">@Language.T("Excel 내보내기", "Export Excel")</button>
+            <div class="log-entries-action-group" aria-label="Analysis actions">
+                <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">@Language.T("지금 내보내기 실행", "Run Export Now")</button>
+                <button class="btn btn-sm btn-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)">AI 분석</button>
+                <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">AI 분석 취소</button>
+            </div>
+            <div class="log-entries-action-group log-entries-action-group--candidates" aria-label="Candidate actions">
+                <button class="btn btn-sm btn-outline-dark" @onclick="CopyBlockCandidatesAsync" disabled="@(!CanCopyBlockCandidates)">@Language.T("차단 IP 복사", "Copy Block IPs")</button>
+                <button class="btn btn-sm btn-outline-dark" @onclick="CopyRateLimitCandidatesAsync" disabled="@(!CanCopyRateLimitCandidates)">@Language.T("RateLimit IP 복사", "Copy RateLimit IPs")</button>
+            </div>
+            <div class="log-entries-action-group log-entries-action-group--view" aria-label="Table options">
+                <label class="form-label mb-0">@Language.T("다중 정렬", "Multi-sort")</label>
+                <input type="checkbox" class="form-check-input" @bind="MultiSort" />
+                <span class="badge @(UseOllama ? "text-bg-success" : "text-bg-secondary")">Ollama: @(UseOllama ? "Y" : "N")</span>
+                <span class="badge text-bg-info">제외 IP 필터 적용됨</span>
+                <label class="form-label mb-0">@Language.T("행", "Rows")</label>
+                <select class="form-select form-select-sm w-auto" value="@PageSize" @onchange="OnPageSizeChanged" disabled="@(UseVirtualize)">
+                    <option value="10">10</option>
+                    <option value="25">25</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                </select>
+                <button class="btn btn-sm btn-outline-primary" @onclick="ExportToExcel">@Language.T("Excel 내보내기", "Export Excel")</button>
+            </div>
         </div>
     </div>
     <div class="card-body log-entries-body">
@@ -510,6 +567,7 @@
     private string? AnalyzeMessage { get; set; }
     private bool IsAnalysisReportCollapsed { get; set; }
     private bool IsRecentReportsCollapsed { get; set; }
+    private bool IsFiltersCollapsed { get; set; }
     private bool LastAnalysisUsedFallback { get; set; }
     private string LastAnalysisSourceLabel { get; set; } = string.Empty;
     private string ServerName { get; set; } = string.Empty;
@@ -527,7 +585,6 @@
     private string PreviewStage { get; set; } = "Idle";
     private string SaveStage { get; set; } = "Idle";
     private bool FilterDirty { get; set; } = true;
-    private string AiQuestion { get; set; } = string.Empty;
     private bool UseOllama { get; set; } = true;
     private bool CanRunAnalyze => UseOllama && !IsAnalyzing;
     private DotNetObjectReference<LogParser>? _settingsRef;
@@ -801,7 +858,7 @@
 
         var knownTitles = new[]
         {
-            "전체 요약", "위험도", "공격 URL", "의심 IP", "차단 후보", "대응 방안", "추가 질문 답변"
+            "전체 요약", "위험도", "공격 URL", "의심 IP", "차단 후보", "대응 방안"
         };
 
         return knownTitles.FirstOrDefault(title =>
@@ -1550,18 +1607,18 @@
 
     private void ApplyPreset(string preset)
     {
+        ClearFilters();
         ResetPage();
         switch (preset)
         {
             case "5xx":
                 StatusGroup = "5";
-                StatusFilter = "5";
                 break;
             case "/api":
-                UriFilter = "/api";
+                UrlQuery = "/api";
                 break;
             case "POST":
-                MethodFilter = "POST";
+                MethodQuery = "POST";
                 break;
         }
     }
@@ -1682,22 +1739,15 @@
         {
             ApplyRuntimeAnalysisSettings(LogAnalysisSettings);
             var filtered = GetFilteredRows();
-            var question = AiQuestion.Trim();
-            var analysisPayload = BuildAnalysisPayload(filtered, question);
-            var analysisJson = BuildAnalysisJson(analysisPayload, question);
+            var analysisPayload = BuildAnalysisPayload(filtered);
+            var analysisJson = BuildAnalysisJson(analysisPayload);
             var status5xxCount = filtered.Count(x => x.Status.StartsWith("5", StringComparison.Ordinal));
             var ratio = filtered.Count == 0 ? 0 : status5xxCount / (double)filtered.Count;
             var logDate = GetLogDate(filtered);
             var systemPrompt = string.IsNullOrWhiteSpace(LogAnalysisSettings.AnalysisSystemPrompt)
                 ? LogAnalysisPromptDefaults.SystemPrompt
                 : LogAnalysisSettings.AnalysisSystemPrompt.Trim();
-            var effectiveSystemPrompt = systemPrompt + " " + AnalysisDecisionPolicy +
-                (string.IsNullOrWhiteSpace(question)
-                    ? string.Empty
-                    : " " +
-                      (string.IsNullOrWhiteSpace(LogAnalysisSettings.QuestionInstructions)
-                          ? LogAnalysisPromptDefaults.QuestionInstructions
-                          : LogAnalysisSettings.QuestionInstructions.Trim()));
+            var effectiveSystemPrompt = systemPrompt + " " + AnalysisDecisionPolicy;
             _http ??= CreateAnalysisClient();
             var requestPayload = new
             {
@@ -1707,8 +1757,7 @@
                 logDate,
                 totalRows = filtered.Count,
                 status5xxCount,
-                status5xxRatio = ratio,
-                userQuestion = string.IsNullOrWhiteSpace(question) ? null : question
+                status5xxRatio = ratio
             };
 
             using var response = await _http.PostAsJsonAsync("api/ollama/analyze", requestPayload, ct);
@@ -1725,21 +1774,15 @@
 
             var result = await response.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
             var analysisText = result?.Response;
-            // Retry only when the model returned an actually trivial answer or
-            // failed to address an explicit question. A malformed/English answer
-            // is handled by the local Korean card fallback below, avoiding a
-            // second slow Ollama call.
-            // A retry can nearly double the wait time. For an additional question we can
-            // reliably add a data-backed answer locally below, so reserve retries for a
-            // genuinely unusable base report only.
-            if (string.IsNullOrWhiteSpace(question) && LooksTrivialAnalysis(analysisText))
+            // Retry only when the model returned an actually trivial answer.
+            if (LooksTrivialAnalysis(analysisText))
             {
                 var retrySystemPrompt =
                     effectiveSystemPrompt +
                     " 이전 응답이 너무 짧았다. 확인만 하지 말고 반드시 보안 분석 결과를 작성하라. " +
                     "공격 URL, 의심 IP, 차단 후보를 각각 최소 2개 이상 포함하라. " +
                     "모르면 모른다고 쓰지 말고 JSON에 있는 항목만 근거로 판단하라. " +
-                    (string.IsNullOrWhiteSpace(question) ? string.Empty : "사용자 질문에 직접 답하는 [추가 질문 답변] 섹션을 반드시 포함하라.");
+                    "차단 후보 IP를 누락하지 말고 반드시 [차단 후보] 섹션에 포함하라.";
 
                 using var retryResponse = await _http.PostAsJsonAsync("api/ollama/analyze", new
                 {
@@ -1749,8 +1792,7 @@
                     logDate,
                     totalRows = filtered.Count,
                     status5xxCount,
-                    status5xxRatio = ratio,
-                    userQuestion = string.IsNullOrWhiteSpace(question) ? null : question
+                    status5xxRatio = ratio
                 }, ct);
 
                 if (retryResponse.IsSuccessStatusCode)
@@ -1761,41 +1803,16 @@
             }
 
             var finalText = analysisText ?? "AI 분석이 완료되었지만 응답이 비어 있습니다.";
-            var hasQuestion = !string.IsNullOrWhiteSpace(question);
-            var hasQuestionSection = finalText.Contains("[추가 질문 답변]", StringComparison.Ordinal);
-            var questionReport = hasQuestion && !hasQuestionSection
-                ? BuildQuestionSpecificAnalysis(filtered, analysisPayload, question)
-                : string.Empty;
             var isTrivialAnalysis = NeedsStructuredAnalysisFallback(finalText);
 
             if (isTrivialAnalysis)
             {
-                if (hasQuestion)
-                {
-                    // An additional question must never replace the base report.
-                    // Keep the normal Korean card report and append the question result.
-                    AnalyzeMessage = string.IsNullOrWhiteSpace(questionReport)
-                        ? BuildFallbackAnalysisReport(analysisPayload, question)
-                        : string.Concat(
-                            BuildFallbackAnalysisReport(analysisPayload, null),
-                            Environment.NewLine,
-                            Environment.NewLine,
-                            questionReport);
-                }
-                else
-                {
-                    AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload, null);
-                }
+                AnalyzeMessage = BuildFallbackAnalysisReport(analysisPayload);
                 LastAnalysisUsedFallback = true;
             }
             else
             {
-                // Preserve the AI's section cards. If it omitted the requested question
-                // section, append the same deterministic, log-backed card instead of
-                // issuing a second complete model request.
-                AnalyzeMessage = string.IsNullOrWhiteSpace(questionReport)
-                    ? finalText
-                    : string.Concat(finalText.Trim(), Environment.NewLine, Environment.NewLine, questionReport);
+                AnalyzeMessage = finalText;
                 LastAnalysisUsedFallback = false;
             }
 
@@ -1898,6 +1915,11 @@
         _ = JS.InvokeVoidAsync("monitorSettings.set", "logParser.recentReportsCollapsed", IsRecentReportsCollapsed);
     }
 
+    private void ToggleFilters()
+    {
+        IsFiltersCollapsed = !IsFiltersCollapsed;
+    }
+
     private List<string> GetBlockCandidateIps()
     {
         return ParseCandidateIpsByLabel("즉시 차단");
@@ -1938,7 +1960,7 @@
             .ToList();
     }
 
-    private static string BuildAnalysisJson(CompactLogAnalysisPayload payload, string? question)
+    private static string BuildAnalysisJson(CompactLogAnalysisPayload payload)
     {
         var json = JsonSerializer.Serialize(payload, AnalysisJsonOptions);
         var builder = new StringBuilder();
@@ -1952,18 +1974,10 @@
         builder.AppendLine("제외 IP 패턴과 제외 건수도 함께 확인하라.");
         builder.AppendLine("특히 UrlAttackDetails의 Top3IpRatio, Top10IpRatio, Top30IpRatio, RemainingIpCount, RemainingRequestCount, DistributedAccessScore, IsDistributedAccess, IsDistributedCrawler, IsDistributedDdosCandidate를 반드시 확인하라.");
         builder.AppendLine("분석 결과에서는 단일 IP 공격, 분산 크롤링, 분산 DDoS 의심을 명확히 구분하라.");
+        builder.AppendLine("ScoredIps와 NotFoundScanIps에서 RecommendedAction이 Block인 IP는 누락 없이 [차단 후보]에 포함하라.");
+        builder.AppendLine("Referer 없음 비율이 90% 이상이고 50건 이상 반복되는 자동화/불필요 접근은 차단 후보로 세우고, IP·점수·주요 근거를 함께 출력하라.");
         builder.AppendLine("출력 형식은 반드시 [전체 요약] [위험도] [공격 URL] [의심 IP] [차단 후보] [대응 방안] 순서로 작성하라.");
         builder.AppendLine("각 섹션에는 JSON에 있는 항목과 수치를 근거로 최소 1문장 이상 작성하되, 한 문장에는 핵심 수치 3개까지만 사용하라.");
-
-        if (!string.IsNullOrWhiteSpace(question))
-        {
-            builder.AppendLine();
-            builder.AppendLine("추가 질문:");
-            builder.AppendLine(question.Trim());
-            builder.AppendLine();
-            builder.AppendLine("이 질문이 있으면 기본 보안 분석 외에 반드시 질문에 직접 답하라.");
-            builder.AppendLine("기본 형식은 유지하되, 마지막에 [추가 질문 답변] 섹션을 넣고 질문에 대한 결론을 명확히 작성하라.");
-        }
 
         builder.AppendLine();
         builder.AppendLine("JSON:");
@@ -2247,7 +2261,7 @@
         return AnalysisExcludedIpPrefixes.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static CompactLogAnalysisPayload BuildAnalysisPayload(List<ParsedLogRow> rows, string? question)
+    private static CompactLogAnalysisPayload BuildAnalysisPayload(List<ParsedLogRow> rows)
     {
         var total = rows.Count;
         var analyzedRows = rows
@@ -2339,8 +2353,7 @@
             AdminPageProbes = adminPageProbes.Take(15).ToList(),
             BackupFileProbes = backupFileProbes.Take(15).ToList(),
             ConfigFileProbes = configFileProbes.Take(15).ToList(),
-            ScriptProbeUrls = scriptProbeUrls.Take(15).ToList(),
-            Question = string.IsNullOrWhiteSpace(question) ? null : question.Trim()
+            ScriptProbeUrls = scriptProbeUrls.Take(15).ToList()
         };
     }
 
@@ -2571,7 +2584,18 @@
             .Count(x => x is not null);
         var isBot = botMatch > 0;
 
-        var recommendedAction = GetRecommendedAction(score, requestCount, refererMissingRatio, errorCount, suspiciousQueryCount, isBot);
+        var recommendedAction = GetRecommendedAction(
+            score,
+            requestCount,
+            refererMissingRatio,
+            errorCount,
+            suspiciousQueryCount,
+            isBot,
+            adminProbeCount,
+            adminProbeErrorCount,
+            backupProbeCount,
+            configProbeCount,
+            scriptProbeCount);
         if (board200Count >= 20 && (boardUrlRatio >= 0.5 || dominantUrlRatio >= 0.7))
         {
             recommendedAction = score >= 80 ? "Block" : "RateLimit";
@@ -3424,8 +3448,45 @@
         double refererMissingRatio,
         int errorCount,
         int suspiciousQueryCount,
-        bool isBot)
+        bool isBot,
+        int adminProbeCount,
+        int adminProbeErrorCount,
+        int backupProbeCount,
+        int configProbeCount,
+        int scriptProbeCount)
     {
+        // Referer 없는 고빈도 자동화 접근은 정상 브라우징과 구분되는
+        // "불필요 접근" 후보로 분류한다. 실제 차단은 후보 확인 후 운영자가 결정한다.
+        var unnecessaryAutomatedAccess =
+            requestCount >= 50 &&
+            refererMissingRatio >= 0.9 &&
+            (isBot || suspiciousQueryCount > 0);
+        var abnormalUrlAccess =
+            configProbeCount > 0 ||
+            backupProbeCount > 0 ||
+            scriptProbeCount > 0 ||
+            (adminProbeCount > 0 && adminProbeErrorCount > 0);
+        var adminOrAbnormalUrlAccess =
+            adminProbeCount > 0 || abnormalUrlAccess;
+
+        if (unnecessaryAutomatedAccess)
+        {
+            return "Block";
+        }
+
+        // 관리자 경로와 비정상/민감 URL 탐색은 일반 페이지 반복 접근보다
+        // 우선순위를 높인다. 설정·백업·스크립트 탐색은 즉시 차단 후보,
+        // 관리자 경로는 오류 응답이면 즉시 차단, 그 외에는 속도 제한 후보로 둔다.
+        if (abnormalUrlAccess)
+        {
+            return "Block";
+        }
+
+        if (adminOrAbnormalUrlAccess)
+        {
+            return adminProbeErrorCount > 0 ? "Block" : "RateLimit";
+        }
+
         if (isBot && score < 30)
         {
             return "Allow";
@@ -3488,7 +3549,11 @@
         "즉시 차단은 ScoredIps의 SensitiveProbeCount가 1 이상이거나, PeakSameUrlRequestsPerFifteenMinutes가 60 이상이면서 " +
         "UserAgentRotationCount가 3 이상, Referer 없음 비율 90% 이상, 의심 QueryString 3건 이상 중 하나가 함께 있는 IP를 우선 검토하라. " +
         "관리자·설정·백업·압축·JAR 파일 탐색, 의심 QueryString, 짧은 시간의 반복 요청을 차단 근거로 명시하라. " +
-        "분산형 URL 접근은 개별 IP 차단 대신 URL RateLimit/WAF 권고를 우선하라.";
+        "관리자 페이지 접근 시도, 설정/백업/스크립트 파일 접근, 404 비정상 URL 스캔은 불필요하거나 비정상적인 접근으로 보고 차단 후보에 우선 반영하라. " +
+        "분산형 URL 접근은 개별 IP 차단 대신 URL RateLimit/WAF 권고를 우선하라. " +
+        "ScoredIps와 NotFoundScanIps의 RecommendedAction이 Block인 IP는 [차단 후보]에 빠짐없이 출력하라. " +
+        "Referer 없음 비율이 90% 이상이고 50건 이상 반복되는 자동화/불필요 접근은 차단 후보로 세우고, " +
+        "각 후보의 IP, 점수, 주요 근거를 함께 제시하라.";
 
     private static List<ErrorIpItem> GetErrorIps(List<ParsedLogRow> rows, int take)
     {
@@ -3786,7 +3851,6 @@
         public IReadOnlyList<CountItem> BackupFileProbes { get; init; } = [];
         public IReadOnlyList<CountItem> ConfigFileProbes { get; init; } = [];
         public IReadOnlyList<CountItem> ScriptProbeUrls { get; init; } = [];
-        public string? Question { get; init; }
     }
 
     private sealed record CountItem(string Value, int Count);
@@ -3983,19 +4047,8 @@
 
     private sealed record OllamaAnalyzeResponse(string? Response);
 
-    private static string BuildFallbackAnalysisReport(CompactLogAnalysisPayload payload, string? question)
+    private static string BuildFallbackAnalysisReport(CompactLogAnalysisPayload payload)
     {
-        static IReadOnlyList<string> ExtractQuestionIps(string? text)
-        {
-            if (string.IsNullOrWhiteSpace(text))
-            {
-                return [];
-            }
-
-            var matches = System.Text.RegularExpressions.Regex.Matches(text, @"\b(?:\d{1,3}\.){3}\d{1,3}\b");
-            return matches.Select(m => m.Value).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
-        }
-
         static string FormatReasons(IReadOnlyList<string> reasons, int take = 3)
             => reasons.Count == 0 ? "근거 없음" : string.Join(", ", reasons.Take(take));
 
@@ -4177,56 +4230,6 @@
         {
             lines.Add($"404 집중 URL: {(top404Urls.Count > 0 ? string.Join(", ", top404Urls.Select(x => $"{x.Value}({x.Count:N0})")) : "없음")}");
             lines.Add($"404 우선 차단/제한 IP: {(highRisk404Ips.Count > 0 ? string.Join(", ", highRisk404Ips.Select(x => $"{x.Ip}({x.RecommendedAction})")) : "없음")}");
-        }
-
-        if (!string.IsNullOrWhiteSpace(question))
-        {
-            var questionIps = ExtractQuestionIps(question);
-            var questionIpLocations = questionIps
-                .Select(ip =>
-                {
-                    var hitKinds = new List<string>();
-                    if (topScoredIps.Any(x => x.Ip.Equals(ip, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        hitKinds.Add("ScoredIps");
-                    }
-                    if (top404Ips.Any(x => x.Ip.Equals(ip, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        hitKinds.Add("NotFoundScanIps");
-                    }
-                    if (topAttackUrls.Any(x => x.TopIp.Equals(ip, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        hitKinds.Add("TopUrlAttackCandidates");
-                    }
-                    if (boardUrls.Any(x => x.TopIp.Equals(ip, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        hitKinds.Add("BoardAttackCandidates");
-                    }
-
-                    return new { Ip = ip, HitKinds = hitKinds };
-                })
-                .ToList();
-
-            var matchedQuestionIps = questionIpLocations.Where(x => x.HitKinds.Count > 0).Select(x => x.Ip).ToList();
-            var unmatchedQuestionIps = questionIpLocations.Where(x => x.HitKinds.Count == 0).Select(x => x.Ip).ToList();
-
-            lines.Add("");
-            lines.Add("[추가 질문 답변]");
-            lines.Add($"질문: {question.Trim()}");
-            if (questionIps.Count > 0)
-            {
-                lines.Add($"질문에서 추출한 IP {questionIps.Count:N0}개 중 현재 분석 근거와 겹치는 IP는 {matchedQuestionIps.Count:N0}개입니다.");
-                if (matchedQuestionIps.Count > 0)
-                {
-                    lines.Add($"겹치는 IP: {string.Join(", ", questionIpLocations.Where(x => x.HitKinds.Count > 0).Select(x => $"{x.Ip}({string.Join("+", x.HitKinds)})"))}");
-                }
-                if (unmatchedQuestionIps.Count > 0)
-                {
-                    lines.Add($"현재 요약에서 바로 보이지 않는 IP: {string.Join(", ", unmatchedQuestionIps)}");
-                }
-            }
-
-            lines.Add("현재 답변은 LLM 본문이 아니라 로컬 집계 기반 fallback 응답입니다.");
         }
 
         return string.Join(Environment.NewLine, lines.Where(line => !string.IsNullOrWhiteSpace(line)));

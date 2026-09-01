@@ -110,7 +110,6 @@ public sealed class LogImportRuntimeSettings
 public sealed class LogAnalysisRuntimeSettings
 {
     public string AnalysisSystemPrompt { get; set; } = LogAnalysisPromptDefaults.SystemPrompt;
-    public string QuestionInstructions { get; set; } = LogAnalysisPromptDefaults.QuestionInstructions;
     public List<string> ExcludedIpPatterns { get; set; } = [];
     public List<string> PriorityUrlTokens { get; set; } = [];
     public List<string> AdminProbeTokens { get; set; } = [];

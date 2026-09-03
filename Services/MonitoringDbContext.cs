@@ -21,6 +21,7 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.Entity<DatabaseTableSizeRow>().HasNoKey();
+        modelBuilder.Entity<DatabaseTableSizeRow>().Property(x => x.SizeMb).HasPrecision(12, 2);
         modelBuilder.Entity<HostSnapshotEntity>(entity =>
         {
             entity.HasKey(x => x.Id);
@@ -39,6 +40,7 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
             entity.Property(x => x.Ip).HasMaxLength(200);
             entity.Property(x => x.Os).HasMaxLength(200);
             entity.Property(x => x.Metric).HasMaxLength(200);
+            entity.Property(x => x.AcknowledgedBy).HasMaxLength(100);
         });
 
         modelBuilder.Entity<AlertSuppressionEntity>(entity =>

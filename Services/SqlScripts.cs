@@ -2,6 +2,16 @@ namespace Monitoring.Blazor.Services;
 
 internal static class SqlScripts
 {
+    internal const string EnsureAlertAcknowledgementColumns = """
+IF COL_LENGTH(N'[dbo].[AlertEvents]', N'AcknowledgedUtc') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AlertEvents] ADD [AcknowledgedUtc] datetime2 NULL;
+END;
+IF COL_LENGTH(N'[dbo].[AlertEvents]', N'AcknowledgedBy') IS NULL
+BEGIN
+    ALTER TABLE [dbo].[AlertEvents] ADD [AcknowledgedBy] nvarchar(100) NULL;
+END;
+""";
     internal const string EnsureAlertSuppressionsTable = """
 IF OBJECT_ID(N'[dbo].[AlertSuppressions]', N'U') IS NULL
 BEGIN

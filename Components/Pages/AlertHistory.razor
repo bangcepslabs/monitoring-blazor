@@ -5,7 +5,7 @@
 @using Monitoring.Blazor.Services
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject MonitorStateService MonitorState
-@inject AlertSuppressor AlertSuppressor
+@inject AuthenticationStateProvider AuthenticationStateProvider
 @inject IJSRuntime JS
 
 <PageTitle>OpsEye | @Language.T("알림 이력", "Alert History")</PageTitle>
@@ -329,13 +329,8 @@
         if (_fromDate.HasValue) query = query.Where(x => x.TimestampUtc >= _fromDate.Value.Date.ToUniversalTime());
         if (_toDate.HasValue) query = query.Where(x => x.TimestampUtc < _toDate.Value.Date.AddDays(1).ToUniversalTime());
 
-        var acknowledgedKeys = AlertSuppressor.List()
-            .Where(x => x.UntilUtc > DateTime.UtcNow && string.Equals(x.Kind, "ack", StringComparison.OrdinalIgnoreCase))
-            .Select(x => $"{x.Hostname}::{x.Metric}")
-            .ToList();
-        if (_statusFilter == "acknowledged" && acknowledgedKeys.Count > 0) query = query.Where(x => acknowledgedKeys.Contains(x.Hostname + "::" + x.Metric));
-        if (_statusFilter == "acknowledged" && acknowledgedKeys.Count == 0) query = query.Where(_ => false);
-        if (_statusFilter == "open" && acknowledgedKeys.Count > 0) query = query.Where(x => !acknowledgedKeys.Contains(x.Hostname + "::" + x.Metric));
+        if (_statusFilter == "acknowledged") query = query.Where(x => x.AcknowledgedUtc != null);
+        if (_statusFilter == "open") query = query.Where(x => x.AcknowledgedUtc == null);
 
         _totalAlertCount = await query.CountAsync();
         _thresholdCount = await query.CountAsync(x => x.Type == AlertType.Threshold);
@@ -349,7 +344,7 @@
             .OrderByDescending(x => x.TimestampUtc)
             .Skip((_currentPage - 1) * _pageSize)
             .Take(_pageSize)
-            .Select(x => new AlertMessage(x.Hostname, x.Ip, x.Os, x.Metric, x.Value, x.Threshold, x.Message, x.Type, x.TimestampUtc))
+            .Select(x => new AlertMessage(x.Hostname, x.Ip, x.Os, x.Metric, x.Value, x.Threshold, x.Message, x.Type, x.TimestampUtc, x.Id, x.AcknowledgedUtc, x.AcknowledgedBy))
             .ToListAsync());
         await InvokeAsync(StateHasChanged);
     }
@@ -432,19 +427,18 @@
     };
 
     private bool IsAcknowledged(AlertMessage alert) =>
-        AlertSuppressor.List().Any(x => string.Equals(x.Hostname, alert.Hostname, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(x.Metric, alert.Metric, StringComparison.OrdinalIgnoreCase)
-            && x.UntilUtc > DateTime.UtcNow
-            && string.Equals(x.Kind, "ack", StringComparison.OrdinalIgnoreCase));
+        alert.AcknowledgedUtc.HasValue;
 
     private async Task AcknowledgeAsync(AlertMessage alert)
     {
-        await AlertSuppressor.SetPersistedAsync(
-            alert.Hostname,
-            alert.Metric,
-            DateTime.UtcNow.AddHours(24),
-            "Acknowledged from alert history",
-            "ack");
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.AlertEvents.SingleOrDefaultAsync(x => x.Id == alert.Id);
+        if (entity is null) return;
+        entity.AcknowledgedUtc = DateTime.UtcNow;
+        var user = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        entity.AcknowledgedBy = user.User.Identity?.Name ?? "admin";
+        await db.SaveChangesAsync();
         await InvokeAsync(StateHasChanged);
+        await ReloadAsync(false);
     }
 }

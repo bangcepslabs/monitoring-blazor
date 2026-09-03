@@ -162,6 +162,7 @@ using (var scope = app.Services.CreateScope())
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MonitoringDbContext>>();
         await using var db = await dbFactory.CreateDbContextAsync();
         await db.Database.EnsureCreatedAsync();
+        await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureAlertAcknowledgementColumns);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureAlertSuppressionsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureLogIpDailyStatsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureMembersTable);

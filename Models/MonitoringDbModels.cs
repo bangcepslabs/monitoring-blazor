@@ -32,6 +32,8 @@ public sealed class AlertEventEntity
     public string Message { get; set; } = string.Empty;
     public AlertType Type { get; set; }
     public DateTime TimestampUtc { get; set; }
+    public DateTime? AcknowledgedUtc { get; set; }
+    public string? AcknowledgedBy { get; set; }
 }
 
 public sealed class AlertSuppressionEntity

@@ -32,7 +32,7 @@ public sealed class ApiMetricsPersistenceWorker(
         var now = DateTime.UtcNow;
         var bucket = new DateTime(now.Year, now.Month, now.Day, now.Hour, 0, 0, DateTimeKind.Utc);
         await using var db = await dbFactory.CreateDbContextAsync(ct);
-        foreach (var metric in metrics.GetSnapshot())
+        foreach (var metric in metrics.TakeSnapshotAndReset())
         {
             var row = await db.ApiMetricBuckets.SingleOrDefaultAsync(x => x.BucketStartUtc == bucket && x.Path == metric.Path, ct);
             if (row is null)

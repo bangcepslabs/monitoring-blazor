@@ -8,6 +8,7 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
     public DbSet<HostSnapshotEntity> HostSnapshots => Set<HostSnapshotEntity>();
     public DbSet<AlertEventEntity> AlertEvents => Set<AlertEventEntity>();
     public DbSet<AlertSuppressionEntity> AlertSuppressions => Set<AlertSuppressionEntity>();
+    public DbSet<DatabaseTableSizeRow> DatabaseTableSizes => Set<DatabaseTableSizeRow>();
     public DbSet<LogIpDailyStatEntity> LogIpDailyStats => Set<LogIpDailyStatEntity>();
     public DbSet<MemberEntity> Members => Set<MemberEntity>();
     public DbSet<MemberAuditLogEntity> MemberAuditLogs => Set<MemberAuditLogEntity>();
@@ -19,6 +20,7 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<DatabaseTableSizeRow>().HasNoKey();
         modelBuilder.Entity<HostSnapshotEntity>(entity =>
         {
             entity.HasKey(x => x.Id);

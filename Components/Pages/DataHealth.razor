@@ -1,0 +1,76 @@
+@page "/admin/data-health"
+@attribute [Authorize(Roles = "Admin")]
+@using Microsoft.EntityFrameworkCore
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+@inject IConfiguration Configuration
+
+<PageTitle>OpsEye | Data health</PageTitle>
+
+<div class="container-fluid py-4">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <div class="text-uppercase text-muted small mb-1">Operations</div>
+            <h1 class="h3 mb-1">Data health</h1>
+            <p class="text-secondary mb-0">Monitor storage usage and retention settings.</p>
+        </div>
+        <button class="btn btn-outline-secondary" @onclick="LoadAsync">Refresh</button>
+    </div>
+
+    <div class="row g-3 mb-3">
+        <div class="col-12 col-lg-8">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Table storage</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0">
+                        <thead><tr><th>Table</th><th class="text-end">Rows</th><th class="text-end">Size</th></tr></thead>
+                        <tbody>
+                            @foreach (var table in Tables)
+                            {
+                                <tr><td>@table.TableName</td><td class="text-end">@table.RowCount.ToString("N0")</td><td class="text-end">@table.SizeMb.ToString("N2") MB</td></tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div class="col-12 col-lg-4">
+            <div class="card shadow-sm h-100">
+                <div class="card-header"><strong>Retention policy</strong></div>
+                <div class="card-body">
+                    <dl class="row mb-0">
+                        <dt class="col-8">Snapshots</dt><dd class="col-4 text-end">@SnapshotDays days</dd>
+                        <dt class="col-8">Alerts</dt><dd class="col-4 text-end">@AlertDays days</dd>
+                        <dt class="col-8">IP statistics</dt><dd class="col-4 text-end">@LogStatsDays days</dd>
+                        <dt class="col-8">Cleanup interval</dt><dd class="col-4 text-end">@CleanupMinutes min</dd>
+                    </dl>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private List<DatabaseTableSizeRow> Tables { get; set; } = [];
+    private int SnapshotDays => Configuration.GetValue("Monitoring:Retention:SnapshotDays", 30);
+    private int AlertDays => Configuration.GetValue("Monitoring:Retention:AlertDays", 90);
+    private int LogStatsDays => Configuration.GetValue("Monitoring:Retention:LogIpDailyStatDays", 365);
+    private int CleanupMinutes => Configuration.GetValue("Monitoring:Retention:CleanupIntervalMinutes", 60);
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        Tables = await db.DatabaseTableSizes.FromSqlRaw("""
+SELECT t.name AS TableName, SUM(p.rows) AS RowCount,
+       CAST(SUM(a.total_pages) * 8.0 / 1024 AS decimal(12,2)) AS SizeMb
+FROM sys.tables t JOIN sys.indexes i ON t.object_id=i.object_id
+JOIN sys.partitions p ON i.object_id=p.object_id AND i.index_id=p.index_id
+JOIN sys.allocation_units a ON p.partition_id=a.container_id
+WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressions')
+GROUP BY t.name ORDER BY SizeMb DESC
+""").AsNoTracking().ToListAsync();
+    }
+}

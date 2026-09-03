@@ -53,6 +53,9 @@
                             <button type="button" class="dashboard-menu-item" @onclick="ToggleSqlAccessPanel">
                                 <i class="bi bi-database-lock me-2"></i>SQL Access
                             </button>
+                            <a class="dashboard-menu-item" href="/admin/data-health" @onclick="CloseManageMenu">
+                                <i class="bi bi-hdd-stack me-2"></i>Data Health
+                            </a>
                         </Authorized>
                     </AuthorizeView>
                     <a class="dashboard-menu-item" href="/api/reports/dashboard" @onclick="CloseManageMenu"><i class="bi bi-download me-2"></i>@Language.T("리포트 내보내기", "Export Report")</a>

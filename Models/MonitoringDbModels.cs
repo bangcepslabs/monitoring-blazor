@@ -45,6 +45,13 @@ public sealed class AlertSuppressionEntity
     public DateTime CreatedUtc { get; set; }
 }
 
+public sealed class DatabaseTableSizeRow
+{
+    public string TableName { get; set; } = string.Empty;
+    public long RowCount { get; set; }
+    public decimal SizeMb { get; set; }
+}
+
 public sealed class LogIpDailyStatEntity
 {
     public long Id { get; set; }

@@ -422,6 +422,34 @@ app.MapGet("/api/monitor/all", (MonitorStateService state) =>
     return Results.Ok(data);
 });
 
+app.MapGet("/api/admin/data-health", async (IDbContextFactory<MonitoringDbContext> dbFactory, IConfiguration configuration, CancellationToken ct) =>
+{
+    await using var db = await dbFactory.CreateDbContextAsync(ct);
+    var tables = await db.DatabaseTableSizes.FromSqlRaw("""
+SELECT t.name AS TableName,
+       SUM(p.rows) AS RowCount,
+       CAST(SUM(a.total_pages) * 8.0 / 1024 AS decimal(12,2)) AS SizeMb
+FROM sys.tables t
+JOIN sys.indexes i ON t.object_id = i.object_id
+JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
+JOIN sys.allocation_units a ON p.partition_id = a.container_id
+WHERE t.name IN ('HostSnapshots', 'AlertEvents', 'LogIpDailyStats', 'AlertSuppressions')
+GROUP BY t.name
+ORDER BY SizeMb DESC
+""").AsNoTracking().ToListAsync(ct);
+    return Results.Ok(new
+    {
+        tables,
+        retention = new
+        {
+            snapshotDays = configuration.GetValue("Monitoring:Retention:SnapshotDays", 30),
+            alertDays = configuration.GetValue("Monitoring:Retention:AlertDays", 90),
+            logIpDailyStatDays = configuration.GetValue("Monitoring:Retention:LogIpDailyStatDays", 365),
+            cleanupIntervalMinutes = configuration.GetValue("Monitoring:Retention:CleanupIntervalMinutes", 60)
+        }
+    });
+});
+
 app.MapPost("/api/monitor/client-message", async (HttpRequest request, MonitorStateService state) =>
 {
     using var reader = new StreamReader(request.Body);

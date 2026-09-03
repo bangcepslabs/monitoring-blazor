@@ -6,6 +6,7 @@
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject IConfiguration Configuration
 @inject NavigationManager NavigationManager
+@inject ApiMetricsState ApiMetricsState
 
 <PageTitle>OpsEye | Data health</PageTitle>
 
@@ -23,6 +24,17 @@
     </div>
 
     <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header"><strong>API metrics</strong></div>
+                <div class="table-responsive">
+                    <table class="table table-sm align-middle mb-0 data-health-table">
+                        <thead><tr><th>Endpoint</th><th class="text-end">Requests</th><th class="text-end">Errors</th><th class="text-end">Avg ms</th></tr></thead>
+                        <tbody>@foreach (var metric in ApiMetrics) { <tr><td>@metric.Path</td><td class="text-end">@metric.Requests.ToString("N0")</td><td class="text-end">@metric.Errors.ToString("N0")</td><td class="text-end">@metric.AverageMs.ToString("N1")</td></tr> }</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
         <div class="col-12 col-lg-8">
             <div class="card shadow-sm h-100">
                 <div class="card-header"><strong>Table storage</strong></div>
@@ -75,6 +87,7 @@
 
 @code {
     private List<DatabaseTableSizeRow> Tables { get; set; } = [];
+    private List<ApiMetricSnapshot> ApiMetrics { get; set; } = [];
     private bool IsLoading { get; set; }
     private string? LoadError { get; set; }
     private bool IsCleaning { get; set; }
@@ -102,6 +115,7 @@ JOIN sys.allocation_units a ON p.partition_id=a.container_id
 WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressions')
 GROUP BY t.name ORDER BY SizeMb DESC
 """).AsNoTracking().ToListAsync();
+            ApiMetrics = ApiMetricsState.GetSnapshot().ToList();
         }
         catch
         {

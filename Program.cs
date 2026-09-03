@@ -123,6 +123,7 @@ builder.Services.AddSingleton<LogAutoExportService>();
 builder.Services.AddSingleton<LogAutoImportService>();
 builder.Services.AddSingleton<MonitoringSnapshotQueue>();
 builder.Services.AddSingleton<MonitoringHealthState>();
+builder.Services.AddSingleton<ApiMetricsState>();
 builder.Services.AddSingleton<MonitorStateService>();
 builder.Services.AddSingleton<AuditLogService>();
 builder.Services.AddSingleton<SlowQueryService>();
@@ -386,6 +387,10 @@ app.Use(async (context, next) =>
             context.Response.StatusCode,
             stopwatch.Elapsed.TotalMilliseconds,
             context.TraceIdentifier);
+        if (context.Request.Path.StartsWithSegments("/api"))
+        {
+            context.RequestServices.GetRequiredService<ApiMetricsState>().Record(context.Request.Path, context.Response.StatusCode, stopwatch.Elapsed.TotalMilliseconds);
+        }
     }
 });
 app.Use(async (context, next) =>
@@ -481,6 +486,8 @@ ORDER BY SizeMb DESC
         }
     });
 });
+
+app.MapGet("/api/admin/metrics", (ApiMetricsState metrics) => Results.Ok(metrics.GetSnapshot()));
 
 app.MapPost("/api/admin/data-health/cleanup", async (IDbContextFactory<MonitoringDbContext> dbFactory, IConfiguration configuration, CancellationToken ct) =>
 {

@@ -113,13 +113,13 @@ public sealed class LogAutoImportService(
         await using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream);
 
-        while (!reader.EndOfStream)
+        while (true)
         {
             ct.ThrowIfCancellationRequested();
             var line = await reader.ReadLineAsync();
             if (line is null)
             {
-                continue;
+                break;
             }
 
             bufferLines.Add(line);

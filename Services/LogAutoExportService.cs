@@ -91,13 +91,13 @@ public sealed class LogAutoExportService(
         await using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream);
 
-        while (!reader.EndOfStream)
+        while (true)
         {
             ct.ThrowIfCancellationRequested();
             var line = await reader.ReadLineAsync();
             if (line is null)
             {
-                continue;
+                break;
             }
 
             buffer.Add(line);

@@ -1,15 +1,16 @@
 ﻿<script type="module" src="@Assets["Components/Layout/ReconnectModal.razor.js"]"></script>
 
-<dialog id="components-reconnect-modal" data-nosnippet>
+<dialog id="components-reconnect-modal" data-nosnippet aria-labelledby="components-reconnect-title">
     <div class="components-reconnect-container">
+        <div id="components-reconnect-title" class="components-reconnect-title">OpsEye</div>
         <div class="components-rejoining-animation" aria-hidden="true">
             <div></div>
             <div></div>
         </div>
-        <p class="components-reconnect-first-attempt-visible">
+        <p class="components-reconnect-first-attempt-visible" role="status" aria-live="polite">
             Rejoining the server...
         </p>
-        <p class="components-reconnect-repeated-attempt-visible">
+        <p class="components-reconnect-repeated-attempt-visible" role="status" aria-live="polite">
             Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
         </p>
         <p class="components-reconnect-failed-visible">

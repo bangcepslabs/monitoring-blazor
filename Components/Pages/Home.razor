@@ -328,8 +328,25 @@
         <span class="dashboard-section-count">@Hosts.Count.ToString("N0") @Language.T("대", "total")</span>
     </div>
 
+    <div class="row g-2 mb-3" role="search" aria-label="Host filters">
+        <div class="col-12 col-md-7">
+            <label class="visually-hidden" for="host-search">Search hosts</label>
+            <input id="host-search" class="form-control" type="search" placeholder="Search hosts..." @bind="HostSearch" @bind:event="oninput" />
+        </div>
+        <div class="col-12 col-md-5">
+            <label class="visually-hidden" for="host-filter">Filter hosts</label>
+            <select id="host-filter" class="form-select" @bind="HostFilter">
+                <option value="all">All hosts</option>
+                <option value="online">Online</option>
+                <option value="offline">Offline</option>
+                <option value="warning">Warning</option>
+                <option value="critical">Critical</option>
+            </select>
+        </div>
+    </div>
+
     <div class="row g-3 dashboard-host-grid">
-        @foreach (HostState host in OrderedHosts)
+        @foreach (HostState host in FilteredHosts)
         {
             var cpu = host.Info.Dynamic.CpuInfo.Usage;
             var mem = host.Info.Dynamic.MemoryInfo.Usage;
@@ -859,6 +876,8 @@ else
     private PeriodicTimer? _refreshTimer;
     private CancellationTokenSource? _timerCts;
     private List<HostState> Hosts { get; set; } = [];
+    private string HostSearch { get; set; } = string.Empty;
+    private string HostFilter { get; set; } = "all";
     private Dictionary<string, HistorySeries> Histories { get; } = new(StringComparer.OrdinalIgnoreCase);
     private Dictionary<string, HistorySeries> ChartHistories { get; } = new(StringComparer.OrdinalIgnoreCase);
     private string CurrentHost { get; set; } = DashboardView;
@@ -908,6 +927,29 @@ else
         .OrderBy(x => GetServerGroup(x.Info.Hostname), StringComparer.OrdinalIgnoreCase)
         .ThenByDescending(GetHostSeverity)
         .ThenBy(x => x.Info.Hostname, StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<HostState> FilteredHosts => OrderedHosts
+        .Where(MatchesHostFilter)
+        .ToList();
+
+    private bool MatchesHostFilter(HostState host)
+    {
+        var searchMatches = string.IsNullOrWhiteSpace(HostSearch)
+            || host.Info.Hostname.Contains(HostSearch, StringComparison.OrdinalIgnoreCase)
+            || host.Info.Ip.Contains(HostSearch, StringComparison.OrdinalIgnoreCase);
+        if (!searchMatches)
+        {
+            return false;
+        }
+
+        return HostFilter switch
+        {
+            "online" => host.IsOnline,
+            "offline" => !host.IsOnline,
+            "warning" => host.IsOnline && IsWarning(host.Info),
+            "critical" => host.IsOnline && IsCritical(host.Info),
+            _ => true
+        };
+    }
     private TimeOnly? MaintenanceWindowStartValue
     {
         get => TryParseTimeOnly(AlertSettings.MaintenanceWindowStart, out var value) ? value : null;

@@ -7,6 +7,8 @@
 @inject IConfiguration Configuration
 @inject SlowQueryService SlowQueryService
 @inject ServerCatalogRepository ServerCatalogRepository
+@inject AlertSettingsRepository AlertSettingsRepository
+@inject AuditLogService AuditLogService
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
@@ -1587,16 +1589,8 @@ else
 
     private async Task LoadAlertSettings()
     {
-        if (_http is null)
-        {
-            return;
-        }
-
-        var settings = await _http.GetFromJsonAsync<AlertSettings>("api/alerts/settings");
-        if (settings is not null)
-        {
-            AlertSettings = settings;
-        }
+        var baseSettings = Configuration.GetSection("Monitoring:Alerts").Get<AlertSettings>() ?? new AlertSettings();
+        AlertSettings = AlertSettingsRepository.Load(baseSettings);
     }
 
     private async Task SaveAlertSettings()
@@ -1608,8 +1602,13 @@ else
 
         try
         {
-            var response = await _http.PostAsJsonAsync("api/alerts/settings", AlertSettings);
-            response.EnsureSuccessStatusCode();
+            AlertSettingsRepository.Save(AlertSettings);
+            await AuditLogService.WriteAsync(
+                "alert_settings_update",
+                null,
+                true,
+                "Alert settings updated from the dashboard.",
+                CancellationToken.None);
             await JS.InvokeVoidAsync("monitorSettings.showToast", Language.T("알림 규칙을 저장했습니다.", "Alert rules saved."), "success");
         }
         catch

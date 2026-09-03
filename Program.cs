@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
+using System.Diagnostics;
 using System.Security.Claims;
 using System.Threading.RateLimiting;
 
@@ -357,6 +358,32 @@ if (useHttpsRedirection)
 app.UseSession();
 app.UseAuthentication();
 app.UseRateLimiter();
+app.Use(async (context, next) =>
+{
+    if (!context.Request.Path.StartsWithSegments("/api"))
+    {
+        await next();
+        return;
+    }
+
+    var stopwatch = Stopwatch.StartNew();
+    try
+    {
+        await next();
+    }
+    finally
+    {
+        stopwatch.Stop();
+        context.Response.Headers["Server-Timing"] = $"app;dur={stopwatch.Elapsed.TotalMilliseconds:0.0}";
+        app.Logger.LogInformation(
+            "API request {Method} {Path} completed with {StatusCode} in {ElapsedMs} ms. TraceId={TraceId}",
+            context.Request.Method,
+            context.Request.Path,
+            context.Response.StatusCode,
+            stopwatch.Elapsed.TotalMilliseconds,
+            context.TraceIdentifier);
+    }
+});
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path;

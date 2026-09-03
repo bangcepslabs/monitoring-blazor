@@ -1,0 +1,13 @@
+.data-health-table {
+    min-width: 34rem;
+}
+
+@media (max-width: 767.98px) {
+    .data-health-page-header {
+        align-items: flex-start !important;
+    }
+
+    .data-health-page-header .btn {
+        width: 100%;
+    }
+}

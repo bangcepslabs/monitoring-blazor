@@ -28,4 +28,11 @@ jobs:
         run: dotnet build monitoring-blazor.sln --no-restore --configuration Release
 
       - name: Test
-        run: dotnet test monitoring-blazor.sln --no-build --configuration Release --logger trx
+        run: dotnet test monitoring-blazor.sln --no-build --configuration Release --logger trx --results-directory TestResults
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dotnet-test-results
+          path: '**/TestResults/*.trx'

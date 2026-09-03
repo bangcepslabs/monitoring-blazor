@@ -1,0 +1,13 @@
+.alert-history-table {
+    min-width: 70rem;
+}
+
+@media (max-width: 767.98px) {
+    .alert-history-header {
+        align-items: flex-start !important;
+    }
+
+    .alert-history-header .btn {
+        width: 100%;
+    }
+}

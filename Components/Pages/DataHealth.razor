@@ -10,7 +10,7 @@
 <PageTitle>OpsEye | Data health</PageTitle>
 
 <div class="container-fluid py-4">
-    <div class="d-flex justify-content-between align-items-center mb-4">
+    <div class="d-flex justify-content-between align-items-center mb-4 data-health-page-header">
         <div>
             <div class="text-uppercase text-muted small mb-1">Operations</div>
             <h1 class="h3 mb-1">Data health</h1>
@@ -27,7 +27,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header"><strong>Table storage</strong></div>
                 <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
+                    <table class="table table-hover align-middle mb-0 data-health-table">
                         <thead><tr><th>Table</th><th class="text-end">Rows</th><th class="text-end">Size</th></tr></thead>
                         <tbody>
                             @foreach (var table in Tables)

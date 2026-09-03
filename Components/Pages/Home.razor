@@ -350,6 +350,10 @@
                             <span class="host-status-badge @(host.IsOnline ? "host-status-online" : "host-status-offline")">@(host.IsOnline ? "Online" : "Offline")</span>
                         </div>
                         <p class="host-card-ip">@host.Info.Ip</p>
+                        <div class="host-freshness @(host.IsOnline ? "freshness-current" : "freshness-stale")">
+                            <i class="bi @(host.IsOnline ? "bi-clock-history" : "bi-exclamation-circle")" aria-hidden="true"></i>
+                            <span>@GetHostFreshness(host)</span>
+                        </div>
                         <div class="host-card-tags">
                             @if (!string.IsNullOrWhiteSpace(GetServerGroup(host.Info.Hostname)))
                             {
@@ -1848,6 +1852,22 @@ else
         }
 
         return value >= warningThreshold ? "bg-warning" : "bg-success";
+    }
+
+    private static string GetHostFreshness(HostState host)
+    {
+        var age = DateTime.UtcNow - host.LastUpdatedUtc;
+        if (age.TotalSeconds < 5)
+        {
+            return "Updated just now";
+        }
+
+        if (age.TotalMinutes < 1)
+        {
+            return $"Last seen {Math.Max(1, (int)age.TotalSeconds)}s ago";
+        }
+
+        return $"Last seen {Math.Max(1, (int)age.TotalMinutes)}m ago";
     }
 
     private async Task HandleHostCardKeyDown(KeyboardEventArgs args, string hostname)

@@ -832,6 +832,18 @@
   font-size: 0.76rem;
 }
 
+.host-freshness {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: -0.2rem 0 0.7rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.freshness-current { color: var(--success); }
+.freshness-stale { color: var(--danger); }
+
 .host-card-tags {
   display: flex;
   flex-wrap: wrap;

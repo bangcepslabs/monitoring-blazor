@@ -29,6 +29,7 @@ Health endpoints:
 ## Local Run
 - `appsettings.private.json`에 로컬 DB 값을 넣으면 됩니다.
 - SQL Server가 떠 있어야 합니다.
+- `Monitoring:Ingest:ApiKey`에 Agent Key를 설정해야 클라이언트 수집 요청을 받을 수 있습니다.
 - 로컬에서는 `Monitoring:Ollama`, `Monitoring:LogExport`, `Monitoring:LogImport`, `Monitoring:Email`, `Monitoring:Dooray`, `Monitoring:Alerts`를 끄는 것을 권장합니다.
 
 ## Configuration
@@ -80,7 +81,8 @@ IIS 배포 시:
 다른 PC에서도 가장 쉽게 올리는 방법입니다.
 
 ```powershell
-copy .env.example .env
+Copy-Item .env.example .env
+# .env에서 MSSQL_SA_PASSWORD와 MONITOR_AGENT_API_KEY를 반드시 변경
 docker compose up --build
 ```
 
@@ -88,9 +90,16 @@ docker compose up --build
 - App: `http://localhost:8080`
 - SQL Server: `localhost,1433`
 
-`.env`에서 `MSSQL_SA_PASSWORD`만 먼저 채우면 최소 구동이 가능합니다.
+`.env`에서 `MSSQL_SA_PASSWORD`와 `MONITOR_AGENT_API_KEY`를 먼저 채우면 최소 구동이 가능합니다.
 필요하면 `OLLAMA_*`, `SMTP_*`, `EMAIL_*`만 추가로 켭니다.
 앱 설정은 `docker-data/app`에 저장되어 컨테이너를 다시 올려도 유지됩니다.
+
+루트 저장소에서 받는 경우에는 submodule도 함께 초기화합니다.
+
+```powershell
+git clone --recurse-submodules https://github.com/jeongbyeongho/dashboard.git
+cd dashboard\monitoring-blazor
+```
 
 ## Operations checklist
 - 운영 DB 비밀번호와 외부 Webhook/API 토큰은 저장소에 커밋하지 않습니다.

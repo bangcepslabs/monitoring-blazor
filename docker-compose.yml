@@ -24,6 +24,7 @@ services:
       ASPNETCORE_URLS: "http://+:8080"
       Monitoring__UseHttpsRedirection: "false"
       Monitoring__DataDirectory: "/data/appdata"
+      Monitoring__Ingest__ApiKey: "${MONITOR_AGENT_API_KEY}"
       ConnectionStrings__MonitoringDb: "Server=db,1433;Database=${MSSQL_DATABASE:-MonitoringDb};User Id=sa;Password=${MSSQL_SA_PASSWORD};TrustServerCertificate=True;Encrypt=False"
       Monitoring__Ollama__Enabled: "${OLLAMA_ENABLED:-false}"
       Monitoring__Ollama__BaseUrl: "${OLLAMA_BASE_URL:-http://host.docker.internal:11434}"

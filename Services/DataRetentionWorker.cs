@@ -45,11 +45,15 @@ public sealed class DataRetentionWorker(
         var logStatsDeleted = await db.LogIpDailyStats
             .Where(x => x.LogDate < logStatsCutoff)
             .ExecuteDeleteAsync(ct);
+        var suppressionsDeleted = await db.AlertSuppressions
+            .Where(x => x.UntilUtc <= DateTime.UtcNow)
+            .ExecuteDeleteAsync(ct);
 
         logger.LogInformation(
-            "Retention cleanup done. Snapshots {Snapshots}, Alerts {Alerts}, LogStats {LogStats}.",
+            "Retention cleanup done. Snapshots {Snapshots}, Alerts {Alerts}, LogStats {LogStats}, Suppressions {Suppressions}.",
             snapshotsDeleted,
             alertsDeleted,
-            logStatsDeleted);
+            logStatsDeleted,
+            suppressionsDeleted);
     }
 }

@@ -162,6 +162,7 @@ using (var scope = app.Services.CreateScope())
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MonitoringDbContext>>();
         await using var db = await dbFactory.CreateDbContextAsync();
         await db.Database.EnsureCreatedAsync();
+        await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureAlertSuppressionsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureLogIpDailyStatsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureMembersTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureMemberAuditLogsTable);
@@ -170,6 +171,7 @@ using (var scope = app.Services.CreateScope())
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsurePasswordResetRequestsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureMemberRecoveryCodesTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureEmailVerificationRequestsTable);
+        await scope.ServiceProvider.GetRequiredService<AlertSuppressor>().LoadAsync();
     }
     catch (Exception exception)
     {

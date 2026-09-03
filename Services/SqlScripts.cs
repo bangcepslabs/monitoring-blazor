@@ -2,6 +2,30 @@ namespace Monitoring.Blazor.Services;
 
 internal static class SqlScripts
 {
+    internal const string EnsureAlertSuppressionsTable = """
+IF OBJECT_ID(N'[dbo].[AlertSuppressions]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[AlertSuppressions] (
+        [Id] bigint IDENTITY(1,1) NOT NULL,
+        [Hostname] nvarchar(200) NOT NULL,
+        [Metric] nvarchar(200) NOT NULL,
+        [UntilUtc] datetime2 NOT NULL,
+        [Reason] nvarchar(500) NOT NULL,
+        [Kind] nvarchar(50) NOT NULL,
+        [CreatedUtc] datetime2 NOT NULL,
+        CONSTRAINT [PK_AlertSuppressions] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AlertSuppressions_Hostname_Metric' AND object_id = OBJECT_ID(N'[dbo].[AlertSuppressions]'))
+BEGIN
+    CREATE UNIQUE INDEX [IX_AlertSuppressions_Hostname_Metric] ON [dbo].[AlertSuppressions] ([Hostname], [Metric]);
+END;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_AlertSuppressions_UntilUtc' AND object_id = OBJECT_ID(N'[dbo].[AlertSuppressions]'))
+BEGIN
+    CREATE INDEX [IX_AlertSuppressions_UntilUtc] ON [dbo].[AlertSuppressions] ([UntilUtc]);
+END;
+""";
+
     internal const string EnsureLogIpDailyStatsTable = """
 IF OBJECT_ID(N'[dbo].[LogIpDailyStats]', N'U') IS NULL
 BEGIN

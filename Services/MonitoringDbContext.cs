@@ -7,6 +7,7 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
 {
     public DbSet<HostSnapshotEntity> HostSnapshots => Set<HostSnapshotEntity>();
     public DbSet<AlertEventEntity> AlertEvents => Set<AlertEventEntity>();
+    public DbSet<AlertSuppressionEntity> AlertSuppressions => Set<AlertSuppressionEntity>();
     public DbSet<LogIpDailyStatEntity> LogIpDailyStats => Set<LogIpDailyStatEntity>();
     public DbSet<MemberEntity> Members => Set<MemberEntity>();
     public DbSet<MemberAuditLogEntity> MemberAuditLogs => Set<MemberAuditLogEntity>();
@@ -36,6 +37,17 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
             entity.Property(x => x.Ip).HasMaxLength(200);
             entity.Property(x => x.Os).HasMaxLength(200);
             entity.Property(x => x.Metric).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<AlertSuppressionEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.Hostname, x.Metric }).IsUnique();
+            entity.HasIndex(x => x.UntilUtc);
+            entity.Property(x => x.Hostname).HasMaxLength(200);
+            entity.Property(x => x.Metric).HasMaxLength(200);
+            entity.Property(x => x.Reason).HasMaxLength(500);
+            entity.Property(x => x.Kind).HasMaxLength(50);
         });
 
         modelBuilder.Entity<LogIpDailyStatEntity>(entity =>

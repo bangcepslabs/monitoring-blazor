@@ -34,6 +34,17 @@ public sealed class AlertEventEntity
     public DateTime TimestampUtc { get; set; }
 }
 
+public sealed class AlertSuppressionEntity
+{
+    public long Id { get; set; }
+    public string Hostname { get; set; } = string.Empty;
+    public string Metric { get; set; } = string.Empty;
+    public DateTime UntilUtc { get; set; }
+    public string Reason { get; set; } = string.Empty;
+    public string Kind { get; set; } = string.Empty;
+    public DateTime CreatedUtc { get; set; }
+}
+
 public sealed class LogIpDailyStatEntity
 {
     public long Id { get; set; }

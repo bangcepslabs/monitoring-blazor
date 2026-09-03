@@ -6,7 +6,7 @@ import psutil
 import requests
 
 server_url = os.getenv("MONITOR_SERVER_URL", "http://localhost:8050/api/monitor/client-message")
-host_address = os.getenv("MONITOR_TARGET_URL", "https://ithelp.grac.or.kr")
+host_address = os.getenv("MONITOR_TARGET_URL")
 agent_api_key = os.getenv("MONITOR_AGENT_API_KEY", "")
 send_interval_seconds = max(1, int(os.getenv("MONITOR_SEND_INTERVAL_SECONDS", "2")))
 max_retry_delay_seconds = max(send_interval_seconds, int(os.getenv("MONITOR_MAX_RETRY_DELAY_SECONDS", "60")))
@@ -93,6 +93,8 @@ def send_loop():
 
     if not agent_api_key:
         raise RuntimeError("MONITOR_AGENT_API_KEY is not configured.")
+    if not host_address:
+        raise RuntimeError("MONITOR_TARGET_URL is not configured.")
 
     while True:
         try:

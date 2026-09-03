@@ -53,6 +53,10 @@
             </div>
         </div>
     </div>
+    @if (!string.IsNullOrWhiteSpace(CleanupMessage))
+    {
+        <div class="alert alert-info" role="status">@CleanupMessage</div>
+    }
 </div>
 
 @code {

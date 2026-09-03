@@ -6,6 +6,7 @@
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject MonitorStateService MonitorState
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@inject AuditLogService AuditLogService
 @inject IJSRuntime JS
 
 <PageTitle>OpsEye | @Language.T("알림 이력", "Alert History")</PageTitle>
@@ -444,6 +445,7 @@
         var user = await AuthenticationStateProvider.GetAuthenticationStateAsync();
         entity.AcknowledgedBy = user.User.Identity?.Name ?? "admin";
         await db.SaveChangesAsync();
+        await AuditLogService.WriteAsync("alert_acknowledge", null, true, $"Alert {alert.Id} acknowledged.");
         await InvokeAsync(StateHasChanged);
         await ReloadAsync(false);
     }
@@ -471,6 +473,7 @@
             alert.AcknowledgedBy = username;
         }
         await db.SaveChangesAsync();
+        await AuditLogService.WriteAsync("alert_acknowledge_bulk", null, true, $"{alerts.Count} alert(s) acknowledged.");
         SelectedAlertIds.Clear();
         await ReloadAsync(false);
     }
@@ -483,6 +486,7 @@
         entity.AcknowledgedUtc = null;
         entity.AcknowledgedBy = null;
         await db.SaveChangesAsync();
+        await AuditLogService.WriteAsync("alert_acknowledge_undo", null, true, $"Alert {alert.Id} acknowledgement removed.");
         await ReloadAsync(false);
     }
 }

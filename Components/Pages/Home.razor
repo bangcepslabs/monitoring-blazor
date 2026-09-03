@@ -32,6 +32,18 @@
     </div>
 </div>
 
+@if (IsDashboardLoading)
+{
+    <div class="alert alert-info dashboard-load-state" role="status">Loading dashboard data...</div>
+}
+else if (!string.IsNullOrWhiteSpace(DashboardError))
+{
+    <div class="alert alert-danger dashboard-load-state" role="alert">
+        <span>@DashboardError</span>
+        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="RetryDashboardAsync">Retry</button>
+    </div>
+}
+
 <div class="dashboard-toolbar mb-3">
     <div class="dashboard-toolbar-primary">
         <button class="btn @(CurrentHost == DashboardView ? "btn-primary" : "btn-outline-primary")" @onclick="ShowDashboard"><i class="bi bi-grid-1x2 me-1"></i>@Language.T("대시보드", "Dashboard")</button>
@@ -898,6 +910,8 @@ else
     private string CurrentHost { get; set; } = DashboardView;
     private DetailTab SelectedDetailTab { get; set; } = DetailTab.Overview;
     private bool AutoRefresh { get; set; } = true;
+    private bool IsDashboardLoading { get; set; }
+    private string? DashboardError { get; set; }
     private DateTime LastRefreshLocal { get; set; } = DateTime.Now;
     private bool ShowAlertPanel { get; set; } = false;
     private bool ShowSqlAccessPanel { get; set; } = false;
@@ -993,11 +1007,35 @@ else
     {
         MonitorState.Changed += OnStateChanged;
         _http = new HttpClient { BaseAddress = new Uri(NavigationManager.BaseUri) };
-        await LoadAlertSettings();
-        await LoadRecentAlertsAsync();
-        await LoadRecentLoginFailuresAsync();
-        RefreshSnapshot();
+        await InitializeDashboardAsync();
         StartRefreshLoop();
+    }
+
+    private async Task InitializeDashboardAsync()
+    {
+        IsDashboardLoading = true;
+        DashboardError = null;
+        try
+        {
+            await LoadAlertSettings();
+            await LoadRecentAlertsAsync();
+            await LoadRecentLoginFailuresAsync();
+            RefreshSnapshot();
+        }
+        catch
+        {
+            DashboardError = "Dashboard data could not be loaded.";
+        }
+        finally
+        {
+            IsDashboardLoading = false;
+        }
+    }
+
+    private async Task RetryDashboardAsync()
+    {
+        await InitializeDashboardAsync();
+        await InvokeAsync(StateHasChanged);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender)

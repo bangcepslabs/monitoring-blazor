@@ -143,7 +143,7 @@ SELECT t.name AS TableName, SUM(p.rows) AS RowCount,
 FROM sys.tables t JOIN sys.indexes i ON t.object_id=i.object_id
 JOIN sys.partitions p ON i.object_id=p.object_id AND i.index_id=p.index_id
 JOIN sys.allocation_units a ON p.partition_id=a.container_id
-WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressions')
+WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressions','ApiMetricBuckets')
 GROUP BY t.name ORDER BY SizeMb DESC
 """).AsNoTracking().ToListAsync();
             ApiMetrics = ApiMetricsState.GetSnapshot().ToList();

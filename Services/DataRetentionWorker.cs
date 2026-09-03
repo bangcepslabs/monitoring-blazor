@@ -45,15 +45,20 @@ public sealed class DataRetentionWorker(
         var logStatsDeleted = await db.LogIpDailyStats
             .Where(x => x.LogDate < logStatsCutoff)
             .ExecuteDeleteAsync(ct);
+        var apiMetricCutoff = DateTime.UtcNow.AddDays(-logStatsDays);
+        var apiMetricsDeleted = await db.ApiMetricBuckets
+            .Where(x => x.BucketStartUtc < apiMetricCutoff)
+            .ExecuteDeleteAsync(ct);
         var suppressionsDeleted = await db.AlertSuppressions
             .Where(x => x.UntilUtc <= DateTime.UtcNow)
             .ExecuteDeleteAsync(ct);
 
         logger.LogInformation(
-            "Retention cleanup done. Snapshots {Snapshots}, Alerts {Alerts}, LogStats {LogStats}, Suppressions {Suppressions}.",
+            "Retention cleanup done. Snapshots {Snapshots}, Alerts {Alerts}, LogStats {LogStats}, ApiMetrics {ApiMetrics}, Suppressions {Suppressions}.",
             snapshotsDeleted,
             alertsDeleted,
             logStatsDeleted,
+            apiMetricsDeleted,
             suppressionsDeleted);
     }
 }

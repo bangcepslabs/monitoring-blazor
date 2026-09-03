@@ -145,6 +145,7 @@ builder.Services.AddHostedService<ServerMonitorWorker>();
 builder.Services.AddHostedService<MonitoringSnapshotWorker>();
 builder.Services.AddHostedService<AlertWorker>();
 builder.Services.AddHostedService<AgentConnectivityWorker>();
+builder.Services.AddHostedService<ApiMetricsPersistenceWorker>();
 builder.Services.AddHostedService<DataRetentionWorker>();
 builder.Services.AddHostedService<LogAutoExportWorker>();
 builder.Services.AddHostedService<LogAutoImportWorker>();
@@ -165,6 +166,7 @@ using (var scope = app.Services.CreateScope())
         var dbFactory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<MonitoringDbContext>>();
         await using var db = await dbFactory.CreateDbContextAsync();
         await db.Database.EnsureCreatedAsync();
+        await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureApiMetricBucketsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureAlertAcknowledgementColumns);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureAlertSuppressionsTable);
         await db.Database.ExecuteSqlRawAsync(SqlScripts.EnsureLogIpDailyStatsTable);
@@ -471,7 +473,7 @@ FROM sys.tables t
 JOIN sys.indexes i ON t.object_id = i.object_id
 JOIN sys.partitions p ON i.object_id = p.object_id AND i.index_id = p.index_id
 JOIN sys.allocation_units a ON p.partition_id = a.container_id
-WHERE t.name IN ('HostSnapshots', 'AlertEvents', 'LogIpDailyStats', 'AlertSuppressions')
+WHERE t.name IN ('HostSnapshots', 'AlertEvents', 'LogIpDailyStats', 'AlertSuppressions', 'ApiMetricBuckets')
 GROUP BY t.name
 ORDER BY SizeMb DESC
 """).AsNoTracking().ToListAsync(ct);

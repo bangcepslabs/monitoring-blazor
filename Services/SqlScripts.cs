@@ -2,6 +2,24 @@ namespace Monitoring.Blazor.Services;
 
 internal static class SqlScripts
 {
+    internal const string EnsureApiMetricBucketsTable = """
+IF OBJECT_ID(N'[dbo].[ApiMetricBuckets]', N'U') IS NULL
+BEGIN
+    CREATE TABLE [dbo].[ApiMetricBuckets] (
+        [Id] bigint IDENTITY(1,1) NOT NULL,
+        [BucketStartUtc] datetime2 NOT NULL,
+        [Path] nvarchar(500) NOT NULL,
+        [Requests] bigint NOT NULL,
+        [Errors] bigint NOT NULL,
+        [TotalMs] bigint NOT NULL,
+        CONSTRAINT [PK_ApiMetricBuckets] PRIMARY KEY CLUSTERED ([Id] ASC)
+    );
+END;
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_ApiMetricBuckets_BucketStartUtc_Path' AND object_id = OBJECT_ID(N'[dbo].[ApiMetricBuckets]'))
+BEGIN
+    CREATE UNIQUE INDEX [IX_ApiMetricBuckets_BucketStartUtc_Path] ON [dbo].[ApiMetricBuckets] ([BucketStartUtc], [Path]);
+END;
+""";
     internal const string EnsureAlertAcknowledgementColumns = """
 IF COL_LENGTH(N'[dbo].[AlertEvents]', N'AcknowledgedUtc') IS NULL
 BEGIN

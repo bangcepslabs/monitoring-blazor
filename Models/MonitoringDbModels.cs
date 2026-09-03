@@ -54,6 +54,16 @@ public sealed class DatabaseTableSizeRow
     public decimal SizeMb { get; set; }
 }
 
+public sealed class ApiMetricBucketEntity
+{
+    public long Id { get; set; }
+    public DateTime BucketStartUtc { get; set; }
+    public string Path { get; set; } = string.Empty;
+    public long Requests { get; set; }
+    public long Errors { get; set; }
+    public long TotalMs { get; set; }
+}
+
 public sealed class LogIpDailyStatEntity
 {
     public long Id { get; set; }

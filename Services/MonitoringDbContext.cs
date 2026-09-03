@@ -9,6 +9,7 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
     public DbSet<AlertEventEntity> AlertEvents => Set<AlertEventEntity>();
     public DbSet<AlertSuppressionEntity> AlertSuppressions => Set<AlertSuppressionEntity>();
     public DbSet<DatabaseTableSizeRow> DatabaseTableSizes => Set<DatabaseTableSizeRow>();
+    public DbSet<ApiMetricBucketEntity> ApiMetricBuckets => Set<ApiMetricBucketEntity>();
     public DbSet<LogIpDailyStatEntity> LogIpDailyStats => Set<LogIpDailyStatEntity>();
     public DbSet<MemberEntity> Members => Set<MemberEntity>();
     public DbSet<MemberAuditLogEntity> MemberAuditLogs => Set<MemberAuditLogEntity>();
@@ -22,6 +23,12 @@ public sealed class MonitoringDbContext(DbContextOptions<MonitoringDbContext> op
     {
         modelBuilder.Entity<DatabaseTableSizeRow>().HasNoKey();
         modelBuilder.Entity<DatabaseTableSizeRow>().Property(x => x.SizeMb).HasPrecision(12, 2);
+        modelBuilder.Entity<ApiMetricBucketEntity>(entity =>
+        {
+            entity.HasKey(x => x.Id);
+            entity.HasIndex(x => new { x.BucketStartUtc, x.Path }).IsUnique();
+            entity.Property(x => x.Path).HasMaxLength(500);
+        });
         modelBuilder.Entity<HostSnapshotEntity>(entity =>
         {
             entity.HasKey(x => x.Id);

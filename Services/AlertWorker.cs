@@ -10,7 +10,8 @@ public sealed class AlertWorker(
     IHttpClientFactory httpClientFactory,
     IDbContextFactory<MonitoringDbContext> dbFactory,
     NotificationSettingsRepository notificationSettingsRepository,
-    ILogger<AlertWorker> logger) : BackgroundService
+    ILogger<AlertWorker> logger,
+    MonitoringHealthState healthState) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -20,10 +21,12 @@ public sealed class AlertWorker(
             {
                 await SaveAlertAsync(message, stoppingToken);
                 await SendNotificationChannelsAsync(message, stoppingToken);
+                healthState.MarkSuccess("alert-worker");
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to send alert.");
+                healthState.MarkFailure("alert-worker", ex);
             }
         }
     }

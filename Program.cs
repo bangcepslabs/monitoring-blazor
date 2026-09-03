@@ -121,6 +121,7 @@ builder.Services.AddSingleton<OllamaAnalysisStore>();
 builder.Services.AddSingleton<LogAutoExportService>();
 builder.Services.AddSingleton<LogAutoImportService>();
 builder.Services.AddSingleton<MonitoringSnapshotQueue>();
+builder.Services.AddSingleton<MonitoringHealthState>();
 builder.Services.AddSingleton<MonitorStateService>();
 builder.Services.AddSingleton<AuditLogService>();
 builder.Services.AddSingleton<SlowQueryService>();
@@ -194,24 +195,43 @@ if (!app.Environment.IsDevelopment())
 
 app.MapGet("/health", () => Results.Ok(new { status = "ok", check = "live" }));
 app.MapGet("/health/live", () => Results.Ok(new { status = "ok", check = "live" }));
-app.MapGet("/health/ready", async (IDbContextFactory<MonitoringDbContext> dbFactory, MonitorStateService monitorState, CancellationToken ct) =>
+app.MapGet("/health/ready", async (IDbContextFactory<MonitoringDbContext> dbFactory, MonitorStateService monitorState, MonitoringHealthState healthState, IConfiguration configuration, CancellationToken ct) =>
 {
     try
     {
         await using var db = await dbFactory.CreateDbContextAsync(ct);
         var databaseReady = await db.Database.CanConnectAsync(ct);
         var hostCount = monitorState.GetSnapshot(TimeSpan.FromSeconds(15)).Count;
-        if (!databaseReady)
+        var serverMonitor = healthState.Get("server-monitor");
+        var serverMonitorReady = serverMonitor.LastSuccessUtc is not null &&
+            DateTime.UtcNow - serverMonitor.LastSuccessUtc.Value < TimeSpan.FromMinutes(1);
+        var agentKeyConfigured = !string.IsNullOrWhiteSpace(configuration["Monitoring:Ingest:ApiKey"]);
+        var ready = databaseReady && serverMonitorReady && agentKeyConfigured;
+        if (!ready)
         {
-            return Results.Json(new { status = "not_ready", database = false, hosts = hostCount }, statusCode: StatusCodes.Status503ServiceUnavailable);
+            return Results.Json(new
+            {
+                status = "not_ready",
+                database = databaseReady,
+                agentKeyConfigured,
+                hosts = hostCount,
+                workers = new { serverMonitor }
+            }, statusCode: StatusCodes.Status503ServiceUnavailable);
         }
 
-        return Results.Ok(new { status = "ready", database = true, hosts = hostCount });
+        return Results.Ok(new
+        {
+            status = "ready",
+            database = true,
+            agentKeyConfigured,
+            hosts = hostCount,
+            workers = new { serverMonitor }
+        });
     }
     catch (Exception exception)
     {
         app.Logger.LogWarning(exception, "Readiness check failed.");
-        return Results.Json(new { status = "not_ready", database = false }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        return Results.Json(new { status = "not_ready", database = false, agentKeyConfigured = false }, statusCode: StatusCodes.Status503ServiceUnavailable);
     }
 });
 

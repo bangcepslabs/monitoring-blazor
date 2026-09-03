@@ -5,7 +5,8 @@ namespace Monitoring.Blazor.Services;
 public sealed class ServerMonitorWorker(
     ILogger<ServerMonitorWorker> logger,
     SystemInfoCollector collector,
-    MonitorStateService state) : BackgroundService
+    MonitorStateService state,
+    MonitoringHealthState healthState) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -17,10 +18,12 @@ public sealed class ServerMonitorWorker(
             {
                 var serverInfo = await collector.GetServerInfoAsync(stoppingToken);
                 state.UpdateServer(serverInfo);
+                healthState.MarkSuccess("server-monitor");
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to collect server info.");
+                healthState.MarkFailure("server-monitor", ex);
             }
 
             await timer.WaitForNextTickAsync(stoppingToken);

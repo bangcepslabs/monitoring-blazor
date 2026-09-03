@@ -6,7 +6,8 @@ namespace Monitoring.Blazor.Services;
 public sealed class MonitoringSnapshotWorker(
     MonitoringSnapshotQueue queue,
     IDbContextFactory<MonitoringDbContext> dbFactory,
-    ILogger<MonitoringSnapshotWorker> logger) : BackgroundService
+    ILogger<MonitoringSnapshotWorker> logger,
+    MonitoringHealthState healthState) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -17,10 +18,12 @@ public sealed class MonitoringSnapshotWorker(
                 await using var db = await dbFactory.CreateDbContextAsync(stoppingToken);
                 db.HostSnapshots.Add(ToEntity(info));
                 await db.SaveChangesAsync(stoppingToken);
+                healthState.MarkSuccess("snapshot-persistence");
             }
             catch (Exception ex)
             {
                 logger.LogWarning(ex, "Failed to persist monitoring snapshot.");
+                healthState.MarkFailure("snapshot-persistence", ex);
             }
         }
     }

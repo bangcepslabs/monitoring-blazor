@@ -1,4 +1,3 @@
-import json
 import os
 import platform
 import socket
@@ -9,6 +8,8 @@ import requests
 server_url = os.getenv("MONITOR_SERVER_URL", "http://localhost:8050/api/monitor/client-message")
 host_address = os.getenv("MONITOR_TARGET_URL", "https://ithelp.grac.or.kr")
 agent_api_key = os.getenv("MONITOR_AGENT_API_KEY", "")
+send_interval_seconds = max(1, int(os.getenv("MONITOR_SEND_INTERVAL_SECONDS", "2")))
+max_retry_delay_seconds = max(send_interval_seconds, int(os.getenv("MONITOR_MAX_RETRY_DELAY_SECONDS", "60")))
 
 last_net_io = psutil.net_io_counters()
 last_time = time.time()
@@ -87,12 +88,18 @@ def get_client_system_info():
 
 
 def send_loop():
+    retry_delay = send_interval_seconds
+    session = requests.Session()
+
+    if not agent_api_key:
+        raise RuntimeError("MONITOR_AGENT_API_KEY is not configured.")
+
     while True:
         try:
             data = get_client_system_info()
-            response = requests.post(
+            response = session.post(
                 server_url,
-                data=json.dumps(data),
+                json=data,
                 headers={
                     "Content-Type": "application/json",
                     "X-OpsEye-Agent-Key": agent_api_key,
@@ -106,10 +113,15 @@ def send_loop():
                 f"TX: {data['dynamic']['network_info']['sent_mbps']} Mbps, "
                 f"RX: {data['dynamic']['network_info']['recv_mbps']} Mbps"
             )
+            retry_delay = send_interval_seconds
         except Exception as err:
-            print(f"Error sending data: {err}")
+            print(f"Error sending data (retrying in {retry_delay}s): {err}")
 
-        time.sleep(2)
+            time.sleep(retry_delay)
+            retry_delay = min(retry_delay * 2, max_retry_delay_seconds)
+            continue
+
+        time.sleep(send_interval_seconds)
 
 
 def get_primary_ip():

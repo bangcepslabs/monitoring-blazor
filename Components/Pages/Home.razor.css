@@ -929,6 +929,14 @@
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--success) 6%, transparent);
 }
 
+.dashboard-last-refresh {
+  padding-left: 0.55rem;
+  border-left: 1px solid color-mix(in srgb, var(--success) 28%, transparent);
+  color: var(--text-secondary);
+  font-size: 0.68rem;
+  font-weight: 550;
+}
+
 :global(.dashboard-mini-metrics) {
   --bs-gutter-x: 0.7rem;
   --bs-gutter-y: 0.7rem;

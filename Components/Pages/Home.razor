@@ -23,8 +23,9 @@
         <p>@Language.T("하나의 워크스페이스에서 서버 상태, 알림, 성능을 확인하세요.", "Monitor host health, alerts, and performance from one workspace.")</p>
     </div>
     <div class="dashboard-page-status" role="status">
-        <span class="status-dot status-online" aria-hidden="true"></span>
-        Live monitoring
+        <span class="status-dot @(Hosts.Count > 0 ? "status-online" : "status-offline")" aria-hidden="true"></span>
+        @(Hosts.Count > 0 ? Language.T("실시간 모니터링", "Live monitoring") : Language.T("데이터 수신 대기 중", "Waiting for data"))
+        <span class="dashboard-last-refresh">@Language.T("업데이트", "Updated") @LastRefreshLocal.ToString("HH:mm:ss")</span>
     </div>
 </div>
 
@@ -32,7 +33,7 @@
     <div class="dashboard-toolbar-primary">
         <button class="btn @(CurrentHost == DashboardView ? "btn-primary" : "btn-outline-primary")" @onclick="ShowDashboard"><i class="bi bi-grid-1x2 me-1"></i>@Language.T("대시보드", "Dashboard")</button>
         <button class="btn btn-outline-secondary" @onclick="ToggleAutoRefresh">
-            <span class="status-dot @(AutoRefresh ? "status-online" : "status-offline")" aria-hidden="true"></span>Auto Refresh: @(AutoRefresh ? "On" : "Off")
+            <span class="status-dot @(AutoRefresh ? "status-online" : "status-offline")" aria-hidden="true"></span>@Language.T("자동 새로고침", "Auto Refresh"): @(AutoRefresh ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))
         </button>
         <button class="btn btn-outline-primary" @onclick="ManualRefreshAsync"><i class="bi bi-arrow-clockwise me-1"></i>@Language.T("지금 새로고침", "Refresh Now")</button>
         <div class="dashboard-menu">
@@ -319,10 +320,10 @@
 
     <div class="dashboard-section-heading">
         <div>
-            <div class="page-eyebrow">Infrastructure</div>
-            <h2>Hosts</h2>
+            <div class="page-eyebrow">@Language.T("인프라", "Infrastructure")</div>
+            <h2>@Language.T("호스트", "Hosts")</h2>
         </div>
-        <span class="dashboard-section-count">@Hosts.Count.ToString("N0") total</span>
+        <span class="dashboard-section-count">@Hosts.Count.ToString("N0") @Language.T("대", "total")</span>
     </div>
 
     <div class="row g-3 dashboard-host-grid">
@@ -370,7 +371,7 @@
                             </div>
                         </div>
                         <div class="host-card-footer">
-                            <span>Open host overview</span>
+                            <span>@Language.T("호스트 개요 열기", "Open host overview")</span>
                             <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
                         </div>
                     </div>
@@ -857,6 +858,7 @@ else
     private string CurrentHost { get; set; } = DashboardView;
     private DetailTab SelectedDetailTab { get; set; } = DetailTab.Overview;
     private bool AutoRefresh { get; set; } = true;
+    private DateTime LastRefreshLocal { get; set; } = DateTime.Now;
     private bool ShowAlertPanel { get; set; } = false;
     private bool ShowSqlAccessPanel { get; set; } = false;
     private bool ShowManageMenu { get; set; } = false;
@@ -1078,6 +1080,7 @@ else
     private void RefreshSnapshot()
     {
         Hosts = MonitorState.GetSnapshot(_offlineThreshold).ToList();
+        LastRefreshLocal = DateTime.Now;
         ServerCatalog = ServerCatalogRepository.LoadAll();
         foreach (var host in Hosts)
         {

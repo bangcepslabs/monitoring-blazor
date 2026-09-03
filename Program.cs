@@ -183,13 +183,27 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.Map("/health", healthApp =>
+app.MapGet("/health", () => Results.Ok(new { status = "ok", check = "live" }));
+app.MapGet("/health/live", () => Results.Ok(new { status = "ok", check = "live" }));
+app.MapGet("/health/ready", async (IDbContextFactory<MonitoringDbContext> dbFactory, MonitorStateService monitorState, CancellationToken ct) =>
 {
-    healthApp.Run(async context =>
+    try
     {
-        context.Response.ContentType = "text/plain";
-        await context.Response.WriteAsync("ok");
-    });
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        var databaseReady = await db.Database.CanConnectAsync(ct);
+        var hostCount = monitorState.GetSnapshot(TimeSpan.FromSeconds(15)).Count;
+        if (!databaseReady)
+        {
+            return Results.Json(new { status = "not_ready", database = false, hosts = hostCount }, statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        return Results.Ok(new { status = "ready", database = true, hosts = hostCount });
+    }
+    catch (Exception exception)
+    {
+        app.Logger.LogWarning(exception, "Readiness check failed.");
+        return Results.Json(new { status = "not_ready", database = false }, statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
 });
 
 app.MapPost("/auth/bootstrap", async (HttpRequest request, HttpContext context, MemberAuthService memberAuth, IDbContextFactory<MonitoringDbContext> dbFactory, EmailSenderService emailSender, CancellationToken ct) =>
@@ -528,18 +542,19 @@ static bool IsOllamaDisabledResponse(string? response)
     return string.Equals(response?.Trim(), "Ollama is disabled in configuration.", StringComparison.OrdinalIgnoreCase);
 }
 
-app.MapGet("/api/monitor/history", async (string hostname, int? minutes, IDbContextFactory<MonitoringDbContext> dbFactory) =>
+app.MapGet("/api/monitor/history", async (string hostname, int? minutes, IDbContextFactory<MonitoringDbContext> dbFactory, CancellationToken ct) =>
 {
     if (string.IsNullOrWhiteSpace(hostname))
     {
         return Results.BadRequest("hostname required");
     }
 
-    var windowMinutes = minutes is null or <= 0 ? 60 : minutes.Value;
+    var windowMinutes = Math.Clamp(minutes ?? 60, 1, 10080);
     var since = DateTime.UtcNow.AddMinutes(-windowMinutes);
 
-    await using var db = await dbFactory.CreateDbContextAsync();
+    await using var db = await dbFactory.CreateDbContextAsync(ct);
     var data = await db.HostSnapshots
+        .AsNoTracking()
         .Where(x => x.Hostname == hostname && x.CreatedUtc >= since)
         .OrderBy(x => x.CreatedUtc)
         .Select(x => new
@@ -552,7 +567,7 @@ app.MapGet("/api/monitor/history", async (string hostname, int? minutes, IDbCont
             x.RecvMbps,
             x.Status
         })
-        .ToListAsync();
+        .ToListAsync(ct);
 
     return Results.Ok(new { hostname, windowMinutes, data });
 });

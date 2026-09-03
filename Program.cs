@@ -367,6 +367,11 @@ app.Use(async (context, next) =>
     }
 
     var stopwatch = Stopwatch.StartNew();
+    context.Response.OnStarting(() =>
+    {
+        context.Response.Headers["Server-Timing"] = $"app;dur={stopwatch.Elapsed.TotalMilliseconds:0.0}";
+        return Task.CompletedTask;
+    });
     try
     {
         await next();
@@ -374,7 +379,6 @@ app.Use(async (context, next) =>
     finally
     {
         stopwatch.Stop();
-        context.Response.Headers["Server-Timing"] = $"app;dur={stopwatch.Elapsed.TotalMilliseconds:0.0}";
         app.Logger.LogInformation(
             "API request {Method} {Path} completed with {StatusCode} in {ElapsedMs} ms. TraceId={TraceId}",
             context.Request.Method,

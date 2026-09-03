@@ -96,6 +96,7 @@
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
                     <button class="btn btn-outline-secondary" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
+                    <button class="btn btn-primary" @onclick="AcknowledgeSelectedAsync" disabled="@(SelectedAlertIds.Count == 0)">Acknowledge selected (@SelectedAlertIds.Count)</button>
                     <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
                         <span class="text-muted small">@Language.T("페이지당 행 수", "Rows per page")</span>
                         <select class="form-select form-select-sm w-auto" @bind="PageSize">
@@ -112,6 +113,7 @@
                 <table class="table table-hover align-middle alert-history-table">
                     <thead>
                         <tr>
+                            <th>Select</th>
                             <th>@Language.T("시간", "Time")</th>
                             <th>@Language.T("호스트", "Host")</th>
                             <th>@Language.T("지표", "Metric")</th>
@@ -130,6 +132,7 @@
                             {
                                 var ratio = alert.Threshold <= 0 ? 0 : alert.Value / alert.Threshold * 100d;
                                 <tr>
+                                    <td><input class="form-check-input" type="checkbox" checked="@IsSelected(alert)" @onchange="e => ToggleSelected(alert, e)" aria-label="Select alert" /></td>
                                     <td>@alert.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                                     <td>@alert.Hostname</td>
                                     <td><span class="badge text-bg-primary">@alert.Metric</span></td>
@@ -141,7 +144,9 @@
                                     <td>
                                         @if (IsAcknowledged(alert))
                                         {
-                                            <span class="badge text-bg-secondary">Acknowledged</span>
+                                            <div><span class="badge text-bg-secondary">Acknowledged</span></div>
+                                            <small class="text-muted">@alert.AcknowledgedBy · @alert.AcknowledgedUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</small>
+                                            <button class="btn btn-link btn-sm p-0 d-block" @onclick="() => UnacknowledgeAsync(alert)">Undo</button>
                                         }
                                         else
                                         {
@@ -188,6 +193,7 @@
     private int _thresholdCount;
     private int _recoveryCount;
     private int _anomalyCount;
+    private HashSet<long> SelectedAlertIds { get; } = [];
     private int TotalAlertCount => _totalAlertCount;
     private int ThresholdCount => _thresholdCount;
     private int RecoveryCount => _recoveryCount;
@@ -439,6 +445,44 @@
         entity.AcknowledgedBy = user.User.Identity?.Name ?? "admin";
         await db.SaveChangesAsync();
         await InvokeAsync(StateHasChanged);
+        await ReloadAsync(false);
+    }
+
+    private bool IsSelected(AlertMessage alert) => SelectedAlertIds.Contains(alert.Id);
+
+    private void ToggleSelected(AlertMessage alert, ChangeEventArgs args)
+    {
+        if (args.Value is true || string.Equals(args.Value?.ToString(), "true", StringComparison.OrdinalIgnoreCase))
+            SelectedAlertIds.Add(alert.Id);
+        else
+            SelectedAlertIds.Remove(alert.Id);
+    }
+
+    private async Task AcknowledgeSelectedAsync()
+    {
+        if (SelectedAlertIds.Count == 0) return;
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var user = await AuthenticationStateProvider.GetAuthenticationStateAsync();
+        var username = user.User.Identity?.Name ?? "admin";
+        var alerts = await db.AlertEvents.Where(x => SelectedAlertIds.Contains(x.Id)).ToListAsync();
+        foreach (var alert in alerts)
+        {
+            alert.AcknowledgedUtc = DateTime.UtcNow;
+            alert.AcknowledgedBy = username;
+        }
+        await db.SaveChangesAsync();
+        SelectedAlertIds.Clear();
+        await ReloadAsync(false);
+    }
+
+    private async Task UnacknowledgeAsync(AlertMessage alert)
+    {
+        await using var db = await DbFactory.CreateDbContextAsync();
+        var entity = await db.AlertEvents.SingleOrDefaultAsync(x => x.Id == alert.Id);
+        if (entity is null) return;
+        entity.AcknowledgedUtc = null;
+        entity.AcknowledgedBy = null;
+        await db.SaveChangesAsync();
         await ReloadAsync(false);
     }
 }

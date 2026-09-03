@@ -8,6 +8,7 @@
 @inject SlowQueryService SlowQueryService
 @inject ServerCatalogRepository ServerCatalogRepository
 @using System.Globalization
+@using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
 @using Monitoring.Blazor.Models
 @using Monitoring.Blazor.Services
@@ -316,24 +317,39 @@
         </div>
     }
 
-    <div class="row g-3">
+    <div class="dashboard-section-heading">
+        <div>
+            <div class="page-eyebrow">Infrastructure</div>
+            <h2>Hosts</h2>
+        </div>
+        <span class="dashboard-section-count">@Hosts.Count.ToString("N0") total</span>
+    </div>
+
+    <div class="row g-3 dashboard-host-grid">
         @foreach (HostState host in OrderedHosts)
         {
             var cpu = host.Info.Dynamic.CpuInfo.Usage;
             var mem = host.Info.Dynamic.MemoryInfo.Usage;
+            var cpuClass = GetUsageClass(cpu, 60, 85);
+            var memoryClass = GetUsageClass(mem, 75, 90);
 
             <div class="col-12 col-md-6 col-xl-4">
                 <div class="card h-100 host-card @(host.IsOnline ? "" : "host-offline")"
                      role="button"
                      tabindex="0"
+                     aria-label="Open details for @host.Info.Hostname"
+                     @onkeydown="(e) => HandleHostCardKeyDown(e, host.Info.Hostname)"
                      @onclick="() => SelectHost(host.Info.Hostname)">
                     <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <h5 class="card-title mb-0">@host.Info.Hostname</h5>
-                            <span class="badge @(host.IsOnline ? "text-bg-success" : "text-bg-danger")">@(host.IsOnline ? "Online" : "Offline")</span>
+                        <div class="host-card-heading">
+                            <div class="host-card-title-wrap">
+                                <span class="status-dot @(host.IsOnline ? "status-online" : "status-offline")" aria-hidden="true"></span>
+                                <h3 class="card-title mb-0">@host.Info.Hostname</h3>
+                            </div>
+                            <span class="host-status-badge @(host.IsOnline ? "host-status-online" : "host-status-offline")">@(host.IsOnline ? "Online" : "Offline")</span>
                         </div>
-                        <p class="text-muted mt-2 mb-1">@host.Info.Ip</p>
-                        <div class="d-flex flex-wrap gap-1 mb-2">
+                        <p class="host-card-ip">@host.Info.Ip</p>
+                        <div class="host-card-tags">
                             @if (!string.IsNullOrWhiteSpace(GetServerGroup(host.Info.Hostname)))
                             {
                                 <span class="badge text-bg-secondary">@GetServerGroup(host.Info.Hostname)</span>
@@ -343,12 +359,19 @@
                                 <span class="badge text-bg-light text-dark border">@tag</span>
                             }
                         </div>
-                        <div>CPU @cpu.ToString("0.0")%</div>
-                        <div class="progress mb-2"><div class="progress-bar bg-danger" style="width: @($"{cpu}%")"></div></div>
-                        <div>MEM @mem.ToString("0.0")%</div>
-                        <div class="progress"><div class="progress-bar bg-info" style="width: @($"{mem}%")"></div></div>
-                        <div class="mt-3 text-end">
-                            <span class="btn btn-sm btn-outline-primary">View Details</span>
+                        <div class="host-usage-list">
+                            <div class="host-usage-item">
+                                <div class="host-usage-label"><span>CPU</span><strong>@cpu.ToString("0.0")%</strong></div>
+                                <div class="progress"><div class="progress-bar @cpuClass" style="width: @($"{cpu}%")"></div></div>
+                            </div>
+                            <div class="host-usage-item">
+                                <div class="host-usage-label"><span>Memory</span><strong>@mem.ToString("0.0")%</strong></div>
+                                <div class="progress"><div class="progress-bar @memoryClass" style="width: @($"{mem}%")"></div></div>
+                            </div>
+                        </div>
+                        <div class="host-card-footer">
+                            <span>Open host overview</span>
+                            <i class="bi bi-arrow-up-right" aria-hidden="true"></i>
                         </div>
                     </div>
                 </div>
@@ -1804,6 +1827,24 @@ else
     private static bool IsCritical(MonitoringInfo info)
     {
         return info.Dynamic.CpuInfo.Usage >= 85 || info.Dynamic.MemoryInfo.Usage >= 90 || info.Dynamic.DiskInfo.Percent >= 95;
+    }
+
+    private static string GetUsageClass(double value, double warningThreshold, double criticalThreshold)
+    {
+        if (value >= criticalThreshold)
+        {
+            return "bg-danger";
+        }
+
+        return value >= warningThreshold ? "bg-warning" : "bg-success";
+    }
+
+    private async Task HandleHostCardKeyDown(KeyboardEventArgs args, string hostname)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            await SelectHost(hostname);
+        }
     }
 
     private async Task ManualRefreshAsync()

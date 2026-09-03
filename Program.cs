@@ -337,6 +337,19 @@ app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path;
+
+    if (ApiAccessPolicy.IsPublicIngest(path))
+    {
+        var configuredAgentKey = app.Configuration["Monitoring:Ingest:ApiKey"];
+        var suppliedAgentKey = context.Request.Headers["X-OpsEye-Agent-Key"].ToString();
+        if (!AgentKeyValidator.IsValid(configuredAgentKey, suppliedAgentKey))
+        {
+            context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+            await context.Response.WriteAsync("Valid agent key required.");
+            return;
+        }
+    }
+
     if (ApiAccessPolicy.RequiresAdmin(path) && context.User.IsInRole("Admin") != true)
     {
         context.Response.StatusCode = context.User.Identity?.IsAuthenticated == true

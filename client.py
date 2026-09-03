@@ -8,6 +8,7 @@ import requests
 
 server_url = os.getenv("MONITOR_SERVER_URL", "http://192.168.80.189:8050/api/monitor/client-message")
 host_address = os.getenv("MONITOR_TARGET_URL", "https://ithelp.grac.or.kr")
+agent_api_key = os.getenv("MONITOR_AGENT_API_KEY", "")
 
 last_net_io = psutil.net_io_counters()
 last_time = time.time()
@@ -92,7 +93,10 @@ def send_loop():
             response = requests.post(
                 server_url,
                 data=json.dumps(data),
-                headers={"Content-Type": "application/json"},
+                headers={
+                    "Content-Type": "application/json",
+                    "X-OpsEye-Agent-Key": agent_api_key,
+                },
                 timeout=3,
             )
             response.raise_for_status()

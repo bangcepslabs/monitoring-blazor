@@ -6,7 +6,7 @@ import time
 import psutil
 import requests
 
-server_url = os.getenv("MONITOR_SERVER_URL", "http://192.168.80.189:8050/api/monitor/client-message")
+server_url = os.getenv("MONITOR_SERVER_URL", "http://localhost:8050/api/monitor/client-message")
 host_address = os.getenv("MONITOR_TARGET_URL", "https://ithelp.grac.or.kr")
 agent_api_key = os.getenv("MONITOR_AGENT_API_KEY", "")
 

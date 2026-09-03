@@ -27,6 +27,19 @@
             <div class="card shadow-sm h-100">
                 <div class="card-header"><strong>Table storage</strong></div>
                 <div class="table-responsive">
+                    @if (IsLoading)
+                    {
+                        <div class="p-4 text-secondary" role="status">Loading storage metrics...</div>
+                    }
+                    else if (!string.IsNullOrWhiteSpace(LoadError))
+                    {
+                        <div class="p-4">
+                            <div class="alert alert-danger mb-2" role="alert">@LoadError</div>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="LoadAsync">Retry</button>
+                        </div>
+                    }
+                    else
+                    {
                     <table class="table table-hover align-middle mb-0 data-health-table">
                         <thead><tr><th>Table</th><th class="text-end">Rows</th><th class="text-end">Size</th></tr></thead>
                         <tbody>
@@ -36,6 +49,7 @@
                             }
                         </tbody>
                     </table>
+                    }
                 </div>
             </div>
         </div>
@@ -61,6 +75,8 @@
 
 @code {
     private List<DatabaseTableSizeRow> Tables { get; set; } = [];
+    private bool IsLoading { get; set; }
+    private string? LoadError { get; set; }
     private bool IsCleaning { get; set; }
     private string? CleanupMessage { get; set; }
     private int SnapshotDays => Configuration.GetValue("Monitoring:Retention:SnapshotDays", 30);
@@ -72,8 +88,12 @@
 
     private async Task LoadAsync()
     {
-        await using var db = await DbFactory.CreateDbContextAsync();
-        Tables = await db.DatabaseTableSizes.FromSqlRaw("""
+        IsLoading = true;
+        LoadError = null;
+        try
+        {
+            await using var db = await DbFactory.CreateDbContextAsync();
+            Tables = await db.DatabaseTableSizes.FromSqlRaw("""
 SELECT t.name AS TableName, SUM(p.rows) AS RowCount,
        CAST(SUM(a.total_pages) * 8.0 / 1024 AS decimal(12,2)) AS SizeMb
 FROM sys.tables t JOIN sys.indexes i ON t.object_id=i.object_id
@@ -82,6 +102,15 @@ JOIN sys.allocation_units a ON p.partition_id=a.container_id
 WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressions')
 GROUP BY t.name ORDER BY SizeMb DESC
 """).AsNoTracking().ToListAsync();
+        }
+        catch
+        {
+            LoadError = "Storage metrics could not be loaded.";
+        }
+        finally
+        {
+            IsLoading = false;
+        }
     }
 
     private async Task CleanupAsync()

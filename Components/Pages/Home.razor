@@ -117,7 +117,7 @@
 
     <div class="row g-3 mb-3">
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history to inspect all recent alerts." @onclick="OpenAlertHistory">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history to inspect all recent alerts." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("최근 알림", "Recent Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count.ToString("N0")</div>
@@ -125,7 +125,7 @@
             </div>
         </div>
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review threshold events." @onclick="OpenAlertHistory">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review threshold events." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("임계값 알림", "Threshold Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Threshold).ToString("N0")</div>
@@ -133,7 +133,7 @@
             </div>
         </div>
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review recovery events." @onclick="OpenAlertHistory">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review recovery events." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("복구 알림", "Recovery Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Recovery).ToString("N0")</div>
@@ -141,7 +141,7 @@
             </div>
         </div>
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review anomaly events." @onclick="OpenAlertHistory">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review anomaly events." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("이상 징후 알림", "Anomaly Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Anomaly).ToString("N0")</div>
@@ -1222,6 +1222,14 @@ else
     private void OpenAlertHistory()
     {
         NavigationManager.NavigateTo("/alerts/history");
+    }
+
+    private void HandleMetricCardKeyDown(KeyboardEventArgs args)
+    {
+        if (args.Key is "Enter" or " ")
+        {
+            OpenAlertHistory();
+        }
     }
 
     private async Task SelectChartPanel(ChartPanel panel)

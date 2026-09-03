@@ -9,6 +9,7 @@
 @inject ServerCatalogRepository ServerCatalogRepository
 @inject AlertSettingsRepository AlertSettingsRepository
 @inject AuditLogService AuditLogService
+@inject AlertSuppressor AlertSuppressor
 @using System.Globalization
 @using Microsoft.AspNetCore.Components.Web
 @using Microsoft.EntityFrameworkCore
@@ -173,6 +174,7 @@
                                 <th>Metric</th>
                                 <th>Value</th>
                                 <th>Message</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -184,6 +186,16 @@
                                     <td><span class="badge text-bg-warning">@alert.Metric</span></td>
                                     <td>@alert.Value.ToString("0.0") / @alert.Threshold.ToString("0.0")</td>
                                     <td class="text-break">@alert.Message</td>
+                                    <td>
+                                        @if (IsAlertAcknowledged(alert))
+                                        {
+                                            <span class="badge text-bg-secondary">Acknowledged</span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AcknowledgeAlert(alert)">Acknowledge</button>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         </tbody>
@@ -913,6 +925,7 @@ else
     private AlertSettings AlertSettings { get; set; } = new();
     private Dictionary<string, ServerMetadata> ServerCatalog { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     private List<AlertEventEntity> RecentAlerts { get; set; } = [];
+    private HashSet<string> AcknowledgedAlerts { get; } = new(StringComparer.OrdinalIgnoreCase);
     private List<MemberLoginAttemptEntity> RecentLoginFailures { get; set; } = [];
     private HttpClient? _http;
     private bool _settingsLoaded;
@@ -1884,6 +1897,22 @@ else
     {
         return info.Dynamic.CpuInfo.Usage >= 85 || info.Dynamic.MemoryInfo.Usage >= 90 || info.Dynamic.DiskInfo.Percent >= 95;
     }
+
+    private bool IsAlertAcknowledged(AlertEventEntity alert) =>
+        AcknowledgedAlerts.Contains(BuildAlertKey(alert.Hostname, alert.Metric));
+
+    private void AcknowledgeAlert(AlertEventEntity alert)
+    {
+        AlertSuppressor.Set(
+            alert.Hostname,
+            alert.Metric,
+            DateTime.UtcNow.AddHours(24),
+            "Acknowledged from dashboard",
+            "ack");
+        AcknowledgedAlerts.Add(BuildAlertKey(alert.Hostname, alert.Metric));
+    }
+
+    private static string BuildAlertKey(string hostname, string metric) => $"{hostname}::{metric}";
 
     private static string GetUsageClass(double value, double warningThreshold, double criticalThreshold)
     {

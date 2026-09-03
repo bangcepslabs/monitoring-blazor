@@ -144,6 +144,7 @@ builder.Services.AddDbContextFactory<MonitoringDbContext>(options =>
 builder.Services.AddHostedService<ServerMonitorWorker>();
 builder.Services.AddHostedService<MonitoringSnapshotWorker>();
 builder.Services.AddHostedService<AlertWorker>();
+builder.Services.AddHostedService<AgentConnectivityWorker>();
 builder.Services.AddHostedService<DataRetentionWorker>();
 builder.Services.AddHostedService<LogAutoExportWorker>();
 builder.Services.AddHostedService<LogAutoImportWorker>();

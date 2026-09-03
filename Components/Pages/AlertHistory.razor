@@ -5,6 +5,7 @@
 @using Monitoring.Blazor.Services
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject MonitorStateService MonitorState
+@inject AlertSuppressor AlertSuppressor
 @inject IJSRuntime JS
 
 <PageTitle>OpsEye | @Language.T("알림 이력", "Alert History")</PageTitle>
@@ -86,6 +87,13 @@
                 <div class="col-6 col-md-2">
                     <input class="form-control" type="date" @bind="ToDate" />
                 </div>
+                <div class="col-6 col-md-2">
+                    <select class="form-select" @bind="StatusFilter">
+                        <option value="">All statuses</option>
+                        <option value="open">Open</option>
+                        <option value="acknowledged">Acknowledged</option>
+                    </select>
+                </div>
                 <div class="col-12 d-flex flex-wrap gap-2 align-items-center">
                     <button class="btn btn-outline-secondary" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
                     <div class="ms-auto d-flex flex-wrap align-items-center gap-2">
@@ -112,6 +120,7 @@
                             <th>@Language.T("비율", "Ratio")</th>
                             <th>@Language.T("메시지", "Message")</th>
                             <th>IP</th>
+                            <th>Status</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -129,6 +138,16 @@
                                     <td>@ratio.ToString("0.0")%</td>
                                     <td class="text-break">@alert.Message</td>
                                     <td>@alert.Ip</td>
+                                    <td>
+                                        @if (IsAcknowledged(alert))
+                                        {
+                                            <span class="badge text-bg-secondary">Acknowledged</span>
+                                        }
+                                        else
+                                        {
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AcknowledgeAsync(alert)">Acknowledge</button>
+                                        }
+                                    </td>
                                 </tr>
                             }
                         }
@@ -160,6 +179,7 @@
     private string _searchText = string.Empty;
     private string _hostFilter = string.Empty;
     private string _typeFilter = string.Empty;
+    private string _statusFilter = string.Empty;
     private DateTime? _fromDate;
     private DateTime? _toDate;
     private int _pageSize = 30;
@@ -168,6 +188,7 @@
     private const string SearchKey = "alertHistory.searchText";
     private const string HostKey = "alertHistory.hostFilter";
     private const string TypeKey = "alertHistory.typeFilter";
+    private const string StatusKey = "alertHistory.statusFilter";
     private const string FromDateKey = "alertHistory.fromDate";
     private const string ToDateKey = "alertHistory.toDate";
     private const string PageSizeKey = "alertHistory.pageSize";
@@ -200,6 +221,17 @@
         set
         {
             _typeFilter = value;
+            _currentPage = 1;
+            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+        }
+    }
+
+    private string StatusFilter
+    {
+        get => _statusFilter;
+        set
+        {
+            _statusFilter = value;
             _currentPage = 1;
             if (_preferencesLoaded) _ = PersistPreferencesAsync();
         }
@@ -250,6 +282,9 @@
                 alert.Ip.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
             .Where(alert => string.IsNullOrWhiteSpace(_hostFilter) || string.Equals(alert.Hostname, _hostFilter, StringComparison.OrdinalIgnoreCase))
             .Where(alert => string.IsNullOrWhiteSpace(_typeFilter) || string.Equals(alert.Type.ToString(), _typeFilter, StringComparison.OrdinalIgnoreCase))
+            .Where(alert => string.IsNullOrWhiteSpace(_statusFilter)
+                || (_statusFilter == "acknowledged" && IsAcknowledged(alert))
+                || (_statusFilter == "open" && !IsAcknowledged(alert)))
             .Where(alert => !_fromDate.HasValue || alert.TimestampUtc.ToLocalTime() >= _fromDate.Value.Date)
             .Where(alert => !_toDate.HasValue || alert.TimestampUtc.ToLocalTime() < _toDate.Value.Date.AddDays(1))
             .OrderByDescending(x => x.TimestampUtc)
@@ -302,6 +337,7 @@
         _searchText = string.Empty;
         _hostFilter = string.Empty;
         _typeFilter = string.Empty;
+        _statusFilter = string.Empty;
         _fromDate = null;
         _toDate = null;
         _currentPage = 1;
@@ -332,6 +368,7 @@
         _searchText = await JS.InvokeAsync<string>("monitorSettings.get", SearchKey, _searchText) ?? string.Empty;
         _hostFilter = await JS.InvokeAsync<string>("monitorSettings.get", HostKey, _hostFilter) ?? string.Empty;
         _typeFilter = await JS.InvokeAsync<string>("monitorSettings.get", TypeKey, _typeFilter) ?? string.Empty;
+        _statusFilter = await JS.InvokeAsync<string>("monitorSettings.get", StatusKey, _statusFilter) ?? string.Empty;
         _fromDate = await LoadDateAsync(FromDateKey);
         _toDate = await LoadDateAsync(ToDateKey);
         _pageSize = await JS.InvokeAsync<int>("monitorSettings.get", PageSizeKey, _pageSize);
@@ -346,6 +383,7 @@
             await JS.InvokeVoidAsync("monitorSettings.set", SearchKey, _searchText);
             await JS.InvokeVoidAsync("monitorSettings.set", HostKey, _hostFilter);
             await JS.InvokeVoidAsync("monitorSettings.set", TypeKey, _typeFilter);
+            await JS.InvokeVoidAsync("monitorSettings.set", StatusKey, _statusFilter);
             await JS.InvokeVoidAsync("monitorSettings.set", FromDateKey, _fromDate?.ToString("yyyy-MM-dd"));
             await JS.InvokeVoidAsync("monitorSettings.set", ToDateKey, _toDate?.ToString("yyyy-MM-dd"));
             await JS.InvokeVoidAsync("monitorSettings.set", PageSizeKey, _pageSize);
@@ -367,4 +405,21 @@
         AlertType.Anomaly => "text-bg-warning",
         _ => "text-bg-danger"
     };
+
+    private bool IsAcknowledged(AlertMessage alert) =>
+        AlertSuppressor.List().Any(x => string.Equals(x.Hostname, alert.Hostname, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(x.Metric, alert.Metric, StringComparison.OrdinalIgnoreCase)
+            && x.UntilUtc > DateTime.UtcNow
+            && string.Equals(x.Kind, "ack", StringComparison.OrdinalIgnoreCase));
+
+    private async Task AcknowledgeAsync(AlertMessage alert)
+    {
+        await AlertSuppressor.SetPersistedAsync(
+            alert.Hostname,
+            alert.Metric,
+            DateTime.UtcNow.AddHours(24),
+            "Acknowledged from alert history",
+            "ack");
+        await InvokeAsync(StateHasChanged);
+    }
 }

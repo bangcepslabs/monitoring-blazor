@@ -43,6 +43,15 @@ builder.Services.AddRateLimiter(options =>
             QueueLimit = 0,
             AutoReplenishment = true
         }));
+    options.AddPolicy("ingest", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 120,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -327,6 +336,15 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
+    if (context.Request.Path.StartsWithSegments("/api") &&
+        !context.Request.Path.Equals("/api/monitor/client-message", StringComparison.OrdinalIgnoreCase) &&
+        context.User.Identity?.IsAuthenticated != true)
+    {
+        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsync("Authentication required.");
+        return;
+    }
+
     var path = context.Request.Path;
     var acceptsHtml = context.Request.GetTypedHeaders().Accept?
         .Any(value => string.Equals(value.MediaType.Value, "text/html", StringComparison.OrdinalIgnoreCase)) == true;
@@ -370,7 +388,7 @@ app.MapPost("/api/monitor/client-message", async (HttpRequest request, MonitorSt
     return state.TryUpdateClientFromJson(json)
         ? Results.Ok()
         : Results.BadRequest("Invalid payload.");
-});
+}).AllowAnonymous().RequireRateLimiting("ingest");
 
 app.MapPost("/api/monitor/trigger-refresh", (MonitorStateService state) =>
 {

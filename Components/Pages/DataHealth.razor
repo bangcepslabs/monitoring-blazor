@@ -7,6 +7,8 @@
 @inject IConfiguration Configuration
 @inject NavigationManager NavigationManager
 @inject ApiMetricsState ApiMetricsState
+@inject MonitoringHealthState MonitoringHealthState
+@inject MonitorStateService MonitorState
 
 <PageTitle>OpsEye | Data health</PageTitle>
 
@@ -24,6 +26,33 @@
     </div>
 
     <div class="row g-3 mb-3">
+        <div class="col-12">
+            <div class="card shadow-sm">
+                <div class="card-header"><strong>Monitoring workers</strong></div>
+                <div class="card-body">
+                    <div class="row g-2">
+                        @foreach (var worker in WorkerNames)
+                        {
+                            var status = MonitoringHealthState.Get(worker);
+                            <div class="col-12 col-md-4">
+                                <div class="border rounded p-3 h-100">
+                                    <div class="fw-semibold">@worker</div>
+                                    <div class="small text-secondary">Last success: @(status.LastSuccessUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Never")</div>
+                                    @if (status.LastFailureUtc is not null)
+                                    {
+                                        <div class="small text-danger">Last failure: @status.LastFailureUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    @if (StaleHosts.Count > 0)
+                    {
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">@StaleHosts.Count host(s) have not sent data for more than 15 seconds: @string.Join(", ", StaleHosts)</div>
+                    }
+                </div>
+            </div>
+        </div>
         <div class="col-12">
             <div class="card shadow-sm">
                 <div class="card-header"><strong>API metrics</strong></div>
@@ -88,6 +117,8 @@
 @code {
     private List<DatabaseTableSizeRow> Tables { get; set; } = [];
     private List<ApiMetricSnapshot> ApiMetrics { get; set; } = [];
+    private static readonly string[] WorkerNames = ["server-monitor", "snapshot-persistence", "alert-worker"];
+    private List<string> StaleHosts { get; set; } = [];
     private bool IsLoading { get; set; }
     private string? LoadError { get; set; }
     private bool IsCleaning { get; set; }
@@ -116,6 +147,7 @@ WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressi
 GROUP BY t.name ORDER BY SizeMb DESC
 """).AsNoTracking().ToListAsync();
             ApiMetrics = ApiMetricsState.GetSnapshot().ToList();
+            StaleHosts = MonitorState.GetSnapshot(TimeSpan.FromSeconds(15)).Where(x => !x.IsOnline).Select(x => x.Info.Hostname).ToList();
         }
         catch
         {

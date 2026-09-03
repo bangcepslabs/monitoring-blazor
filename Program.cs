@@ -336,8 +336,20 @@ app.UseAuthentication();
 app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
+    var path = context.Request.Path;
+    if (ApiAccessPolicy.RequiresAdmin(path) && context.User.IsInRole("Admin") != true)
+    {
+        context.Response.StatusCode = context.User.Identity?.IsAuthenticated == true
+            ? StatusCodes.Status403Forbidden
+            : StatusCodes.Status401Unauthorized;
+        await context.Response.WriteAsync(context.User.Identity?.IsAuthenticated == true
+            ? "Administrator role required."
+            : "Authentication required.");
+        return;
+    }
+
     if (context.Request.Path.StartsWithSegments("/api") &&
-        !context.Request.Path.Equals("/api/monitor/client-message", StringComparison.OrdinalIgnoreCase) &&
+        !ApiAccessPolicy.IsPublicIngest(path) &&
         context.User.Identity?.IsAuthenticated != true)
     {
         context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -345,7 +357,6 @@ app.Use(async (context, next) =>
         return;
     }
 
-    var path = context.Request.Path;
     var acceptsHtml = context.Request.GetTypedHeaders().Accept?
         .Any(value => string.Equals(value.MediaType.Value, "text/html", StringComparison.OrdinalIgnoreCase)) == true;
 

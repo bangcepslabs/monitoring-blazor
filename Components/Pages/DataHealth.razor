@@ -5,6 +5,7 @@
 @using Monitoring.Blazor.Services
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 @inject IConfiguration Configuration
+@inject NavigationManager NavigationManager
 
 <PageTitle>OpsEye | Data health</PageTitle>
 
@@ -15,7 +16,10 @@
             <h1 class="h3 mb-1">Data health</h1>
             <p class="text-secondary mb-0">Monitor storage usage and retention settings.</p>
         </div>
-        <button class="btn btn-outline-secondary" @onclick="LoadAsync">Refresh</button>
+        <div class="d-flex gap-2">
+            <button class="btn btn-outline-secondary" @onclick="LoadAsync">Refresh</button>
+            <button class="btn btn-outline-danger" @onclick="CleanupAsync" disabled="@IsCleaning">@(IsCleaning ? "Cleaning..." : "Run cleanup now")</button>
+        </div>
     </div>
 
     <div class="row g-3 mb-3">
@@ -53,6 +57,8 @@
 
 @code {
     private List<DatabaseTableSizeRow> Tables { get; set; } = [];
+    private bool IsCleaning { get; set; }
+    private string? CleanupMessage { get; set; }
     private int SnapshotDays => Configuration.GetValue("Monitoring:Retention:SnapshotDays", 30);
     private int AlertDays => Configuration.GetValue("Monitoring:Retention:AlertDays", 90);
     private int LogStatsDays => Configuration.GetValue("Monitoring:Retention:LogIpDailyStatDays", 365);
@@ -72,5 +78,27 @@ JOIN sys.allocation_units a ON p.partition_id=a.container_id
 WHERE t.name IN ('HostSnapshots','AlertEvents','LogIpDailyStats','AlertSuppressions')
 GROUP BY t.name ORDER BY SizeMb DESC
 """).AsNoTracking().ToListAsync();
+    }
+
+    private async Task CleanupAsync()
+    {
+        IsCleaning = true;
+        CleanupMessage = null;
+        try
+        {
+            using var client = new HttpClient { BaseAddress = new Uri(NavigationManager.BaseUri) };
+            var response = await client.PostAsync("api/admin/data-health/cleanup", null);
+            response.EnsureSuccessStatusCode();
+            CleanupMessage = "Cleanup completed.";
+            await LoadAsync();
+        }
+        catch
+        {
+            CleanupMessage = "Cleanup failed. Check the server logs.";
+        }
+        finally
+        {
+            IsCleaning = false;
+        }
     }
 }

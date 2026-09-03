@@ -450,6 +450,19 @@ ORDER BY SizeMb DESC
     });
 });
 
+app.MapPost("/api/admin/data-health/cleanup", async (IDbContextFactory<MonitoringDbContext> dbFactory, IConfiguration configuration, CancellationToken ct) =>
+{
+    await using var db = await dbFactory.CreateDbContextAsync(ct);
+    var snapshotCutoff = DateTime.UtcNow.AddDays(-Math.Max(1, configuration.GetValue("Monitoring:Retention:SnapshotDays", 30)));
+    var alertCutoff = DateTime.UtcNow.AddDays(-Math.Max(1, configuration.GetValue("Monitoring:Retention:AlertDays", 90)));
+    var statsCutoff = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-Math.Max(1, configuration.GetValue("Monitoring:Retention:LogIpDailyStatDays", 365))));
+    var snapshots = await db.HostSnapshots.Where(x => x.CreatedUtc < snapshotCutoff).ExecuteDeleteAsync(ct);
+    var alerts = await db.AlertEvents.Where(x => x.TimestampUtc < alertCutoff).ExecuteDeleteAsync(ct);
+    var stats = await db.LogIpDailyStats.Where(x => x.LogDate < statsCutoff).ExecuteDeleteAsync(ct);
+    var suppressions = await db.AlertSuppressions.Where(x => x.UntilUtc <= DateTime.UtcNow).ExecuteDeleteAsync(ct);
+    return Results.Ok(new { snapshots, alerts, stats, suppressions, completedUtc = DateTime.UtcNow });
+});
+
 app.MapPost("/api/monitor/client-message", async (HttpRequest request, MonitorStateService state) =>
 {
     using var reader = new StreamReader(request.Body);

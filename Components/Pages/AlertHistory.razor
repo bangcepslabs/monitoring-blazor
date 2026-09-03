@@ -18,7 +18,7 @@
             <p class="text-secondary mb-0">@Language.T("임계값, 측정값, 복구 상황을 포함한 상세 알림 이벤트입니다.", "Detailed alert events with thresholds, values, and recovery context.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
+            <button class="btn btn-outline-secondary" @onclick="() => ReloadAsync()">@Language.T("새로고침", "Refresh")</button>
             <a class="btn btn-outline-primary" href="/">@Language.T("대시보드로 돌아가기", "Back to dashboard")</a>
         </div>
     </div>
@@ -28,7 +28,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-muted small">@Language.T("불러온 알림", "Alerts loaded")</div>
-                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count</div>
+                    <div class="fs-4 fw-semibold">@TotalAlertCount</div>
                 </div>
             </div>
         </div>
@@ -36,7 +36,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-muted small">@Language.T("임계값", "Threshold")</div>
-                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Threshold)</div>
+                    <div class="fs-4 fw-semibold">@ThresholdCount</div>
                 </div>
             </div>
         </div>
@@ -44,7 +44,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-muted small">@Language.T("복구", "Recovery")</div>
-                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Recovery)</div>
+                    <div class="fs-4 fw-semibold">@RecoveryCount</div>
                 </div>
             </div>
         </div>
@@ -52,7 +52,7 @@
             <div class="card shadow-sm h-100">
                 <div class="card-body">
                     <div class="text-muted small">@Language.T("이상 징후", "Anomaly")</div>
-                    <div class="fs-4 fw-semibold">@FilteredAlerts.Count(x => x.Type == AlertType.Anomaly)</div>
+                    <div class="fs-4 fw-semibold">@AnomalyCount</div>
                 </div>
             </div>
         </div>
@@ -184,6 +184,14 @@
     private DateTime? _toDate;
     private int _pageSize = 30;
     private int _currentPage = 1;
+    private int _totalAlertCount;
+    private int _thresholdCount;
+    private int _recoveryCount;
+    private int _anomalyCount;
+    private int TotalAlertCount => _totalAlertCount;
+    private int ThresholdCount => _thresholdCount;
+    private int RecoveryCount => _recoveryCount;
+    private int AnomalyCount => _anomalyCount;
     private bool _preferencesLoaded;
     private const string SearchKey = "alertHistory.searchText";
     private const string HostKey = "alertHistory.hostFilter";
@@ -200,7 +208,11 @@
         {
             _searchText = value;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded)
+            {
+                _ = PersistPreferencesAsync();
+                _ = ReloadAsync(false);
+            }
         }
     }
 
@@ -211,7 +223,7 @@
         {
             _hostFilter = value;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded) { _ = PersistPreferencesAsync(); _ = ReloadAsync(false); }
         }
     }
 
@@ -222,7 +234,7 @@
         {
             _typeFilter = value;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded) { _ = PersistPreferencesAsync(); _ = ReloadAsync(false); }
         }
     }
 
@@ -233,7 +245,11 @@
         {
             _statusFilter = value;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded)
+            {
+                _ = PersistPreferencesAsync();
+                _ = ReloadAsync(false);
+            }
         }
     }
 
@@ -244,7 +260,7 @@
         {
             _fromDate = value;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded) { _ = PersistPreferencesAsync(); _ = ReloadAsync(false); }
         }
     }
 
@@ -255,7 +271,7 @@
         {
             _toDate = value;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded) { _ = PersistPreferencesAsync(); _ = ReloadAsync(false); }
         }
     }
 
@@ -266,41 +282,21 @@
         {
             _pageSize = value is 10 or 30 or 50 or 100 ? value : 30;
             _currentPage = 1;
-            if (_preferencesLoaded) _ = PersistPreferencesAsync();
+            if (_preferencesLoaded) { _ = PersistPreferencesAsync(); _ = ReloadAsync(false); }
         }
     }
 
     private IEnumerable<string> Hosts => _alerts.Select(x => x.Hostname).Distinct(StringComparer.OrdinalIgnoreCase).OrderBy(x => x);
 
-    private List<AlertMessage> FilteredAlerts =>
-        _alerts
-            .Where(alert =>
-                string.IsNullOrWhiteSpace(_searchText) ||
-                alert.Hostname.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-                alert.Metric.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-                alert.Message.Contains(_searchText, StringComparison.OrdinalIgnoreCase) ||
-                alert.Ip.Contains(_searchText, StringComparison.OrdinalIgnoreCase))
-            .Where(alert => string.IsNullOrWhiteSpace(_hostFilter) || string.Equals(alert.Hostname, _hostFilter, StringComparison.OrdinalIgnoreCase))
-            .Where(alert => string.IsNullOrWhiteSpace(_typeFilter) || string.Equals(alert.Type.ToString(), _typeFilter, StringComparison.OrdinalIgnoreCase))
-            .Where(alert => string.IsNullOrWhiteSpace(_statusFilter)
-                || (_statusFilter == "acknowledged" && IsAcknowledged(alert))
-                || (_statusFilter == "open" && !IsAcknowledged(alert)))
-            .Where(alert => !_fromDate.HasValue || alert.TimestampUtc.ToLocalTime() >= _fromDate.Value.Date)
-            .Where(alert => !_toDate.HasValue || alert.TimestampUtc.ToLocalTime() < _toDate.Value.Date.AddDays(1))
-            .OrderByDescending(x => x.TimestampUtc)
-            .ToList();
+    private List<AlertMessage> FilteredAlerts => _alerts;
 
-    private List<AlertMessage> PagedAlerts =>
-        FilteredAlerts
-            .Skip((_currentPage - 1) * _pageSize)
-            .Take(_pageSize)
-            .ToList();
+    private List<AlertMessage> PagedAlerts => FilteredAlerts;
 
-    private int TotalPages => Math.Max(1, (int)Math.Ceiling(FilteredAlerts.Count / (double)_pageSize));
+    private int TotalPages => Math.Max(1, (int)Math.Ceiling(_totalAlertCount / (double)_pageSize));
     private bool IsFirstPage => _currentPage <= 1;
     private bool IsLastPage => _currentPage >= TotalPages;
-    private int DisplayRangeStart => FilteredAlerts.Count == 0 ? 0 : ((_currentPage - 1) * _pageSize) + 1;
-    private int DisplayRangeEnd => Math.Min(_currentPage * _pageSize, FilteredAlerts.Count);
+    private int DisplayRangeStart => _totalAlertCount == 0 ? 0 : ((_currentPage - 1) * _pageSize) + 1;
+    private int DisplayRangeEnd => Math.Min(_currentPage * _pageSize, _totalAlertCount);
 
     protected override async Task OnInitializedAsync()
     {
@@ -316,19 +312,45 @@
 
         await LoadPreferencesAsync();
         _preferencesLoaded = true;
+        await ReloadAsync(false);
         await InvokeAsync(StateHasChanged);
     }
 
-    private async Task ReloadAsync()
+    private async Task ReloadAsync(bool resetPage = true)
     {
         await using var db = await DbFactory.CreateDbContextAsync();
+        var query = db.AlertEvents.AsNoTracking().AsQueryable();
+        if (!string.IsNullOrWhiteSpace(_searchText))
+        {
+            query = query.Where(x => x.Hostname.Contains(_searchText) || x.Metric.Contains(_searchText) || x.Message.Contains(_searchText) || x.Ip.Contains(_searchText));
+        }
+        if (!string.IsNullOrWhiteSpace(_hostFilter)) query = query.Where(x => x.Hostname == _hostFilter);
+        if (Enum.TryParse<AlertType>(_typeFilter, true, out var type)) query = query.Where(x => x.Type == type);
+        if (_fromDate.HasValue) query = query.Where(x => x.TimestampUtc >= _fromDate.Value.Date.ToUniversalTime());
+        if (_toDate.HasValue) query = query.Where(x => x.TimestampUtc < _toDate.Value.Date.AddDays(1).ToUniversalTime());
+
+        var acknowledgedKeys = AlertSuppressor.List()
+            .Where(x => x.UntilUtc > DateTime.UtcNow && string.Equals(x.Kind, "ack", StringComparison.OrdinalIgnoreCase))
+            .Select(x => $"{x.Hostname}::{x.Metric}")
+            .ToList();
+        if (_statusFilter == "acknowledged" && acknowledgedKeys.Count > 0) query = query.Where(x => acknowledgedKeys.Contains(x.Hostname + "::" + x.Metric));
+        if (_statusFilter == "acknowledged" && acknowledgedKeys.Count == 0) query = query.Where(_ => false);
+        if (_statusFilter == "open" && acknowledgedKeys.Count > 0) query = query.Where(x => !acknowledgedKeys.Contains(x.Hostname + "::" + x.Metric));
+
+        _totalAlertCount = await query.CountAsync();
+        _thresholdCount = await query.CountAsync(x => x.Type == AlertType.Threshold);
+        _recoveryCount = await query.CountAsync(x => x.Type == AlertType.Recovery);
+        _anomalyCount = await query.CountAsync(x => x.Type == AlertType.Anomaly);
+        if (resetPage) _currentPage = 1;
+        _currentPage = Math.Min(_currentPage, TotalPages);
         _alerts.Clear();
         _alerts.AddRange(await db.AlertEvents
+            .Where(x => query.Select(y => y.Id).Contains(x.Id))
             .OrderByDescending(x => x.TimestampUtc)
-            .Take(500)
+            .Skip((_currentPage - 1) * _pageSize)
+            .Take(_pageSize)
             .Select(x => new AlertMessage(x.Hostname, x.Ip, x.Os, x.Metric, x.Value, x.Threshold, x.Message, x.Type, x.TimestampUtc))
             .ToListAsync());
-        _currentPage = 1;
         await InvokeAsync(StateHasChanged);
     }
 
@@ -344,6 +366,7 @@
         if (_preferencesLoaded)
         {
             _ = PersistPreferencesAsync();
+            _ = ReloadAsync(false);
         }
     }
 
@@ -352,6 +375,7 @@
         if (_currentPage > 1)
         {
             _currentPage--;
+            _ = ReloadAsync(false);
         }
     }
 
@@ -360,6 +384,7 @@
         if (_currentPage < TotalPages)
         {
             _currentPage++;
+            _ = ReloadAsync(false);
         }
     }
 

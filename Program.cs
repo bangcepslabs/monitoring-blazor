@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using System.Globalization;
 using System.Security.Claims;
+using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -29,6 +30,19 @@ builder.Services.AddSession(options =>
     options.Cookie.HttpOnly = true;
     options.Cookie.IsEssential = true;
     options.IdleTimeout = TimeSpan.FromHours(8);
+});
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.AddPolicy("auth", httpContext => RateLimitPartition.GetFixedWindowLimiter(
+        httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0,
+            AutoReplenishment = true
+        }));
 });
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -182,7 +196,7 @@ app.MapPost("/auth/bootstrap", async (HttpRequest request, HttpContext context, 
 {
     var result = await ProcessRegisterAsync(request, context, memberAuth, dbFactory, emailSender, ct, bootstrapOnly: true);
     return result;
-}).DisableAntiforgery().AllowAnonymous();
+}).DisableAntiforgery().AllowAnonymous().RequireRateLimiting("auth");
 
 app.MapPost("/auth/login", async (HttpRequest request, HttpContext context, MemberAuthService memberAuth, IDbContextFactory<MonitoringDbContext> dbFactory, SecuritySettingsRepository securitySettingsRepository, IConfiguration configuration, CancellationToken ct) =>
 {
@@ -227,7 +241,7 @@ app.MapPost("/auth/login", async (HttpRequest request, HttpContext context, Memb
     await memberAuth.UpdateLastLoginUtcAsync(loginResult.Member.Id, DateTime.UtcNow, ct);
     await WriteMemberAuditAsync(dbFactory, loginResult.Member.UserName, loginResult.Member.UserName, "login", true, rememberMe ? "remember me" : "session", ct);
     return Results.Redirect(returnUrl);
-}).DisableAntiforgery().AllowAnonymous();
+}).DisableAntiforgery().AllowAnonymous().RequireRateLimiting("auth");
 
 app.MapPost("/auth/two-factor", async (HttpRequest request, HttpContext context, MemberAuthService memberAuth, IDbContextFactory<MonitoringDbContext> dbFactory, CancellationToken ct) =>
 {
@@ -272,13 +286,13 @@ app.MapPost("/auth/two-factor", async (HttpRequest request, HttpContext context,
     context.Session.Remove(PendingTwoFactorUserNameKey);
     await WriteMemberAuditAsync(dbFactory, member.UserName, member.UserName, "two_factor", true, "verified", ct);
     return Results.Redirect(string.IsNullOrWhiteSpace(pendingReturnUrl) ? returnUrl : pendingReturnUrl);
-}).DisableAntiforgery().AllowAnonymous();
+}).DisableAntiforgery().AllowAnonymous().RequireRateLimiting("auth");
 
 app.MapPost("/auth/register", async (HttpRequest request, HttpContext context, MemberAuthService memberAuth, IDbContextFactory<MonitoringDbContext> dbFactory, EmailSenderService emailSender, CancellationToken ct) =>
 {
     var result = await ProcessRegisterAsync(request, context, memberAuth, dbFactory, emailSender, ct, bootstrapOnly: false);
     return result;
-}).DisableAntiforgery().AllowAnonymous();
+}).DisableAntiforgery().AllowAnonymous().RequireRateLimiting("auth");
 
 app.MapPost("/auth/logout", async (HttpContext context, IDbContextFactory<MonitoringDbContext> dbFactory) =>
 {
@@ -296,6 +310,7 @@ if (useHttpsRedirection)
 }
 app.UseSession();
 app.UseAuthentication();
+app.UseRateLimiter();
 app.Use(async (context, next) =>
 {
     var path = context.Request.Path;

@@ -3,7 +3,7 @@
 Blazor Server 기반 운영 모니터링 대시보드입니다. 호스트 스냅샷/알림/로그 분석을 포함합니다.
 
 ## Requirements
-- .NET SDK 9.0+
+- .NET SDK 10.0+
 - SQL Server (예: SQLEXPRESS)
 
 ## Quick Start
@@ -14,7 +14,7 @@ dotnet run
 dotnet watch run --project .\Monitoring.Blazor.csproj --launch-profile http
 ```
 
-기본 접속: `https://localhost:5088` 또는 `http://localhost:5088` (launchSettings 기준)
+기본 접속: `http://localhost:8050` (launchSettings 기준)
 
 ## Local Run
 - `appsettings.private.json`에 로컬 DB 값을 넣으면 됩니다.
@@ -22,7 +22,7 @@ dotnet watch run --project .\Monitoring.Blazor.csproj --launch-profile http
 - 로컬에서는 `Monitoring:Ollama`, `Monitoring:LogExport`, `Monitoring:LogImport`, `Monitoring:Email`, `Monitoring:Dooray`, `Monitoring:Alerts`를 끄는 것을 권장합니다.
 
 ## Configuration
-설정 파일은 `appsettings.json`/`appsettings.Development.json`에 있습니다.
+설정 파일은 `appsettings.json`/`appsettings.Development.json`에 있습니다. 비밀값은 추적되지 않는 `appsettings.private.json` 또는 환경 변수로 주입하세요.
 
 필수 설정:
 - `ConnectionStrings:MonitoringDb`
@@ -82,8 +82,11 @@ docker compose up --build
 필요하면 `OLLAMA_*`, `SMTP_*`, `EMAIL_*`만 추가로 켭니다.
 앱 설정은 `docker-data/app`에 저장되어 컨테이너를 다시 올려도 유지됩니다.
 
-## Notes
-- DB 연결 실패 시 `appsettings.private.json` 또는 `.env`의 SQL 정보를 확인하세요.
+## Operations checklist
+- 운영 DB 비밀번호와 외부 Webhook/API 토큰은 저장소에 커밋하지 않습니다.
+- 운영에서는 `dotnet watch`가 아닌 Release publish 결과물을 사용합니다.
+- 배포 전 `Monitoring:UseHttpsRedirection`, 인증 쿠키, 백업 경로와 로그 저장 경로를 확인합니다.
+- DB 연결 실패 시 `appsettings.private.json` 또는 환경 변수의 SQL 정보를 확인하세요.
 
 ## License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.

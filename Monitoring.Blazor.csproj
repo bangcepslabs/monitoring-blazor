@@ -22,6 +22,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="Monitoring.Blazor.Tests\**\*.cs" />
+    <Content Remove="Monitoring.Blazor.Tests\**\*" />
+    <None Remove="Monitoring.Blazor.Tests\**\*" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="monitoring-blazor.AppHost\**\*.cs" />
     <Content Remove="monitoring-blazor.AppHost\**\*" />
     <None Remove="monitoring-blazor.AppHost\**\*" />

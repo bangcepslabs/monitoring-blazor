@@ -16,6 +16,12 @@ dotnet watch run --project .\Monitoring.Blazor.csproj --launch-profile http
 
 기본 접속: `http://localhost:8050` (launchSettings 기준)
 
+## Tests
+
+```powershell
+dotnet test .\Monitoring.Blazor.Tests\Monitoring.Blazor.Tests.csproj
+```
+
 ## Local Run
 - `appsettings.private.json`에 로컬 DB 값을 넣으면 됩니다.
 - SQL Server가 떠 있어야 합니다.

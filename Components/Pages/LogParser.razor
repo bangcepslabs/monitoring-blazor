@@ -1748,7 +1748,6 @@
                 ? LogAnalysisPromptDefaults.SystemPrompt
                 : LogAnalysisSettings.AnalysisSystemPrompt.Trim();
             var effectiveSystemPrompt = systemPrompt + " " + AnalysisDecisionPolicy;
-            _http ??= CreateAnalysisClient();
             var requestPayload = new
             {
                 prompt = analysisJson,
@@ -1760,19 +1759,19 @@
                 status5xxRatio = ratio
             };
 
-            using var response = await _http.PostAsJsonAsync("api/ollama/analyze", requestPayload, ct);
+            var response = await PostJsonFromBrowserAsync("api/ollama/analyze", requestPayload, ct);
 
-            if (!response.IsSuccessStatusCode)
+            if (!response.Ok)
             {
-                var errorText = await response.Content.ReadAsStringAsync(ct);
+                var errorText = response.Body;
                 AnalyzeMessage = string.IsNullOrWhiteSpace(errorText)
-                    ? $"AI 분석 실패: HTTP {(int)response.StatusCode}"
+                    ? $"AI 분석 실패: HTTP {response.Status}"
                     : $"AI 분석 실패: {errorText}";
                 LastAnalysisSourceLabel = "http-error";
                 return;
             }
 
-            var result = await response.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
+            var result = JsonSerializer.Deserialize<OllamaAnalyzeResponse>(response.Body ?? string.Empty, AnalysisJsonOptions);
             var analysisText = result?.Response;
             // Retry only when the model returned an actually trivial answer.
             if (LooksTrivialAnalysis(analysisText))
@@ -1784,7 +1783,7 @@
                     "모르면 모른다고 쓰지 말고 JSON에 있는 항목만 근거로 판단하라. " +
                     "차단 후보 IP를 누락하지 말고 반드시 [차단 후보] 섹션에 포함하라.";
 
-                using var retryResponse = await _http.PostAsJsonAsync("api/ollama/analyze", new
+                var retryResponse = await PostJsonFromBrowserAsync("api/ollama/analyze", new
                 {
                     prompt = analysisJson,
                     systemPrompt = retrySystemPrompt,
@@ -1795,9 +1794,9 @@
                     status5xxRatio = ratio
                 }, ct);
 
-                if (retryResponse.IsSuccessStatusCode)
+                if (retryResponse.Ok)
                 {
-                    var retryResult = await retryResponse.Content.ReadFromJsonAsync<OllamaAnalyzeResponse>(cancellationToken: ct);
+                    var retryResult = JsonSerializer.Deserialize<OllamaAnalyzeResponse>(retryResponse.Body ?? string.Empty, AnalysisJsonOptions);
                     analysisText = retryResult?.Response;
                 }
             }
@@ -2356,6 +2355,11 @@
             ScriptProbeUrls = scriptProbeUrls.Take(15).ToList()
         };
     }
+
+    private async Task<BrowserApiResponse> PostJsonFromBrowserAsync<T>(string endpoint, T payload, CancellationToken cancellationToken)
+        => await JS.InvokeAsync<BrowserApiResponse>("monitorSettings.postJson", cancellationToken, endpoint, payload);
+
+    private sealed record BrowserApiResponse(bool Ok, int Status, string? Body);
 
     private static ScoredIpItem BuildScoredIp(string ip, List<ParsedLogRow> rows, int totalCount)
     {

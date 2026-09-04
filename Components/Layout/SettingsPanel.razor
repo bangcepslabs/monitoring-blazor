@@ -720,30 +720,21 @@
         StatusMessage = null;
         try
         {
-            var client = CreateClient();
-            var response = await client.PostAsJsonAsync("api/alerts/settings", AlertSettings);
-            response.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/alerts/settings", AlertSettings);
 
-            var securityResponse = await client.PostAsJsonAsync("api/security/settings", SecuritySettings);
-            securityResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/security/settings", SecuritySettings);
 
-            var emailResponse = await client.PostAsJsonAsync("api/email/settings", EmailSettings);
-            emailResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/email/settings", EmailSettings);
 
-            var notificationResponse = await client.PostAsJsonAsync("api/notification/settings", NotificationSettings);
-            notificationResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/notification/settings", NotificationSettings);
 
-            var ollamaResponse = await client.PostAsJsonAsync("api/runtime/ollama", OllamaSettings);
-            ollamaResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/runtime/ollama", OllamaSettings);
 
-            var logExportResponse = await client.PostAsJsonAsync("api/runtime/log-export", LogExportSettings);
-            logExportResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/runtime/log-export", LogExportSettings);
 
-            var logImportResponse = await client.PostAsJsonAsync("api/runtime/log-import", LogImportSettings);
-            logImportResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/runtime/log-import", LogImportSettings);
 
-            var logAnalysisResponse = await client.PostAsJsonAsync("api/runtime/log-analysis-rules", LogAnalysisSettings);
-            logAnalysisResponse.EnsureSuccessStatusCode();
+            await SaveJsonAsync("api/runtime/log-analysis-rules", LogAnalysisSettings);
 
             StatusMessage = Language.T("설정을 저장했습니다.", "Settings saved.");
             await JS.InvokeVoidAsync("monitorSettings.showToast", StatusMessage, "success");
@@ -919,6 +910,18 @@
         client.BaseAddress = new Uri(NavigationManager.BaseUri);
         return client;
     }
+
+    private async Task SaveJsonAsync<T>(string endpoint, T payload)
+    {
+        var response = await JS.InvokeAsync<BrowserApiResponse>("monitorSettings.postJson", endpoint, payload);
+        if (!response.Ok)
+        {
+            var detail = string.IsNullOrWhiteSpace(response.Body) ? "no response body" : response.Body.Trim();
+            throw new InvalidOperationException($"{endpoint} failed ({response.Status}): {detail}");
+        }
+    }
+
+    private sealed record BrowserApiResponse(bool Ok, int Status, string? Body);
 
     private static bool TryParseTimeOnly(string? value, out TimeOnly time)
     {

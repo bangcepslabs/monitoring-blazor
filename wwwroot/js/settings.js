@@ -90,6 +90,21 @@ window.monitorSettings = (function () {
     }
   }
 
+  async function postJson(url, payload) {
+    const response = await fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload ?? {})
+    });
+
+    return {
+      ok: response.ok,
+      status: response.status,
+      body: await response.text()
+    };
+  }
+
   function showToast(message, kind) {
     if (!message) return;
 
@@ -118,5 +133,5 @@ window.monitorSettings = (function () {
     }, 4200);
   }
 
-  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, showToast };
+  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, postJson, showToast };
 })();

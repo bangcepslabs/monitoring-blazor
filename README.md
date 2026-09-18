@@ -10,9 +10,15 @@
 
 ## Preview
 
-> Screenshot uses redacted data only; production IP addresses, host details, and account information are excluded.
+> All screenshots use sanitized demo data. Production IP addresses, hosts, accounts, domains, and log paths are excluded.
 
-![OpsEye dashboard preview](./opseye-dashboard-public.png)
+### Dashboard
+
+![OpsEye dashboard preview](./opseye-dashboard-demo-v2.png)
+
+### Log analysis
+
+![OpsEye log analysis preview](./opseye-log-analysis-demo.png)
 
 ﻿# OpsEye
 
@@ -125,6 +131,3 @@ cd dashboard\monitoring-blazor
 
 ## License
 This project is licensed under the MIT License. See [LICENSE](LICENSE) for details.
-
-
-

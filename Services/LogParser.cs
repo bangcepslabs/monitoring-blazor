@@ -6,8 +6,15 @@ public static class ApacheLogParser
 {
     public static List<ParsedLogRow> ParseLines(IEnumerable<string> lines)
     {
-        var rows = new List<ParsedLogRow>();
         string[]? fieldOrder = null;
+        return ParseLines(lines, ref fieldOrder);
+    }
+
+    // The IIS #Fields header is written once per file.  Callers that process a
+    // file in chunks must carry the discovered field order into the next chunk.
+    public static List<ParsedLogRow> ParseLines(IEnumerable<string> lines, ref string[]? fieldOrder)
+    {
+        var rows = new List<ParsedLogRow>();
 
         foreach (var raw in lines)
         {
@@ -16,11 +23,14 @@ public static class ApacheLogParser
                 continue;
             }
 
-            var line = raw.Trim();
+            // W3C/IIS logs are normally space-delimited, but some exporters
+            // write tabs and UTF-8 files may include a BOM before the first
+            // header.  Normalize both before checking the directive.
+            var line = raw.Trim().TrimStart('\uFEFF');
             if (line.StartsWith("#Fields:", StringComparison.OrdinalIgnoreCase))
             {
                 var header = line[8..].Trim();
-                fieldOrder = header.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                fieldOrder = SplitFields(header);
                 continue;
             }
 
@@ -29,7 +39,7 @@ public static class ApacheLogParser
                 continue;
             }
 
-            var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+            var parts = SplitFields(line);
             if (parts.Length == 0)
             {
                 continue;
@@ -96,5 +106,12 @@ public static class ApacheLogParser
         }
 
         return value == "-" ? string.Empty : value;
+    }
+
+    private static string[] SplitFields(string value)
+    {
+        // String.Split with a null separator means all Unicode whitespace
+        // characters, which covers both the normal IIS spaces and tab output.
+        return value.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
     }
 }

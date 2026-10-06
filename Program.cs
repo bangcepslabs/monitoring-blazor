@@ -1498,109 +1498,11 @@ static async Task<IResult> ProcessLogUploadAsync(HttpRequest request, IDbContext
         using var reader = new StreamReader(stream);
         var text = await reader.ReadToEndAsync();
         var parsed = ApacheLogParser.ParseLines(text.Split(Environment.NewLine));
-
-        var aggregates = parsed
-            .Select(row =>
-            {
-                var logDate = TryParseLogDate(row.Date, nowUtc);
-                return new
-                {
-                    LogDate = logDate,
-                    row.Ip,
-                    Status = row.Status
-                };
-            })
-            .GroupBy(x => new { x.LogDate, x.Ip })
-            .Select(g => new LogIpAggregate
-            {
-                LogDate = g.Key.LogDate,
-                Ip = g.Key.Ip,
-                RequestCount = g.LongCount(),
-                Status2xxCount = g.LongCount(x => IsStatusInRange(x.Status, 200, 299)),
-                Status3xxCount = g.LongCount(x => IsStatusInRange(x.Status, 300, 399)),
-                Status4xxCount = g.LongCount(x => IsStatusInRange(x.Status, 400, 499)),
-                Status5xxCount = g.LongCount(x => IsStatusInRange(x.Status, 500, 599))
-            })
-            .ToList();
-
-        foreach (var aggregate in aggregates)
-        {
-            var key = (aggregate.LogDate, aggregate.Ip);
-            if (aggregateMap.TryGetValue(key, out var existingAggregate))
-            {
-                existingAggregate.RequestCount += aggregate.RequestCount;
-                existingAggregate.Status2xxCount += aggregate.Status2xxCount;
-                existingAggregate.Status3xxCount += aggregate.Status3xxCount;
-                existingAggregate.Status4xxCount += aggregate.Status4xxCount;
-                existingAggregate.Status5xxCount += aggregate.Status5xxCount;
-            }
-            else
-            {
-                aggregateMap[key] = new LogIpAggregate
-                {
-                    LogDate = aggregate.LogDate,
-                    Ip = aggregate.Ip,
-                    RequestCount = aggregate.RequestCount,
-                    Status2xxCount = aggregate.Status2xxCount,
-                    Status3xxCount = aggregate.Status3xxCount,
-                    Status4xxCount = aggregate.Status4xxCount,
-                    Status5xxCount = aggregate.Status5xxCount
-                };
-            }
-        }
+        IisLogAggregationService.AddRows(aggregateMap, parsed, nowUtc);
     }
 
-    foreach (var aggregate in aggregateMap.Values)
-    {
-        var existing = await db.LogIpDailyStats.FirstOrDefaultAsync(x =>
-            x.ServerName == serverName &&
-            x.LogDate == aggregate.LogDate &&
-            x.Ip == aggregate.Ip);
-
-        if (existing is null)
-        {
-            db.LogIpDailyStats.Add(new LogIpDailyStatEntity
-            {
-                ServerName = serverName,
-                LogDate = aggregate.LogDate,
-                Ip = aggregate.Ip,
-                RequestCount = aggregate.RequestCount,
-                Status2xxCount = aggregate.Status2xxCount,
-                Status3xxCount = aggregate.Status3xxCount,
-                Status4xxCount = aggregate.Status4xxCount,
-                Status5xxCount = aggregate.Status5xxCount,
-                FirstSeenUtc = nowUtc,
-                LastSeenUtc = nowUtc
-            });
-        }
-        else
-        {
-            existing.RequestCount += aggregate.RequestCount;
-            existing.Status2xxCount += aggregate.Status2xxCount;
-            existing.Status3xxCount += aggregate.Status3xxCount;
-            existing.Status4xxCount += aggregate.Status4xxCount;
-            existing.Status5xxCount += aggregate.Status5xxCount;
-            existing.LastSeenUtc = nowUtc;
-        }
-    }
-
-    await db.SaveChangesAsync();
+    await LogIpDailyStatsPersistenceService.AddAggregatesAsync(db, serverName, aggregateMap.Values, nowUtc);
     return Results.Ok(new { files = files.Count, aggregates = aggregateMap.Count });
-}
-
-static DateOnly TryParseLogDate(string value, DateTime fallbackUtc)
-{
-    return DateOnly.TryParse(value, out var parsed) ? parsed : DateOnly.FromDateTime(fallbackUtc);
-}
-
-static bool IsStatusInRange(string value, int minInclusive, int maxInclusive)
-{
-    if (!int.TryParse(value, out var status))
-    {
-        return false;
-    }
-
-    return status >= minInclusive && status <= maxInclusive;
 }
 
 internal sealed record TopIpResponseDto(DateOnly Date, int Take, List<TopIpGroupDto> Items);
@@ -1650,17 +1552,6 @@ internal sealed class DashboardReportLoginDto
     public string UserName { get; set; } = string.Empty;
     public string Reason { get; set; } = string.Empty;
     public string? IpAddress { get; set; }
-}
-
-internal sealed class LogIpAggregate
-{
-    public required DateOnly LogDate { get; set; }
-    public required string Ip { get; set; }
-    public long RequestCount { get; set; }
-    public long Status2xxCount { get; set; }
-    public long Status3xxCount { get; set; }
-    public long Status4xxCount { get; set; }
-    public long Status5xxCount { get; set; }
 }
 
 internal sealed record SuppressionRequest(string Hostname, string Metric, int Minutes, string? Reason);

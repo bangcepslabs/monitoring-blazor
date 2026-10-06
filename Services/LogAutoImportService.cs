@@ -112,6 +112,7 @@ public sealed class LogAutoImportService(
         await using var tx = await db.Database.BeginTransactionAsync(ct);
         await using var stream = new FileStream(fullPath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
         using var reader = new StreamReader(stream);
+        string[]? fieldOrder = null;
 
         while (true)
         {
@@ -128,105 +129,36 @@ public sealed class LogAutoImportService(
                 continue;
             }
 
-            await FlushBatchAsync(bufferLines, nowUtc, aggregateMap, ct);
+            FlushBatch(bufferLines, nowUtc, aggregateMap, ref fieldOrder);
             bufferLines.Clear();
         }
 
         if (bufferLines.Count > 0)
         {
-            await FlushBatchAsync(bufferLines, nowUtc, aggregateMap, ct);
+            FlushBatch(bufferLines, nowUtc, aggregateMap, ref fieldOrder);
             bufferLines.Clear();
         }
 
-        foreach (var aggregate in aggregateMap.Values)
-        {
-            var existing = await db.LogIpDailyStats.FirstOrDefaultAsync(x =>
-                x.ServerName == serverName &&
-                x.LogDate == aggregate.LogDate &&
-                x.Ip == aggregate.Ip,
-                ct);
-
-            if (existing is null)
-            {
-                db.LogIpDailyStats.Add(new LogIpDailyStatEntity
-                {
-                    ServerName = serverName,
-                    LogDate = aggregate.LogDate,
-                    Ip = aggregate.Ip,
-                    RequestCount = aggregate.RequestCount,
-                    Status2xxCount = aggregate.Status2xxCount,
-                    Status3xxCount = aggregate.Status3xxCount,
-                    Status4xxCount = aggregate.Status4xxCount,
-                    Status5xxCount = aggregate.Status5xxCount,
-                    FirstSeenUtc = nowUtc,
-                    LastSeenUtc = nowUtc
-                });
-            }
-            else
-            {
-                existing.RequestCount += aggregate.RequestCount;
-                existing.Status2xxCount += aggregate.Status2xxCount;
-                existing.Status3xxCount += aggregate.Status3xxCount;
-                existing.Status4xxCount += aggregate.Status4xxCount;
-                existing.Status5xxCount += aggregate.Status5xxCount;
-                existing.LastSeenUtc = nowUtc;
-            }
-        }
-
-        await db.SaveChangesAsync(ct);
+        await LogIpDailyStatsPersistenceService.AddAggregatesAsync(
+            db,
+            serverName,
+            aggregateMap.Values,
+            nowUtc,
+            cancellationToken: ct);
         await tx.CommitAsync(ct);
         db.ChangeTracker.Clear();
 
         return new ImportResult(aggregateMap.Count);
     }
 
-    private Task FlushBatchAsync(
+    private static void FlushBatch(
         List<string> bufferLines,
         DateTime nowUtc,
         Dictionary<(DateOnly LogDate, string Ip), LogIpAggregate> aggregateMap,
-        CancellationToken ct)
+        ref string[]? fieldOrder)
     {
-        var parsed = ApacheLogParser.ParseLines(bufferLines);
-        if (parsed.Count == 0)
-        {
-            return Task.CompletedTask;
-        }
-
-        foreach (var aggregate in parsed
-            .Select(row => new
-            {
-                LogDate = TryParseLogDate(row.Date, nowUtc),
-                row.Ip,
-                row.Status
-            })
-            .GroupBy(x => new { x.LogDate, x.Ip })
-            .Select(g => new LogIpAggregate
-            {
-                LogDate = g.Key.LogDate,
-                Ip = g.Key.Ip,
-                RequestCount = g.LongCount(),
-                Status2xxCount = g.LongCount(x => IsStatusInRange(x.Status, 200, 299)),
-                Status3xxCount = g.LongCount(x => IsStatusInRange(x.Status, 300, 399)),
-                Status4xxCount = g.LongCount(x => IsStatusInRange(x.Status, 400, 499)),
-                Status5xxCount = g.LongCount(x => IsStatusInRange(x.Status, 500, 599))
-            }))
-        {
-            var key = (aggregate.LogDate, aggregate.Ip);
-            if (aggregateMap.TryGetValue(key, out var existing))
-            {
-                existing.RequestCount += aggregate.RequestCount;
-                existing.Status2xxCount += aggregate.Status2xxCount;
-                existing.Status3xxCount += aggregate.Status3xxCount;
-                existing.Status4xxCount += aggregate.Status4xxCount;
-                existing.Status5xxCount += aggregate.Status5xxCount;
-            }
-            else
-            {
-                aggregateMap[key] = aggregate;
-            }
-        }
-
-        return Task.CompletedTask;
+        var parsed = ApacheLogParser.ParseLines(bufferLines, ref fieldOrder);
+        IisLogAggregationService.AddRows(aggregateMap, parsed, nowUtc);
     }
 
     private LogImportOptions LoadOptions()
@@ -265,21 +197,6 @@ public sealed class LogAutoImportService(
     {
         var json = JsonSerializer.Serialize(state, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(path, json);
-    }
-
-    private static DateOnly TryParseLogDate(string value, DateTime fallbackUtc)
-    {
-        return DateOnly.TryParse(value, out var parsed) ? parsed : DateOnly.FromDateTime(fallbackUtc);
-    }
-
-    private static bool IsStatusInRange(string value, int minInclusive, int maxInclusive)
-    {
-        if (!int.TryParse(value, out var status))
-        {
-            return false;
-        }
-
-        return status >= minInclusive && status <= maxInclusive;
     }
 
     private sealed class LogImportOptions

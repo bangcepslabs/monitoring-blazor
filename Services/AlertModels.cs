@@ -16,7 +16,10 @@ public sealed record AlertMessage(
     double Threshold,
     string Message,
     AlertType Type,
-    DateTime TimestampUtc);
+    DateTime TimestampUtc,
+    long Id = 0,
+    DateTime? AcknowledgedUtc = null,
+    string? AcknowledgedBy = null);
 
 public sealed class AlertSettings
 {

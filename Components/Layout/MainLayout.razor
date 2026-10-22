@@ -4,42 +4,38 @@
 @inject NavigationManager NavigationManager
 @inject Monitoring.Blazor.Services.LanguageState Language
 
+<CascadingValue Name="UiLanguage" Value="Language.Code">
 <a class="skip-link" href="#main-content">@Language.T("본문으로 건너뛰기", "Skip to content")</a>
 
 <div class="page @(SidebarCollapsed ? "sidebar-collapsed" : string.Empty)">
-    <aside class="sidebar" id="sidebar" role="navigation" aria-label="Sidebar navigation">
+    <aside class="sidebar" id="sidebar" role="navigation" aria-label="@Language.T("사이드바 탐색", "Sidebar navigation")">
         <NavMenu />
     </aside>
 
     <main id="main-content">
         <header class="top-row" role="banner">
             <div class="top-left">
-                <button type="button" class="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded="@(!SidebarCollapsed)" @onclick="ToggleSidebarAsync">
+                <button type="button" class="sidebar-toggle" aria-label="@Language.T("사이드바 전환", "Toggle sidebar")" aria-expanded="@(!SidebarCollapsed)" @onclick="ToggleSidebarAsync">
                     <i class="bi @(SidebarCollapsed ? "bi-layout-sidebar-inset" : "bi-layout-sidebar-inset-reverse")"></i>
                 </button>
                 <div class="top-title-wrap">
                     <div class="top-kicker" aria-hidden="true">OpsEye</div>
-                <div class="top-title">@Language.T("운영 대시보드", "Operations Dashboard")</div>
+                    <div class="top-title">@Language.T("운영 콘솔", "Operations console")</div>
                 </div>
             </div>
             <div class="top-right">
-                <span class="pill live-pill" role="status" aria-label="Live stream active">
-                    <span class="dot" aria-hidden="true"></span>@Language.T("실시간", "Live")
-                </span>
-                <span class="pill soft" aria-label="Auto refresh every 5 seconds">5s refresh</span>
-
-                <button type="button" class="theme-btn top-action language-toggle" @onclick="ToggleLanguageAsync" aria-label="Language" title="Switch language">
+                <button type="button" class="theme-btn top-action language-toggle" @onclick="ToggleLanguageAsync" aria-label="@Language.T("언어", "Language")" title="@Language.T("언어 전환", "Switch language")">
                     <i class="bi bi-translate"></i>
-                    @(Language.IsKorean ? "ENG" : "KOR")
+                    @(Language.IsKorean ? "English" : "한국어")
                 </button>
 
                 <AuthorizeView>
                     <Authorized Context="auth">
-                        <span class="pill soft" aria-label="Current user">
-                            <i class="bi bi-person-circle me-1"></i>@(auth.User.Identity?.Name ?? "Signed in")
+                        <span class="pill soft" aria-label="@Language.T("현재 사용자", "Current user")">
+                                <i class="bi bi-person-circle me-1"></i>@(auth.User.Identity?.Name ?? Language.T("로그인됨", "Signed in"))
                         </span>
                         <form method="post" action="/auth/logout" class="d-inline">
-                            <button type="submit" class="theme-btn top-action" aria-label="Logout" title="Logout">
+                            <button type="submit" class="theme-btn top-action" aria-label="@Language.T("로그아웃", "Logout")" title="@Language.T("로그아웃", "Logout")">
                                 <i class="bi bi-box-arrow-right"></i>
                                 @Language.T("로그아웃", "Logout")
                             </button>
@@ -49,21 +45,28 @@
 
                 <AuthorizeView Roles="Admin">
                     <Authorized>
-                        <button type="button" class="theme-btn top-action" @onclick="OpenSettingsAsync" aria-label="Open settings" title="Settings">
+                        <button type="button" class="theme-btn top-action" @onclick="OpenSettingsAsync" aria-label="@Language.T("설정 열기", "Open settings")" title="@Language.T("설정", "Settings")">
                             <i class="bi bi-gear-fill"></i>
                             @Language.T("설정", "Settings")
                         </button>
                     </Authorized>
                 </AuthorizeView>
-                <button type="button" class="theme-btn top-action" onclick="themeManager.toggle()" aria-label="Toggle theme" title="Toggle light and dark theme">
+                <button type="button" class="theme-btn top-action" onclick="themeManager.toggle()" aria-label="@Language.T("테마 전환", "Toggle theme")" title="@Language.T("라이트 / 다크 테마 전환", "Toggle light / dark theme")">
                     <i class="bi bi-moon-stars-fill"></i>
                     @Language.T("테마", "Theme")
                 </button>
             </div>
         </header>
 
-        <article class="content" role="main" aria-label="Main content">
-            @Body
+        <article class="content" role="main" aria-label="@Language.T("주요 콘텐츠", "Main content")">
+            @if (SidebarStateLoaded)
+            {
+                @Body
+            }
+            else
+            {
+                <div class="workspace-loading" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>@Language.T("화면을 준비하고 있습니다.", "Preparing your workspace.")</div>
+            }
         </article>
 
         <footer class="footer" role="contentinfo">
@@ -73,10 +76,12 @@
 </div>
 
 <div id="blazor-error-ui" data-nosnippet role="alert" aria-live="assertive">
-    An error has occurred.
-    <a href="." class="reload">Reload</a>
-    <span class="dismiss" tabindex="0" role="button" aria-label="Dismiss">×</span>
+    @Language.T("오류가 발생했습니다.", "An error has occurred.")
+    <a href="." class="reload">@Language.T("새로고침", "Reload")</a>
+    <span class="dismiss" tabindex="0" role="button" aria-label="@Language.T("닫기", "Dismiss")">×</span>
 </div>
+
+</CascadingValue>
 
 @code {
     private bool SidebarCollapsed { get; set; }
@@ -102,11 +107,10 @@
             return;
         }
 
-        var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "en");
+        var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "ko");
         Language.SetLanguage(savedLanguage);
         await JS.InvokeVoidAsync("opsLanguage.apply", Language.Code);
-        SidebarCollapsed = false;
-        await JS.InvokeVoidAsync("monitorSettings.set", "sidebarCollapsed", SidebarCollapsed);
+        SidebarCollapsed = await JS.InvokeAsync<bool>("monitorSettings.get", "sidebarCollapsed", false);
         SidebarStateLoaded = true;
         StateHasChanged();
     }

@@ -23,38 +23,38 @@
         <div class="card-body">
             <div class="row g-2 mb-3">
                 <div class="col-12 col-md-4">
-                    <input class="form-control" placeholder="Search action / actor / target" @bind="SearchText" @bind:event="oninput" />
+                    <input class="form-control" placeholder="@Language.T("작업·수행자·대상 검색", "Search action, actor, or target")" @bind="SearchText" @bind:event="oninput" />
                 </div>
                 <div class="col-6 col-md-2">
                     <select class="form-select" @bind="ActionFilter">
-                        <option value="">All actions</option>
-                        <option value="member_create">member_create</option>
-                        <option value="member_register">member_register</option>
-                        <option value="member_update">member_update</option>
-                        <option value="login">login</option>
-                        <option value="logout">logout</option>
-                        <option value="two_factor">two_factor</option>
-                        <option value="member_active">member_active</option>
-                        <option value="member_role">member_role</option>
-                        <option value="member_display_name">member_display_name</option>
-                        <option value="password_change">password_change</option>
-                        <option value="password_reset_request">password_reset_request</option>
-                        <option value="password_reset_confirm">password_reset_confirm</option>
-                        <option value="alert_settings_update">alert_settings_update</option>
-                        <option value="security_settings_update">security_settings_update</option>
-                        <option value="email_settings_update">email_settings_update</option>
-                        <option value="sql_target_update">sql_target_update</option>
-                        <option value="sql_target_remove">sql_target_remove</option>
-                        <option value="settings_backup">settings_backup</option>
-                        <option value="settings_restore">settings_restore</option>
-                        <option value="notification_settings_update">notification_settings_update</option>
+                        <option value="">@Language.T("모든 작업", "All actions")</option>
+                        <option value="member_create">@GetActionLabel("member_create")</option>
+                        <option value="member_register">@GetActionLabel("member_register")</option>
+                        <option value="member_update">@GetActionLabel("member_update")</option>
+                        <option value="login">@GetActionLabel("login")</option>
+                        <option value="logout">@GetActionLabel("logout")</option>
+                        <option value="two_factor">@GetActionLabel("two_factor")</option>
+                        <option value="member_active">@GetActionLabel("member_active")</option>
+                        <option value="member_role">@GetActionLabel("member_role")</option>
+                        <option value="member_display_name">@GetActionLabel("member_display_name")</option>
+                        <option value="password_change">@GetActionLabel("password_change")</option>
+                        <option value="password_reset_request">@GetActionLabel("password_reset_request")</option>
+                        <option value="password_reset_confirm">@GetActionLabel("password_reset_confirm")</option>
+                        <option value="alert_settings_update">@GetActionLabel("alert_settings_update")</option>
+                        <option value="security_settings_update">@GetActionLabel("security_settings_update")</option>
+                        <option value="email_settings_update">@GetActionLabel("email_settings_update")</option>
+                        <option value="sql_target_update">@GetActionLabel("sql_target_update")</option>
+                        <option value="sql_target_remove">@GetActionLabel("sql_target_remove")</option>
+                        <option value="settings_backup">@GetActionLabel("settings_backup")</option>
+                        <option value="settings_restore">@GetActionLabel("settings_restore")</option>
+                        <option value="notification_settings_update">@GetActionLabel("notification_settings_update")</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
                     <select class="form-select" @bind="StatusFilter">
-                        <option value="">All status</option>
-                        <option value="success">Success</option>
-                        <option value="failed">Failed</option>
+                        <option value="">@Language.T("모든 상태", "All statuses")</option>
+                        <option value="success">@Language.T("성공", "Success")</option>
+                        <option value="failed">@Language.T("실패", "Failed")</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
@@ -64,9 +64,9 @@
                     <input class="form-control" type="date" @bind="ToDate" />
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-secondary" type="button" @onclick="ApplyFilters">Apply</button>
-                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearFilters">Clear</button>
-                    <button class="btn btn-outline-secondary ms-auto" type="button" @onclick="LoadAsync">Refresh</button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ApplyFilters">@Language.T("적용", "Apply")</button>
+                    <button class="btn btn-outline-secondary" type="button" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
+                    <button class="btn btn-outline-secondary ms-auto" type="button" @onclick="LoadAsync">@Language.T("새로고침", "Refresh")</button>
                 </div>
             </div>
 
@@ -74,12 +74,12 @@
                 <table class="table table-hover align-middle">
                     <thead>
                         <tr>
-                            <th>Time</th>
-                            <th>Actor</th>
-                            <th>Target</th>
-                            <th>Action</th>
-                            <th>Status</th>
-                            <th>Details</th>
+                            <th>@Language.T("시각", "Time")</th>
+                            <th>@Language.T("수행자", "Actor")</th>
+                            <th>@Language.T("대상", "Target")</th>
+                            <th>@Language.T("작업", "Action")</th>
+                            <th>@Language.T("상태", "Status")</th>
+                            <th>@Language.T("세부 정보", "Details")</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -91,15 +91,15 @@
                                     <td>@log.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                                     <td>@log.ActorUserName</td>
                                     <td>@(log.TargetUserName ?? "-")</td>
-                                    <td><span class="badge text-bg-primary">@log.Action</span></td>
+                                    <td><span class="badge text-bg-primary">@GetActionLabel(log.Action)</span></td>
                                     <td>
                                         @if (log.Success)
                                         {
-                                            <span class="badge text-bg-success">Success</span>
+                                            <span class="badge text-bg-success">@Language.T("성공", "Success")</span>
                                         }
                                         else
                                         {
-                                            <span class="badge text-bg-danger">Failed</span>
+                                            <span class="badge text-bg-danger">@Language.T("실패", "Failed")</span>
                                         }
                                     </td>
                                     <td class="text-break">@log.Details</td>
@@ -109,7 +109,7 @@
                         else
                         {
                             <tr>
-                                <td colspan="6" class="text-center text-secondary py-4">No audit entries found.</td>
+                                <td colspan="6" class="text-center text-secondary py-4">@Language.T("감사 로그가 없습니다.", "No audit entries found.")</td>
                             </tr>
                         }
                     </tbody>
@@ -120,6 +120,31 @@
 </div>
 
 @code {
+    private string GetActionLabel(string action) => action switch
+    {
+        "member_create" => Language.T("사용자 생성", "User created"),
+        "member_register" => Language.T("회원가입", "User registered"),
+        "member_update" => Language.T("사용자 정보 수정", "User updated"),
+        "login" => Language.T("로그인", "Sign-in"),
+        "logout" => Language.T("로그아웃", "Sign-out"),
+        "two_factor" => Language.T("2차 인증 변경", "Two-factor authentication changed"),
+        "member_active" => Language.T("계정 상태 변경", "Account status changed"),
+        "member_role" => Language.T("사용자 역할 변경", "User role changed"),
+        "member_display_name" => Language.T("표시 이름 변경", "Display name changed"),
+        "password_change" => Language.T("비밀번호 변경", "Password changed"),
+        "password_reset_request" => Language.T("비밀번호 재설정 요청", "Password reset requested"),
+        "password_reset_confirm" => Language.T("비밀번호 재설정 완료", "Password reset completed"),
+        "alert_settings_update" => Language.T("알림 설정 변경", "Alert settings updated"),
+        "security_settings_update" => Language.T("보안 설정 변경", "Security settings updated"),
+        "email_settings_update" => Language.T("이메일 설정 변경", "Email settings updated"),
+        "sql_target_update" => Language.T("SQL 연결 설정 변경", "SQL connection settings updated"),
+        "sql_target_remove" => Language.T("SQL 연결 설정 삭제", "SQL connection settings removed"),
+        "settings_backup" => Language.T("설정 백업", "Settings backed up"),
+        "settings_restore" => Language.T("설정 복원", "Settings restored"),
+        "notification_settings_update" => Language.T("알림 채널 설정 변경", "Notification settings updated"),
+        _ => action
+    };
+
     private readonly List<MemberAuditLogEntity> _logs = new();
     private string _searchText = string.Empty;
     private string _actionFilter = string.Empty;

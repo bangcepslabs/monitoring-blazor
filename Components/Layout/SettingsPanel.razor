@@ -1,9 +1,7 @@
 @page "/settings"
 @attribute [Authorize(Roles = "Admin")]
-@using System.Net.Http.Json
 @using System.Text.Json
 @using Monitoring.Blazor.Services
-@inject IHttpClientFactory HttpClientFactory
 @inject IJSRuntime JS
 @inject NavigationManager NavigationManager
 
@@ -16,16 +14,16 @@
             </div>
             <div class="d-flex gap-2">
                 <button type="button" class="btn btn-outline-secondary btn-sm" @onclick="ReloadAsync" disabled="@IsSaving">@Language.T("다시 불러오기", "Reload")</button>
-                <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@IsSaving">@Language.T("저장", "Save")</button>
+                <button type="button" class="btn btn-primary btn-sm" @onclick="SaveAsync" disabled="@(IsSaving || !SettingsLoaded)">@Language.T("저장", "Save")</button>
                 <button type="button" class="settings-close" aria-label="@Language.T("뒤로", "Back")" @onclick="CloseAsync">X</button>
             </div>
         </div>
 
         <div class="settings-body">
-            <div class="settings-tabs" role="tablist" aria-label="Settings categories">
+            <div class="settings-tabs" role="tablist" aria-label="@Language.T("설정 항목", "Settings categories")">
                 <button type="button" class="@BasicTabButtonClass" @onclick="ShowBasicTab">@Language.T("기본", "Basic")</button>
                 <button type="button" class="@CollectionTabButtonClass" @onclick="ShowCollectionTab">@Language.T("로그 파이프라인", "Log Pipeline")</button>
-                <button type="button" class="@AnalysisTabButtonClass" @onclick="ShowAnalysisTab">@Language.T("AI 및 리포트", "AI & Reports")</button>
+                <button type="button" class="@AnalysisTabButtonClass" @onclick="ShowAnalysisTab">@Language.T("AI 및 보고서", "AI & Reports")</button>
                 <button type="button" class="@IntegrationsTabButtonClass" @onclick="ShowIntegrationsTab">@Language.T("연동", "Integrations")</button>
             </div>
             <div class="settings-summary">
@@ -49,13 +47,13 @@
                             </div>
                             <div class="row g-2">
                                 <div class="col-12 col-md-3">
-                                    <label class="form-label">Enabled</label>
-                                    <select class="form-select" @bind="AlertEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select>
+                                    <label class="form-label">@Language.T("사용", "Enabled")</label>
+                                    <select class="form-select" @bind="AlertEnabledChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select>
                                 </div>
                                 <div class="col-12 col-md-3"><label class="form-label">CPU %</label><input class="form-control" type="number" @bind="AlertSettings.CpuThreshold" /></div>
-                                <div class="col-12 col-md-3"><label class="form-label">CPU Minutes</label><input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" /></div>
-                                <div class="col-12 col-md-3"><label class="form-label">RAM %</label><input class="form-control" type="number" @bind="AlertSettings.RamThreshold" /></div>
-                                <div class="col-12 col-md-3"><label class="form-label">Disk %</label><input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("CPU 임계값 유지 시간(분)", "CPU duration (min)")</label><input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("메모리 %", "Memory %")</label><input class="form-control" type="number" @bind="AlertSettings.RamThreshold" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("디스크 %", "Disk %")</label><input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" /></div>
                             </div>
                         </div>
                         <div class="settings-subsection">
@@ -64,10 +62,10 @@
                                 <div class="settings-subsection-help">@Language.T("반복 알림 간격과 복구·이상 징후 알림을 설정합니다.", "Control cooldowns and recovery or anomaly notifications.")</div>
                             </div>
                             <div class="row g-2">
-                                <div class="col-12 col-md-3"><label class="form-label">Cooldown</label><input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" /></div>
-                                <div class="col-12 col-md-3"><label class="form-label">Recovery</label><select class="form-select" @bind="RecoveryEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
-                                <div class="col-12 col-md-3"><label class="form-label">Recovery Cooldown</label><input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" /></div>
-                                <div class="col-12 col-md-3"><label class="form-label">Anomaly</label><select class="form-select" @bind="AnomalyEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("재알림 대기 시간(분)", "Alert cooldown (min)")</label><input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("복구 알림", "Recovery alerts")</label><select class="form-select" @bind="RecoveryEnabledChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("복구 알림 대기 시간(분)", "Recovery cooldown (min)")</label><input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" /></div>
+                                <div class="col-12 col-md-3"><label class="form-label">@Language.T("이상 징후 감지", "Anomaly detection")</label><select class="form-select" @bind="AnomalyEnabledChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
                             </div>
                         </div>
                         <div class="settings-subsection">
@@ -76,9 +74,9 @@
                                 <div class="settings-subsection-help">@Language.T("정기 점검 중에는 일시적인 상태 변화를 알림에서 제외합니다.", "Suppress expected status changes during scheduled maintenance.")</div>
                             </div>
                             <div class="row g-2">
-                                <div class="col-12 col-md-4"><label class="form-label">Maintenance Window</label><select class="form-select" @bind="MaintenanceWindowEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
-                                <div class="col-12 col-md-4"><label class="form-label">Window Start</label><input class="form-control" type="time" @bind="MaintenanceWindowStartValue" /></div>
-                                <div class="col-12 col-md-4"><label class="form-label">Window End</label><input class="form-control" type="time" @bind="MaintenanceWindowEndValue" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">@Language.T("점검 시간 사용", "Enable maintenance window")</label><select class="form-select" @bind="MaintenanceWindowEnabledChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
+                                <div class="col-12 col-md-4"><label class="form-label">@Language.T("시작 시각", "Start time")</label><input class="form-control" type="time" @bind="MaintenanceWindowStartValue" /></div>
+                                <div class="col-12 col-md-4"><label class="form-label">@Language.T("종료 시각", "End time")</label><input class="form-control" type="time" @bind="MaintenanceWindowEndValue" /></div>
                             </div>
                         </div>
                     </div>
@@ -89,10 +87,10 @@
                     <div class="settings-section-help">@Language.T("계정 시스템의 2차 인증을 켜거나 끕니다.", "Turn two-factor authentication on or off for the account system.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Two-factor authentication</label>
+                            <label class="form-label">@Language.T("2차 인증", "Two-factor authentication")</label>
                             <select class="form-select" @bind="TwoFactorEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
+                                <option value="Y">@Language.T("사용", "Enabled")</option>
+                                <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                             </select>
                         </div>
                     </div>
@@ -103,64 +101,64 @@
             {
                 <div class="settings-section" id="collection">
                     <div class="settings-section-title">@Language.T("IIS 로그 수집", "IIS Log Collection")</div>
-                    <div class="settings-section-help">@Language.T("IIS 로그를 읽을 위치와 리포트 폴더로 복사할 시점을 설정합니다.", "These settings decide where IIS logs are read from and when they are copied into the reporting folder.")</div>
+                    <div class="settings-section-help">@Language.T("IIS 로그를 읽을 위치와 보고서 폴더로 복사할 시점을 설정합니다.", "These settings decide where IIS logs are read from and when they are copied into the reporting folder.")</div>
                     <div class="row g-2 align-items-end">
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Daily log export</label>
+                            <label class="form-label">@Language.T("일일 로그 내보내기", "Daily log export")</label>
                             <select class="form-select" @bind="LogExportEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
+                                <option value="Y">@Language.T("사용", "Enabled")</option>
+                                <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                             </select>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">IIS log folder</label>
+                            <label class="form-label">@Language.T("IIS 로그 폴더", "IIS log folder")</label>
                             <input class="form-control" @bind="LogExportSettings.LogFolder" placeholder="C:\\inetpub\\logs\\LogFiles\\W3SVC3" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Export folder</label>
+                            <label class="form-label">@Language.T("내보내기 폴더", "Export folder")</label>
                             <input class="form-control" @bind="LogExportSettings.OutputFolder" placeholder="F:\\iis_log" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Export Hour</label>
+                            <label class="form-label">@Language.T("내보내기 시", "Export hour")</label>
                             <input class="form-control" type="number" @bind="LogExportSettings.RunHour" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Export Minute</label>
+                            <label class="form-label">@Language.T("내보내기 분", "Export minute")</label>
                             <input class="form-control" type="number" @bind="LogExportSettings.RunMinute" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Export Offset Days</label>
+                            <label class="form-label">@Language.T("내보내기 기준일 오프셋(일)", "Export date offset (days)")</label>
                             <input class="form-control" type="number" @bind="LogExportSettings.TargetDateOffsetDays" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Daily log import</label>
+                            <label class="form-label">@Language.T("일일 로그 가져오기", "Daily log import")</label>
                             <select class="form-select" @bind="LogImportEnabledChoice">
-                                <option value="Y">Y</option>
-                                <option value="N">N</option>
+                                <option value="Y">@Language.T("사용", "Enabled")</option>
+                                <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                             </select>
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Import log folder</label>
+                            <label class="form-label">@Language.T("가져올 로그 폴더", "Import log folder")</label>
                             <input class="form-control" @bind="LogImportSettings.LogFolder" placeholder="C:\\inetpub\\logs\\LogFiles\\W3SVC3" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Import state file</label>
+                            <label class="form-label">@Language.T("가져오기 상태 파일", "Import state file")</label>
                             <input class="form-control" @bind="LogImportSettings.StateFilePath" placeholder="F:\\iis_log\\log-import-state.json" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Import Hour</label>
+                            <label class="form-label">@Language.T("가져오기 시", "Import hour")</label>
                             <input class="form-control" type="number" @bind="LogImportSettings.RunHour" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Import Minute</label>
+                            <label class="form-label">@Language.T("가져오기 분", "Import minute")</label>
                             <input class="form-control" type="number" @bind="LogImportSettings.RunMinute" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Import Offset Days</label>
+                            <label class="form-label">@Language.T("가져오기 기준일 오프셋(일)", "Import date offset (days)")</label>
                             <input class="form-control" type="number" @bind="LogImportSettings.TargetDateOffsetDays" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Server name for reports</label>
+                            <label class="form-label">@Language.T("보고서에 표시할 서버 이름", "Server name in reports")</label>
                             <input class="form-control" @bind="LogImportSettings.ServerName" placeholder="HOST-01" />
                         </div>
                     </div>
@@ -171,47 +169,53 @@
             {
                 <div class="settings-section" id="analysis">
                         <div class="settings-section-title">@Language.T("AI 분석", "AI Analysis")</div>
-                        <div class="settings-section-help">@Language.T("IIS 로그를 Ollama에 보낼지와 응답 대기 시간을 설정합니다.", "These settings control whether the app sends IIS log data to Ollama and how long it waits for answers.")</div>
+                        <div class="settings-section-help">@Language.T("IIS 로그를 Ollama로 전송할지와 응답 대기 시간을 설정합니다.", "Choose whether to send IIS logs to Ollama and how long the app should wait for a response.")</div>
                         <div class="row g-2 align-items-end">
                             <div class="col-12 col-md-3">
-                                <label class="form-label">AI Analysis</label>
+                                <label class="form-label">@Language.T("AI 분석 사용", "Enable AI analysis")</label>
                                 <select class="form-select" @bind="OllamaEnabledChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
+                                    <option value="Y">@Language.T("사용", "Enabled")</option>
+                                    <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                                 </select>
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">Ollama Base URL</label>
+                                <label class="form-label">@Language.T("Ollama 기본 URL", "Ollama base URL")</label>
                                 <input class="form-control" @bind="OllamaSettings.BaseUrl" placeholder="http://localhost:11434" />
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">Ollama Model</label>
+                                <label class="form-label">@Language.T("Ollama 모델", "Ollama model")</label>
                                 <input class="form-control" @bind="OllamaSettings.Model" placeholder="gemma3:4b" />
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">Ollama Timeout (sec)</label>
+                                <label class="form-label">@Language.T("Ollama 응답 제한 시간(초)", "Ollama timeout (sec)")</label>
                                 <input class="form-control" type="number" @bind="OllamaSettings.TimeoutSeconds" />
                             </div>
+                            <div class="col-12">
+                                <button class="btn btn-outline-primary" @onclick="CheckOllamaConnectionAsync" disabled="@IsCheckingOllama">
+                                    @(IsCheckingOllama ? Language.T("연결 확인 중…", "Checking Ollama…") : Language.T("Ollama 연결 확인", "Test Ollama connection"))
+                                </button>
+                                <div class="form-text">@Language.T("저장된 설정으로 연결을 확인합니다. 주소나 모델을 변경했다면 먼저 저장하세요.", "This checks the saved settings. Save any URL or model changes before testing.")</div>
+                            </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">Auto analyze</label>
+                                <label class="form-label">@Language.T("자동 분석", "Automatic analysis")</label>
                                 <select class="form-select" @bind="OllamaAutoAnalyzeChoice">
-                                    <option value="Y">Y</option>
-                                    <option value="N">N</option>
+                                    <option value="Y">@Language.T("사용", "Enabled")</option>
+                                    <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                                 </select>
                             </div>
                             <div class="col-12 col-md-3">
-                                <label class="form-label">Auto Analyze Threshold</label>
+                                <label class="form-label">@Language.T("자동 분석 임계값", "Auto-analysis threshold")</label>
                                 <input class="form-control" type="number" step="0.01" @bind="OllamaSettings.AutoAnalyzeStatus5xxRatio" />
                             </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label">Analysis output folder</label>
+                            <label class="form-label">@Language.T("분석 결과 저장 폴더", "Analysis output folder")</label>
                             <input class="form-control" @bind="OllamaSettings.AnalysisOutputFolder" placeholder="F:\\iis_log\\analysis" />
-                            <div class="form-text">This is where the latest IIS analysis JSON is saved and loaded from.</div>
+                            <div class="form-text">@Language.T("최신 IIS 분석 결과 JSON을 저장하고 불러올 폴더입니다.", "Folder used to save and load the latest IIS analysis JSON report.")</div>
                         </div>
                         <div class="col-12">
-                            <label class="form-label">AI analysis system prompt</label>
+                            <label class="form-label">@Language.T("AI 분석 시스템 프롬프트", "AI analysis system prompt")</label>
                             <textarea class="form-control font-monospace" rows="10" @bind="LogAnalysisSettings.AnalysisSystemPrompt"></textarea>
-                            <div class="form-text">This prompt controls the base card report. Leave it unchanged to use the built-in default.</div>
+                            <div class="form-text">@Language.T("기본 분석 보고서의 응답 방식을 지정합니다. 기본 프롬프트를 사용하려면 비워 두세요.", "Controls the base analysis report. Leave this blank to use the built-in prompt.")</div>
                         </div>
                     </div>
                 </div>
@@ -221,42 +225,42 @@
                     <div class="settings-section-help">@Language.T("IIS 로그 분석에 사용할 제외 IP 패턴과 탐지 토큰을 관리합니다. 한 줄에 하나씩 입력하세요.", "Manage excluded IP patterns and custom detection tokens used by the IIS log analyzer. Enter one item per line.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-lg-6">
-                            <label class="form-label">Excluded IP patterns</label>
+                            <label class="form-label">@Language.T("제외할 IP 패턴", "Excluded IP patterns")</label>
                             <textarea class="form-control font-monospace" rows="5" @bind="ExcludedIpPatternsText" placeholder="121.131.195.*"></textarea>
                         </div>
                         <div class="col-12 col-lg-6">
-                            <label class="form-label">Priority URL tokens</label>
-                            <textarea class="form-control font-monospace" rows="5" @bind="PriorityUrlTokensText" placeholder="board&#10;search&#10;download"></textarea>
+                            <label class="form-label">@Language.T("우선 분석 URL 키워드", "Priority URL tokens")</label>
+                            <textarea class="form-control font-monospace" rows="5" @bind="PriorityUrlTokensText" placeholder="@("board\nsearch\ndownload")"></textarea>
                         </div>
                         <div class="col-12 col-lg-6">
-                            <label class="form-label">Admin probe tokens</label>
-                            <textarea class="form-control font-monospace" rows="6" @bind="AdminProbeTokensText" placeholder="admin&#10;manager&#10;login"></textarea>
+                                    <label class="form-label">@Language.T("관리자 경로 탐지 키워드", "Admin path probe tokens")</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="AdminProbeTokensText" placeholder="@("admin\nmanager\nlogin")"></textarea>
                         </div>
                         <div class="col-12 col-lg-6">
-                            <label class="form-label">Backup probe tokens</label>
-                            <textarea class="form-control font-monospace" rows="6" @bind="BackupProbeTokensText" placeholder="backup&#10;bak&#10;zip"></textarea>
+                                    <label class="form-label">@Language.T("백업 파일 탐지 키워드", "Backup-file probe tokens")</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="BackupProbeTokensText" placeholder="@("backup\nbak\nzip")"></textarea>
                         </div>
                         <div class="col-12 col-lg-6">
-                            <label class="form-label">Config probe tokens</label>
-                            <textarea class="form-control font-monospace" rows="6" @bind="ConfigProbeTokensText" placeholder="web.config&#10;appsettings.json&#10;.env"></textarea>
+                                    <label class="form-label">@Language.T("설정 파일 탐지 키워드", "Configuration-file probe tokens")</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="ConfigProbeTokensText" placeholder="@("web.config\nappsettings.json\n.env")"></textarea>
                         </div>
                         <div class="col-12 col-lg-6">
-                            <label class="form-label">Script / exploit tokens</label>
-                            <textarea class="form-control font-monospace" rows="6" @bind="ScriptProbeTokensText" placeholder="powershell&#10;cmd=&#10;phpmyadmin"></textarea>
+                                    <label class="form-label">@Language.T("스크립트 / 공격 탐지 키워드", "Script / exploit probe tokens")</label>
+                            <textarea class="form-control font-monospace" rows="6" @bind="ScriptProbeTokensText" placeholder="@("powershell\ncmd=\nphpmyadmin")"></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="settings-section" id="report">
-                    <div class="settings-section-title">@Language.T("리포트", "Reports")</div>
-                    <div class="settings-section-help">@Language.T("사람이 읽기 쉬운 IIS 분석 리포트를 확인하고 필요할 때만 원본 JSON을 열어보세요.", "View a human-readable IIS analysis report here, and open the raw JSON only when you need the source data.")</div>
+                    <div class="settings-section-title">@Language.T("보고서", "Reports")</div>
+                    <div class="settings-section-help">@Language.T("사람이 읽기 쉬운 IIS 분석 보고서를 확인하고 필요할 때만 원본 JSON을 열어보세요.", "View a human-readable IIS analysis report here, and open the raw JSON only when you need the source data.")</div>
                     <div class="row g-2">
                         <div class="col-12 col-lg-8">
-                            <label class="form-label">Human-readable report</label>
+                            <label class="form-label">@Language.T("읽기 쉬운 보고서", "Readable report")</label>
                             <div class="report-preview">
                                 @if (string.IsNullOrWhiteSpace(_iisReportSummary))
                                 {
-                                    <div class="text-muted">No IIS analysis loaded yet.</div>
+                                    <div class="text-muted">@Language.T("아직 IIS 분석 결과를 불러오지 않았습니다.", "No IIS analysis has been loaded yet.")</div>
                                 }
                                 else
                                 {
@@ -266,22 +270,22 @@
                         </div>
                         <div class="col-12 col-lg-4">
                             <div class="d-grid gap-2">
-                                <button type="button" class="btn btn-outline-primary" @onclick="LoadLatestIisReportAsync">Load Latest IIS Report</button>
+                                <button type="button" class="btn btn-outline-primary" @onclick="LoadLatestIisReportAsync">@Language.T("최신 IIS 보고서 불러오기", "Load latest IIS report")</button>
                                 <button type="button" class="btn btn-outline-secondary" @onclick="ToggleIisReportJsonView" disabled="@string.IsNullOrWhiteSpace(_iisReportRawJson)">
-                                    @(ShowIisReportJson ? "Hide JSON" : "View JSON")
+                                    @(ShowIisReportJson ? Language.T("JSON 숨기기", "Hide JSON") : Language.T("JSON 보기", "View JSON"))
                                 </button>
-                                <button type="button" class="btn btn-outline-success" @onclick="RunLogExportNowAsync">Run Log Export Now</button>
-                                <button type="button" class="btn btn-outline-dark" @onclick="DownloadIisReportAsync" disabled="@string.IsNullOrWhiteSpace(_iisReportRawJson)">Download JSON</button>
+                                <button type="button" class="btn btn-outline-success" @onclick="RunLogExportNowAsync">@Language.T("로그 내보내기 실행", "Run log export")</button>
+                                <button type="button" class="btn btn-outline-dark" @onclick="DownloadIisReportAsync" disabled="@string.IsNullOrWhiteSpace(_iisReportRawJson)">@Language.T("JSON 다운로드", "Download JSON")</button>
                             </div>
                             <div class="text-muted small mt-2">
-                                The JSON view is only for copying, downloading, or troubleshooting.
+                                @Language.T("JSON 보기는 복사, 다운로드 또는 문제 해결을 위한 용도입니다.", "Use the JSON view to copy, download, or troubleshoot the report.")
                             </div>
                         </div>
                     </div>
                     @if (ShowIisReportJson)
                     {
                         <div class="mt-3">
-                            <label class="form-label">Raw JSON</label>
+                            <label class="form-label">@Language.T("원본 JSON", "Raw JSON")</label>
                             <textarea class="form-control font-monospace" rows="10" readonly>@_iisReportRawJson</textarea>
                         </div>
                     }
@@ -294,20 +298,20 @@
                         <div class="settings-section-title">@Language.T("백업 및 복원", "Backup & Restore")</div>
                         <div class="settings-section-help">@Language.T("현재 설정을 JSON으로 내보내거나 나중에 복원합니다.", "Use this to export the current settings as JSON or restore them later.")</div>
                         <div class="mb-2">
-                            <label class="form-label">Import backup file</label>
-                            <InputFile OnChange="LoadBackupFileAsync" class="form-control" accept=".json,application/json" />
+                            <label class="form-label">@Language.T("백업 파일 가져오기", "Import backup file")</label>
+                            <FilePicker OnChange="LoadBackupFileAsync" Accept=".json,application/json" />
                         </div>
                         <div class="row g-2">
                             <div class="col-12">
-                                <label class="form-label">Backup JSON</label>
-                                <textarea class="form-control font-monospace" rows="8" @bind="_backupJson" placeholder="Generate a backup or paste JSON here to restore."></textarea>
+                                <label class="form-label">@Language.T("백업 JSON", "Backup JSON")</label>
+                                <textarea class="form-control font-monospace" rows="8" @bind="_backupJson" placeholder="@Language.T("백업을 생성하거나 복원할 JSON을 여기에 붙여 넣으세요.", "Generate a backup or paste JSON here to restore.")"></textarea>
                             </div>
                         </div>
                         <div class="mt-3 d-flex flex-wrap gap-2">
-                            <button type="button" class="btn btn-outline-secondary" @onclick="CreateBackupAsync">Generate Backup</button>
-                            <button type="button" class="btn btn-outline-primary" @onclick="DownloadBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">Download Backup</button>
-                            <button type="button" class="btn btn-outline-warning" @onclick="RestoreBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">Restore Backup</button>
-                            <button type="button" class="btn btn-outline-danger" @onclick="ClearBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">Clear</button>
+                            <button type="button" class="btn btn-outline-secondary" @onclick="CreateBackupAsync">@Language.T("백업 생성", "Generate backup")</button>
+                            <button type="button" class="btn btn-outline-primary" @onclick="DownloadBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">@Language.T("백업 다운로드", "Download backup")</button>
+                            <button type="button" class="btn btn-outline-warning" @onclick="RestoreBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">@Language.T("백업 복원", "Restore backup")</button>
+                            <button type="button" class="btn btn-outline-danger" @onclick="ClearBackupAsync" disabled="@string.IsNullOrWhiteSpace(_backupJson)">@Language.T("초기화", "Clear")</button>
                         </div>
                 </div>
 
@@ -321,33 +325,33 @@
                                     <div class="settings-subsection-help">@Language.T("SMTP 인증, 회원가입 인증, 비밀번호 재설정을 각각 독립적으로 켜고 끕니다.", "Enable SMTP, signup verification, and password reset independently.")</div>
                                 </div>
                                 <div class="row g-2">
-                                    <div class="col-12 col-md-4"><label class="form-label">SMTP auth mode</label><select class="form-select" @bind="EmailEnabledChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
-                                    <div class="col-12 col-md-4"><label class="form-label">Signup verification</label><select class="form-select" @bind="EmailVerificationChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
-                                    <div class="col-12 col-md-4"><label class="form-label">Password reset</label><select class="form-select" @bind="EmailPasswordResetChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
+                                    <div class="col-12 col-md-4"><label class="form-label">@Language.T("SMTP 인증", "SMTP authentication")</label><select class="form-select" @bind="EmailEnabledChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
+                                    <div class="col-12 col-md-4"><label class="form-label">@Language.T("회원가입 이메일 인증", "Signup email verification")</label><select class="form-select" @bind="EmailVerificationChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
+                                    <div class="col-12 col-md-4"><label class="form-label">@Language.T("비밀번호 재설정", "Password reset")</label><select class="form-select" @bind="EmailPasswordResetChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
                                 </div>
                             </div>
                             <div class="settings-subsection">
                                 <div class="settings-subsection-heading">
-                                    <div class="settings-subsection-title">SMTP connection</div>
+                                    <div class="settings-subsection-title">@Language.T("SMTP 연결", "SMTP connection")</div>
                                     <div class="settings-subsection-help">@Language.T("메일을 보낼 SMTP 호스트와 인증 정보를 입력합니다.", "Enter the SMTP host, port, encryption, and credentials used to send mail.")</div>
                                 </div>
                                 <div class="row g-2">
-                                    <div class="col-12 col-md-6"><label class="form-label">SMTP Host</label><input class="form-control" @bind="EmailSettings.SmtpHost" placeholder="smtp.example.com" /></div>
-                                    <div class="col-12 col-md-3"><label class="form-label">SMTP Port</label><input class="form-control" type="number" @bind="EmailSettings.SmtpPort" /></div>
-                                    <div class="col-12 col-md-3"><label class="form-label">SSL</label><select class="form-select" @bind="EmailSslChoice"><option value="Y">Y</option><option value="N">N</option></select></div>
-                                    <div class="col-12 col-md-6"><label class="form-label">Username</label><input class="form-control" @bind="EmailSettings.SmtpUsername" autocomplete="off" /></div>
-                                    <div class="col-12 col-md-6"><label class="form-label">Password</label><input class="form-control" type="password" @bind="EmailSettings.SmtpPassword" autocomplete="new-password" /></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">@Language.T("SMTP 서버", "SMTP host")</label><input class="form-control" @bind="EmailSettings.SmtpHost" placeholder="smtp.example.com" /></div>
+                                    <div class="col-12 col-md-3"><label class="form-label">@Language.T("SMTP 포트", "SMTP port")</label><input class="form-control" type="number" @bind="EmailSettings.SmtpPort" /></div>
+                                    <div class="col-12 col-md-3"><label class="form-label">SSL</label><select class="form-select" @bind="EmailSslChoice"><option value="Y">@Language.T("사용", "Enabled")</option><option value="N">@Language.T("사용 안 함", "Disabled")</option></select></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">@Language.T("사용자 이름", "Username")</label><input class="form-control" @bind="EmailSettings.SmtpUsername" autocomplete="off" /></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">@Language.T("비밀번호", "Password")</label><input class="form-control" type="password" @bind="EmailSettings.SmtpPassword" autocomplete="new-password" /></div>
                                 </div>
                             </div>
                             <div class="settings-subsection">
                                 <div class="settings-subsection-heading">
-                                    <div class="settings-subsection-title">Sender and message</div>
+                                    <div class="settings-subsection-title">@Language.T("발신자 및 메시지", "Sender and message")</div>
                                     <div class="settings-subsection-help">@Language.T("사용자에게 표시될 발신자 정보와 인증 메일 제목을 설정합니다.", "Set the sender identity and the subject shown in verification emails.")</div>
                                 </div>
                                 <div class="row g-2">
-                                    <div class="col-12 col-md-6"><label class="form-label">From Address</label><input class="form-control" @bind="EmailSettings.FromAddress" placeholder="noreply@example.com" /></div>
-                                    <div class="col-12 col-md-6"><label class="form-label">From Name</label><input class="form-control" @bind="EmailSettings.FromName" placeholder="OpsEye" /></div>
-                                    <div class="col-12"><label class="form-label">Verification Subject</label><input class="form-control" @bind="EmailSettings.VerificationSubject" /></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">@Language.T("발신 이메일 주소", "From address")</label><input class="form-control" @bind="EmailSettings.FromAddress" placeholder="noreply@example.com" /></div>
+                                    <div class="col-12 col-md-6"><label class="form-label">@Language.T("발신자 이름", "From name")</label><input class="form-control" @bind="EmailSettings.FromName" placeholder="OpsEye" /></div>
+                                    <div class="col-12"><label class="form-label">@Language.T("인증 메일 제목", "Verification email subject")</label><input class="form-control" @bind="EmailSettings.VerificationSubject" /></div>
                                 </div>
                             </div>
                         </div>
@@ -386,12 +390,12 @@
                                     <div class="notification-channel__fields"><input class="form-control" @bind="NotificationSettings.DoorayChannelId" placeholder="@Language.T("채널 ID", "Channel ID")" /><input class="form-control" type="password" @bind="NotificationSettings.DoorayApiToken" placeholder="@Language.T("API 토큰", "API token")" /></div>
                                 </div>
                                 <div class="notification-channel">
-                                    <div class="notification-channel__copy"><strong>Discord</strong><span>Incoming Webhook</span></div>
+                                    <div class="notification-channel__copy"><strong>Discord</strong><span>@Language.T("수신 웹훅", "Incoming webhook")</span></div>
                                     <label class="form-switch-control" for="discordEnabled"><input id="discordEnabled" type="checkbox" @bind="NotificationSettings.DiscordEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.DiscordEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
                                     <input class="form-control notification-channel__input" @bind="NotificationSettings.DiscordWebhookUrl" placeholder="https://discord.com/api/webhooks/..." />
                                 </div>
                                 <div class="notification-channel">
-                                    <div class="notification-channel__copy"><strong>Kakao Work</strong><span>Incoming Webhook</span></div>
+                                    <div class="notification-channel__copy"><strong>@Language.T("카카오워크", "Kakao Work")</strong><span>@Language.T("수신 웹훅", "Incoming webhook")</span></div>
                                     <label class="form-switch-control" for="kakaoWorkEnabled"><input id="kakaoWorkEnabled" type="checkbox" @bind="NotificationSettings.KakaoWorkEnabled" /><span class="form-switch-control__track" aria-hidden="true"></span><span class="form-switch-control__state">@(NotificationSettings.KakaoWorkEnabled ? Language.T("켜짐", "On") : Language.T("꺼짐", "Off"))</span></label>
                                     <input class="form-control notification-channel__input" @bind="NotificationSettings.KakaoWorkWebhookUrl" placeholder="https://hooks.kakao.work/..." />
                                 </div>
@@ -407,13 +411,13 @@
 
             @if (!string.IsNullOrWhiteSpace(StatusMessage))
             {
-                <div class="alert alert-secondary mb-0">@StatusMessage</div>
+                <div class="alert alert-secondary mb-0">@Language.Localize(StatusMessage)</div>
             }
         </div>
 
         <div class="settings-footer">
-            <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@IsSaving">Reload</button>
-            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@IsSaving">Save</button>
+            <button class="btn btn-outline-secondary" @onclick="ReloadAsync" disabled="@IsSaving">@Language.T("다시 불러오기", "Reload")</button>
+            <button class="btn btn-primary" @onclick="SaveAsync" disabled="@(IsSaving || !SettingsLoaded)">@Language.T("저장", "Save")</button>
         </div>
     </section>
 </div>
@@ -423,6 +427,8 @@
     private SecuritySettings SecuritySettings { get; set; } = new();
     private bool IsOpen { get; set; }
     private bool IsSaving { get; set; }
+    private bool SettingsLoaded { get; set; }
+    private bool IsCheckingOllama { get; set; }
     private string ActiveSettingsTab { get; set; } = "basic";
     private string? StatusMessage { get; set; }
     private EmailSettings EmailSettings { get; set; } = new();
@@ -574,9 +580,9 @@
         set => LogAnalysisSettings.ScriptProbeTokens = SplitLines(value);
     }
 
-    protected override async Task OnInitializedAsync()
+    protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        await LoadAsync();
+        if (firstRender) await LoadAsync();
     }
 
     private string BasicTabButtonClass => TabButtonClass("basic");
@@ -586,28 +592,28 @@
 
     private string TabSummaryTitle => ActiveSettingsTab switch
     {
-        "basic" => "Basic settings",
-        "collection" => "IIS log pipeline",
-        "analysis" => "AI analysis and reports",
-        "integrations" => "Backup, email, and notifications",
-        _ => "Settings"
+        "basic" => Language.T("기본 설정", "Basic settings"),
+        "collection" => Language.T("IIS 로그 수집·내보내기", "IIS log pipeline"),
+        "analysis" => Language.T("AI 분석 및 보고서", "AI analysis and reports"),
+        "integrations" => Language.T("백업·이메일·알림 연동", "Backup, email, and notifications"),
+        _ => Language.T("설정", "Settings")
     };
 
     private string TabSummaryText => ActiveSettingsTab switch
     {
-        "basic" => "Server health alerts and account security.",
-        "collection" => "Where IIS logs are picked up, exported, and imported.",
-        "analysis" => "Ollama analysis, detection rules, and where report JSON is stored.",
-        "integrations" => "Backups, email verification/reset, and outbound notifications.",
+        "basic" => Language.T("서버 상태 알림과 계정 보안을 설정합니다.", "Server health alerts and account security."),
+        "collection" => Language.T("IIS 로그를 수집하고 내보낼 위치와 실행 시간을 설정합니다.", "Where IIS logs are picked up, exported, and imported."),
+        "analysis" => Language.T("Ollama 분석, 탐지 규칙, JSON 보고서 저장 위치를 설정합니다.", "Ollama analysis, detection rules, and where report JSON is stored."),
+        "integrations" => Language.T("설정 백업, 이메일 인증·비밀번호 재설정, 외부 알림을 관리합니다.", "Backups, email verification/reset, and outbound notifications."),
         _ => string.Empty
     };
 
     private string TabSummaryNote => ActiveSettingsTab switch
     {
-        "basic" => "Start here if you only want to tune the main behavior.",
-        "collection" => "Check this first if logs are not showing up.",
-        "analysis" => "Tune this when you need custom detection logic or report storage.",
-        "integrations" => "Used when you need recovery or external delivery.",
+        "basic" => Language.T("주요 동작을 변경하려면 여기서 시작하세요.", "Start here if you only want to tune the main behavior."),
+        "collection" => Language.T("로그가 표시되지 않으면 이 설정을 먼저 확인하세요.", "Check this first if logs are not showing up."),
+        "analysis" => Language.T("탐지 조건이나 보고서 저장 방식을 변경할 수 있습니다.", "Tune this when you need custom detection logic or report storage."),
+        "integrations" => Language.T("설정 복구와 외부 서비스 연동에 사용합니다.", "Used when you need recovery or external delivery."),
         _ => string.Empty
     };
 
@@ -615,6 +621,50 @@
     private void ShowCollectionTab() => ActiveSettingsTab = "collection";
     private void ShowAnalysisTab() => ActiveSettingsTab = "analysis";
     private void ShowIntegrationsTab() => ActiveSettingsTab = "integrations";
+
+    private async Task CheckOllamaConnectionAsync()
+    {
+        if (IsCheckingOllama) return;
+        IsCheckingOllama = true;
+        StatusMessage = null;
+        try
+        {
+            var status = await ReadJsonAsync<OllamaClient.ConnectionStatus>("api/runtime/ollama/status");
+            StatusMessage = status is null
+                ? Language.T("Ollama 상태 응답을 받지 못했습니다.", "No Ollama status response was received.")
+                : GetOllamaStatusMessage(status);
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = Language.IsKorean
+                ? $"Ollama 연결 상태를 확인하지 못했습니다. 앱 설정과 서버 로그를 확인하세요. ({ex.Message})"
+                : $"Could not check the Ollama connection. Review the app settings and server logs. ({ex.Message})";
+        }
+        finally
+        {
+            IsCheckingOllama = false;
+        }
+    }
+
+    private string GetOllamaStatusMessage(OllamaClient.ConnectionStatus status)
+    {
+        if (!status.Enabled)
+        {
+            return Language.T("앱 설정에서 Ollama가 비활성화되어 있습니다. AI 분석 설정을 켜고 저장한 뒤 다시 확인하세요.", "Ollama is disabled in the app settings. Enable AI analysis, save, and check again.");
+        }
+
+        if (!status.Reachable)
+        {
+            return Language.T("Ollama 서버에 연결하지 못했습니다. 설정된 주소와 서버 실행 상태를 확인하세요.", "Could not reach Ollama. Check the configured URL and make sure the server is running.");
+        }
+
+        if (!status.ModelAvailable)
+        {
+            return Language.T($"Ollama에는 연결됐지만 '{status.Model}' 모델이 설치되어 있지 않습니다.", $"Ollama is reachable, but model '{status.Model}' is not installed.");
+        }
+
+        return Language.T($"Ollama 연결과 '{status.Model}' 모델을 확인했습니다.", $"Ollama is reachable and model '{status.Model}' is available.");
+    }
 
     private string TabButtonClass(string tabKey)
         => ActiveSettingsTab == tabKey ? "btn btn-primary btn-sm" : "btn btn-outline-secondary btn-sm";
@@ -649,57 +699,58 @@
 
     private async Task LoadAsync()
     {
+        SettingsLoaded = false;
         try
         {
             StatusMessage = null;
-            var client = CreateClient();
-            var settings = await client.GetFromJsonAsync<AlertSettings>("api/alerts/settings");
+            var settings = await ReadJsonAsync<AlertSettings>("api/alerts/settings");
             if (settings is not null)
             {
                 AlertSettings = settings;
             }
 
-            var securitySettings = await client.GetFromJsonAsync<SecuritySettings>("api/security/settings");
+            var securitySettings = await ReadJsonAsync<SecuritySettings>("api/security/settings");
             if (securitySettings is not null)
             {
                 SecuritySettings = securitySettings;
             }
 
-            var ollamaResponse = await client.GetFromJsonAsync<OllamaRuntimeSettings>("api/runtime/ollama");
+            var ollamaResponse = await ReadJsonAsync<OllamaRuntimeSettings>("api/runtime/ollama");
             if (ollamaResponse is not null)
             {
                 OllamaSettings = ollamaResponse;
             }
 
-            var logExportResponse = await client.GetFromJsonAsync<LogExportRuntimeSettings>("api/runtime/log-export");
+            var logExportResponse = await ReadJsonAsync<LogExportRuntimeSettings>("api/runtime/log-export");
             if (logExportResponse is not null)
             {
                 LogExportSettings = logExportResponse;
             }
 
-            var logImportResponse = await client.GetFromJsonAsync<LogImportRuntimeSettings>("api/runtime/log-import");
+            var logImportResponse = await ReadJsonAsync<LogImportRuntimeSettings>("api/runtime/log-import");
             if (logImportResponse is not null)
             {
                 LogImportSettings = logImportResponse;
             }
 
-            var logAnalysisResponse = await client.GetFromJsonAsync<LogAnalysisRuntimeSettings>("api/runtime/log-analysis-rules");
+            var logAnalysisResponse = await ReadJsonAsync<LogAnalysisRuntimeSettings>("api/runtime/log-analysis-rules");
             if (logAnalysisResponse is not null)
             {
                 LogAnalysisSettings = logAnalysisResponse;
             }
 
-            var emailResponse = await client.GetFromJsonAsync<EmailSettings>("api/email/settings");
+            var emailResponse = await ReadJsonAsync<EmailSettings>("api/email/settings");
             if (emailResponse is not null)
             {
                 EmailSettings = emailResponse;
             }
 
-            var notificationResponse = await client.GetFromJsonAsync<NotificationSettings>("api/notification/settings");
+            var notificationResponse = await ReadJsonAsync<NotificationSettings>("api/notification/settings");
             if (notificationResponse is not null)
             {
                 NotificationSettings = notificationResponse;
             }
+            SettingsLoaded = true;
         }
         catch (Exception ex)
         {
@@ -711,7 +762,7 @@
 
     private async Task SaveAsync()
     {
-        if (IsSaving)
+        if (IsSaving || !SettingsLoaded)
         {
             return;
         }
@@ -755,9 +806,9 @@
     {
         try
         {
-            var client = CreateClient();
-            _backupJson = await client.GetStringAsync("api/settings/backup");
-            StatusMessage = "Backup JSON generated.";
+            var backup = await ReadJsonAsync<JsonElement>("api/settings/backup");
+            _backupJson = backup.GetRawText();
+            StatusMessage = Language.T("백업 JSON을 생성했습니다.", "Backup JSON generated.");
         }
         catch (Exception ex)
         {
@@ -771,16 +822,15 @@
     {
         try
         {
-            var client = CreateClient();
-            var latest = await client.GetFromJsonAsync<OllamaAnalysisEntry>("api/ollama/latest");
+            var latest = await ReadJsonAsync<OllamaAnalysisEntry>("api/ollama/latest");
             _iisReportSummary = latest?.Response ?? string.Empty;
             _iisReportRawJson = latest is null
                 ? string.Empty
                 : JsonSerializer.Serialize(latest, new JsonSerializerOptions { WriteIndented = true });
             ShowIisReportJson = false;
             StatusMessage = latest is null
-                ? "No IIS analysis found."
-                : "Latest IIS analysis loaded.";
+                ? Language.T("저장된 IIS 분석 결과가 없습니다.", "No IIS analysis found.")
+                : Language.T("최근 IIS 분석 결과를 불러왔습니다.", "Latest IIS analysis loaded.");
         }
         catch (Exception ex)
         {
@@ -794,14 +844,14 @@
     {
         if (string.IsNullOrWhiteSpace(_iisReportRawJson))
         {
-            StatusMessage = "IIS report JSON is empty.";
+            StatusMessage = Language.T("내려받을 IIS 보고서가 없습니다.", "No IIS report is available to download.");
             await InvokeAsync(StateHasChanged);
             return;
         }
 
         var fileName = $"iis-report-{DateTime.Now:yyyyMMdd-HHmmss}.json";
         await JS.InvokeVoidAsync("monitorSettings.downloadText", fileName, _iisReportRawJson, "application/json");
-        StatusMessage = $"Download started: {fileName}.";
+        StatusMessage = Language.T($"다운로드를 시작했습니다: {fileName}", $"Download started: {fileName}.");
         await InvokeAsync(StateHasChanged);
     }
 
@@ -815,11 +865,8 @@
     {
         try
         {
-            var client = CreateClient();
-            var response = await client.PostAsync("api/log-export/run", null);
-            var body = await response.Content.ReadAsStringAsync();
-            response.EnsureSuccessStatusCode();
-            StatusMessage = string.IsNullOrWhiteSpace(body) ? "Log export completed." : body;
+            await SaveJsonAsync("api/log-export/run", new { });
+            StatusMessage = Language.T("로그 내보내기를 완료했습니다.", "Log export completed.");
         }
         catch (Exception ex)
         {
@@ -833,14 +880,14 @@
     {
         if (string.IsNullOrWhiteSpace(_backupJson))
         {
-            StatusMessage = "Backup JSON is empty.";
+            StatusMessage = Language.T("백업 JSON을 먼저 생성하거나 파일을 선택하세요.", "Generate backup JSON or choose a file first.");
             await InvokeAsync(StateHasChanged);
             return;
         }
 
         var fileName = $"settings-backup-{DateTime.Now:yyyyMMdd-HHmmss}.json";
         await JS.InvokeVoidAsync("monitorSettings.downloadText", fileName, _backupJson, "application/json");
-        StatusMessage = $"Download started: {fileName}.";
+        StatusMessage = Language.T($"다운로드를 시작했습니다: {fileName}", $"Download started: {fileName}.");
         await InvokeAsync(StateHasChanged);
     }
 
@@ -848,7 +895,7 @@
     {
         if (string.IsNullOrWhiteSpace(_backupJson))
         {
-            StatusMessage = "Backup JSON is empty.";
+            StatusMessage = Language.T("백업 JSON을 먼저 생성하거나 파일을 선택하세요.", "Generate backup JSON or choose a file first.");
             await InvokeAsync(StateHasChanged);
             return;
         }
@@ -858,13 +905,12 @@
             var payload = JsonSerializer.Deserialize<SettingsBackupPayload>(_backupJson);
             if (payload is null)
             {
-                throw new InvalidOperationException("Invalid backup JSON.");
+                throw new InvalidOperationException(Language.T("올바른 백업 JSON이 아닙니다.", "Invalid backup JSON."));
             }
 
-            var client = CreateClient();
-            var response = await client.PostAsJsonAsync("api/settings/restore", payload);
-            response.EnsureSuccessStatusCode();
-            StatusMessage = "Backup restored.";
+            await SaveJsonAsync("api/settings/restore", payload);
+            await LoadAsync();
+            StatusMessage = Language.T("백업을 복원했습니다.", "Backup restored.");
         }
         catch (Exception ex)
         {
@@ -887,7 +933,7 @@
             await using var stream = file.OpenReadStream(maxAllowedSize: 5 * 1024 * 1024);
             using var reader = new StreamReader(stream);
             _backupJson = await reader.ReadToEndAsync();
-            StatusMessage = $"Loaded backup file: {file.Name}.";
+            StatusMessage = Language.T($"백업 파일을 불러왔습니다: {file.Name}", $"Loaded backup file: {file.Name}.");
         }
         catch (Exception ex)
         {
@@ -900,15 +946,8 @@
     private Task ClearBackupAsync()
     {
         _backupJson = string.Empty;
-        StatusMessage = "Backup JSON cleared.";
+        StatusMessage = Language.T("백업 JSON 입력을 비웠습니다.", "Backup JSON cleared.");
         return InvokeAsync(StateHasChanged);
-    }
-
-    private HttpClient CreateClient()
-    {
-        var client = HttpClientFactory.CreateClient();
-        client.BaseAddress = new Uri(NavigationManager.BaseUri);
-        return client;
     }
 
     private async Task SaveJsonAsync<T>(string endpoint, T payload)
@@ -922,6 +961,14 @@
     }
 
     private sealed record BrowserApiResponse(bool Ok, int Status, string? Body);
+
+    private async Task<T?> ReadJsonAsync<T>(string endpoint)
+    {
+        var response = await JS.InvokeAsync<BrowserApiResponse>("monitorSettings.getJson", endpoint);
+        if (!response.Ok)
+            throw new InvalidOperationException(Language.T($"조회에 실패했습니다. (HTTP {response.Status})", $"Could not load data. (HTTP {response.Status})"));
+        return string.IsNullOrWhiteSpace(response.Body) ? default : JsonSerializer.Deserialize<T>(response.Body, new JsonSerializerOptions(JsonSerializerDefaults.Web));
+    }
 
     private static bool TryParseTimeOnly(string? value, out TimeOnly time)
     {

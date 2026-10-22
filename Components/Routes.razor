@@ -10,8 +10,8 @@
         </Found>
         <NotFound>
             <LayoutView Layout="typeof(Layout.MainLayout)">
-                <h3>Not Found</h3>
-                <p>Sorry, the content you are looking for does not exist.</p>
+                <h3>@Language.T("페이지를 찾을 수 없습니다", "Page not found")</h3>
+                <p>@Language.T("요청하신 페이지가 없거나 주소가 변경되었습니다.", "The page may have moved or the address may be incorrect.")</p>
             </LayoutView>
         </NotFound>
     </Router>

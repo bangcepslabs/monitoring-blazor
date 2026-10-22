@@ -13,14 +13,14 @@
 <div class="account-page">
     <div class="page-hero d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="eyebrow">Account Center</div>
+            <div class="eyebrow">@Language.T("계정 센터", "Account center")</div>
             <h1 class="display-6 mb-2">@Language.T("내 프로필", "My profile")</h1>
             <p class="text-secondary mb-0">
-                Update your display name and password here. User roles and membership are managed by administrators.
+                @Language.T("표시 이름과 비밀번호를 변경할 수 있습니다. 사용자 역할과 계정 관리는 관리자에게 문의하세요.", "Update your display name and password here. Contact an administrator to change your role or account status.")
             </p>
         </div>
         <a class="btn btn-outline-secondary" href="/">
-            <i class="bi bi-arrow-left me-2"></i>Back to dashboard
+            <i class="bi bi-arrow-left me-2"></i>@Language.T("대시보드로 돌아가기", "Back to dashboard")
         </a>
     </div>
 
@@ -33,9 +33,9 @@
 
     <div class="row g-4">
         <div class="col-12 col-xl-6">
-            <div class="card section-card h-100">
+            <div class="card section-card">
                 <div class="card-header">
-                    <strong>My Profile</strong>
+                    <strong>@Language.T("내 프로필", "My profile")</strong>
                 </div>
                 <div class="card-body d-grid gap-3">
                     <div class="profile-summary">
@@ -43,60 +43,60 @@
                             <i class="bi bi-person-circle"></i>
                         </div>
                         <div>
-                            <div class="fw-semibold">@(_currentMember?.DisplayName ?? "Signed in user")</div>
+                            <div class="fw-semibold">@(_currentMember?.DisplayName ?? Language.T("로그인한 사용자", "Signed-in user"))</div>
                             <div class="text-secondary small">@(_currentMember?.UserName ?? "unknown")</div>
                             <div class="small mt-1">
-                                <span class="badge text-bg-secondary">@(_currentMember?.Role ?? "User")</span>
+                                <span class="badge text-bg-secondary">@Language.Label(_currentMember?.Role ?? "User")</span>
                             </div>
                         </div>
                     </div>
 
                     <div class="row g-3">
                         <div class="col-12">
-                            <label class="form-label" for="profile-display-name">Display name</label>
+                            <label class="form-label" for="profile-display-name">@Language.T("표시 이름", "Display name")</label>
                             <input id="profile-display-name" class="form-control" @bind="_currentDisplayName" />
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label">Created</label>
+                            <label class="form-label">@Language.T("가입일", "Created")</label>
                             <input class="form-control" value="@(_currentMember?.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
                         </div>
                         <div class="col-12 col-md-6">
-                            <label class="form-label">Last login</label>
+                            <label class="form-label">@Language.T("최근 로그인", "Last login")</label>
                             <input class="form-control" value="@(_currentMember?.LastLoginUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
                         </div>
                     </div>
 
                     <div class="d-flex flex-wrap gap-2">
                         <button type="button" class="btn btn-outline-primary" @onclick="SaveMyProfileAsync" disabled="@(!CanSaveProfile)">
-                            <i class="bi bi-person-check me-2"></i>Save profile
+                            <i class="bi bi-person-check me-2"></i>@Language.T("프로필 저장", "Save profile")
                         </button>
                         <button type="button" class="btn btn-outline-secondary" @onclick="ResetMyProfileFieldsAsync">
-                            Reset
+                            @Language.T("초기화", "Reset")
                         </button>
                     </div>
 
                     <div>
-                        <label class="form-label" for="current-password">Current password</label>
+                        <label class="form-label" for="current-password">@Language.T("현재 비밀번호", "Current password")</label>
                         <input id="current-password" type="password" class="form-control" autocomplete="current-password" @bind="_currentPassword" />
                     </div>
                     <div class="small text-secondary">
-                        Current password is required to change your password.
+                        @Language.T("비밀번호를 변경하려면 현재 비밀번호를 입력해야 합니다.", "Enter your current password to change it.")
                     </div>
                     <div>
-                        <label class="form-label" for="new-password">New password</label>
+                        <label class="form-label" for="new-password">@Language.T("새 비밀번호", "New password")</label>
                         <input id="new-password" type="password" class="form-control" autocomplete="new-password" @bind="_newPassword" />
                     </div>
                     <div>
-                        <label class="form-label" for="confirm-password">Confirm new password</label>
+                        <label class="form-label" for="confirm-password">@Language.T("새 비밀번호 확인", "Confirm new password")</label>
                         <input id="confirm-password" type="password" class="form-control" autocomplete="new-password" @bind="_confirmPassword" />
                     </div>
 
                     <div class="alert alert-info small mb-0" role="note">
-                        Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.
+                        @Language.T("비밀번호는 12자 이상이어야 하며 대문자, 소문자, 숫자, 특수문자를 각각 포함해야 합니다. 공백은 사용할 수 없습니다.", "Use at least 12 characters, including uppercase and lowercase letters, a number, and a special character. Spaces are not allowed.")
                     </div>
 
                     <button type="button" class="btn btn-primary" @onclick="ChangeMyPasswordAsync" disabled="@(!CanSubmitOwnPassword)">
-                        <i class="bi bi-shield-lock me-2"></i>Change password
+                        <i class="bi bi-shield-lock me-2"></i>@Language.T("비밀번호 변경", "Change password")
                     </button>
                 </div>
             </div>
@@ -106,33 +106,33 @@
             <div class="d-grid gap-4">
                 <div class="card section-card">
                     <div class="card-header">
-                        <strong>Two-factor authentication</strong>
+                        <strong>@Language.T("2차 인증", "Two-factor authentication")</strong>
                     </div>
                     <div class="card-body d-grid gap-3">
                         <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
                             <div>
-                                <div class="fw-semibold">@(_currentMember?.TwoFactorEnabled == true ? "Enabled" : "Disabled")</div>
+                                <div class="fw-semibold">@(_currentMember?.TwoFactorEnabled == true ? Language.T("사용", "Enabled") : Language.T("사용 안 함", "Disabled"))</div>
                                 <div class="text-secondary small">
                                     @if (!_twoFactorGloballyEnabled)
                                     {
-                                        <span>Two-factor authentication is disabled by administrator.</span>
+                                        <span>@Language.T("관리자가 2차 인증을 비활성화했습니다.", "Two-factor authentication is disabled by an administrator.")</span>
                                     }
                                     else if (_currentMember?.TwoFactorEnabled == true)
                                     {
-                                        <span>Enabled at @(_currentMember.TwoFactorEnabledUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</span>
+                                        <span>@Language.T("사용 시작:", "Enabled since:") @(_currentMember.TwoFactorEnabledUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")</span>
                                     }
                                     else
                                     {
-                                        <span>2FA is currently off.</span>
+                                        <span>@Language.T("현재 2차 인증을 사용하지 않습니다.", "Two-factor authentication is currently off.")</span>
                                     }
                                 </div>
                             </div>
                             <div class="d-flex flex-wrap gap-2">
                                 <button type="button" class="btn btn-outline-primary" @onclick="BeginTwoFactorSetupAsync" disabled="@IsTwoFactorSetupDisabled()">
-                                    <i class="bi bi-qr-code me-2"></i>Start setup
+                                    <i class="bi bi-qr-code me-2"></i>@Language.T("설정 시작", "Set up")
                                 </button>
                                 <button type="button" class="btn btn-outline-danger" @onclick="DisableTwoFactorAsync" disabled="@IsDisableTwoFactorDisabled()">
-                                    <i class="bi bi-shield-slash me-2"></i>Disable
+                                    <i class="bi bi-shield-slash me-2"></i>@Language.T("사용 안 함", "Disable")
                                 </button>
                             </div>
                         </div>
@@ -144,19 +144,19 @@
                                 {
                                     <div class="col-12 col-md-4">
                                         <div class="border rounded-3 bg-white p-3 text-center">
-                                            <img src="@_twoFactorQrCodeDataUrl" alt="Two-factor QR code" class="img-fluid" />
+                                    <img src="@_twoFactorQrCodeDataUrl" alt="@Language.T("2차 인증 QR 코드", "Two-factor authentication QR code")" class="img-fluid" />
                                         </div>
                                     </div>
                                 }
                                 <div class="col-12 @(string.IsNullOrWhiteSpace(_twoFactorQrCodeDataUrl) ? "col-md-12" : "col-md-8")">
                                     <div class="alert alert-info small mb-0" role="note">
-                                        <div class="fw-semibold mb-2">Setup key</div>
+                                        <div class="fw-semibold mb-2">@Language.T("설정 키", "Setup key")</div>
                                         <div class="text-break">@_twoFactorSetupSecret</div>
                                         <div class="small text-secondary mt-2 text-break">
-                                            otpauth URI: @_twoFactorOtpUri
+                                            @Language.T("인증 앱 URI:", "Authenticator URI:") @_twoFactorOtpUri
                                         </div>
                                         <div class="small text-secondary mt-2">
-                                            Scan the QR or enter the setup key into your authenticator app.
+                                            @Language.T("QR 코드를 스캔하거나 설정 키를 인증 앱에 입력하세요.", "Scan the QR code or enter the setup key in your authenticator app.")
                                         </div>
                                     </div>
                                 </div>
@@ -164,12 +164,12 @@
 
                             <div class="row g-3">
                                 <div class="col-12 col-md-6">
-                                    <label class="form-label" for="twofactor-code">Verification code</label>
+                                    <label class="form-label" for="twofactor-code">@Language.T("인증 코드", "Verification code")</label>
                                     <input id="twofactor-code" class="form-control" inputmode="numeric" autocomplete="one-time-code" @bind="_twoFactorCode" />
                                 </div>
                                 <div class="col-12 col-md-6 d-flex align-items-end">
                                     <button type="button" class="btn btn-primary w-100" @onclick="ConfirmTwoFactorSetupAsync" disabled="@string.IsNullOrWhiteSpace(_twoFactorCode)">
-                                        <i class="bi bi-check2-circle me-2"></i>Confirm setup
+                                        <i class="bi bi-check2-circle me-2"></i>@Language.T("설정 확인", "Confirm setup")
                                     </button>
                                 </div>
                             </div>
@@ -178,15 +178,15 @@
                         @if (!_twoFactorGloballyEnabled)
                         {
                             <div class="alert alert-warning small mb-0" role="note">
-                                Two-factor authentication is currently disabled in system settings.
+                                @Language.T("시스템 설정에서 2차 인증이 비활성화되어 있습니다.", "Two-factor authentication is disabled in system settings.")
                             </div>
                         }
 
                         @if (_recoveryCodes.Any())
                         {
                             <div class="alert alert-warning small mb-0" role="note">
-                                <div class="fw-semibold mb-2">Recovery codes</div>
-                                <div class="mb-2">Save these somewhere safe. Each code can be used once.</div>
+                                <div class="fw-semibold mb-2">@Language.T("복구 코드", "Recovery codes")</div>
+                                <div class="mb-2">@Language.T("안전한 곳에 저장하세요. 각 코드는 한 번만 사용할 수 있습니다.", "Store these codes somewhere safe. Each code can be used only once.")</div>
                                 <div class="d-grid gap-1">
                                     @foreach (var recoveryCode in _recoveryCodes)
                                     {
@@ -198,7 +198,7 @@
 
                         <div class="d-flex flex-wrap gap-2">
                             <button type="button" class="btn btn-outline-secondary" @onclick="GenerateRecoveryCodesAsync" disabled="@IsGenerateRecoveryDisabled()">
-                                <i class="bi bi-receipt-cutoff me-2"></i>Generate recovery codes
+                                <i class="bi bi-receipt-cutoff me-2"></i>@Language.T("복구 코드 생성", "Generate recovery codes")
                             </button>
                         </div>
                     </div>
@@ -206,7 +206,7 @@
 
                 <div class="card section-card">
                     <div class="card-header">
-                        <strong>Active sessions</strong>
+                        <strong>@Language.T("활성 세션", "Active sessions")</strong>
                     </div>
                     <div class="card-body d-grid gap-3">
                         @if (_sessions.Any())
@@ -215,10 +215,10 @@
                                 <table class="table table-sm align-middle">
                                     <thead>
                                         <tr>
-                                            <th>Created</th>
-                                            <th>Last seen</th>
+                                            <th>@Language.T("생성 시각", "Created")</th>
+                                            <th>@Language.T("최근 활동", "Last active")</th>
                                             <th>IP</th>
-                                            <th>Status</th>
+                                            <th>@Language.T("상태", "Status")</th>
                                             <th></th>
                                         </tr>
                                     </thead>
@@ -232,23 +232,23 @@
                                                 <td>
                                                     @if (session.RevokedUtc is not null)
                                                     {
-                                                        <span class="badge text-bg-danger">Revoked</span>
+                                                        <span class="badge text-bg-danger">@Language.T("해지됨", "Revoked")</span>
                                                     }
                                                     else
                                                     {
-                                                        <span class="badge text-bg-success">Active</span>
+                                                        <span class="badge text-bg-success">@Language.T("활성", "Active")</span>
                                                     }
                                                 </td>
                                                 <td class="text-end">
                                                     @if (session.SessionId != _currentSessionId)
                                                     {
                                                         <button type="button" class="btn btn-sm btn-outline-danger" @onclick="() => RevokeSessionAsync(session.SessionId)">
-                                                            Revoke
+                                                            @Language.T("해지", "Revoke")
                                                         </button>
                                                     }
                                                     else
                                                     {
-                                                        <span class="text-secondary small">Current</span>
+                                                        <span class="text-secondary small">@Language.T("현재 세션", "Current session")</span>
                                                     }
                                                 </td>
                                             </tr>
@@ -258,12 +258,12 @@
                             </div>
 
                             <button type="button" class="btn btn-outline-danger" @onclick="RevokeOtherSessionsAsync" disabled="@(!_sessions.Any(x => x.SessionId != _currentSessionId))">
-                                Revoke other sessions
+                                @Language.T("다른 세션 모두 해지", "Revoke all other sessions")
                             </button>
                         }
                         else
                         {
-                            <div class="text-secondary">No active sessions were found.</div>
+                            <div class="text-secondary">@Language.T("활성 세션이 없습니다.", "No active sessions were found.")</div>
                         }
                     </div>
                 </div>
@@ -325,13 +325,13 @@
 
         if (_currentMember is null)
         {
-            SetError("Current member could not be loaded.");
+            SetError(Language.T("현재 사용자 정보를 불러오지 못했습니다.", "Could not load your account details."));
             return;
         }
 
         if (!CanSaveProfile)
         {
-            SetError("Display name cannot be empty.");
+            SetError(Language.T("표시 이름을 입력하세요.", "Enter a display name."));
             return;
         }
 
@@ -339,7 +339,7 @@
         {
             await MemberAuthService.UpdateDisplayNameAsync(_currentMember.Id, _currentDisplayName);
             _currentMember.DisplayName = _currentDisplayName.Trim();
-            SetSuccess("Your profile has been updated.");
+            SetSuccess(Language.T("프로필을 수정했습니다.", "Your profile has been updated."));
         }
         catch (Exception ex)
         {
@@ -365,13 +365,13 @@
 
         if (_currentMember is null)
         {
-            SetError("Current member could not be loaded.");
+            SetError(Language.T("현재 사용자 정보를 불러오지 못했습니다.", "Could not load your account details."));
             return;
         }
 
         if (!CanSubmitOwnPassword)
         {
-            SetError("Please check the password fields and policy requirements.");
+            SetError(Language.T("비밀번호 입력란과 비밀번호 정책을 확인하세요.", "Check the password fields and make sure the new password meets the requirements."));
             return;
         }
 
@@ -381,7 +381,7 @@
             _currentPassword = string.Empty;
             _newPassword = string.Empty;
             _confirmPassword = string.Empty;
-            SetSuccess("Your password has been updated.");
+            SetSuccess(Language.T("비밀번호를 변경했습니다.", "Your password has been changed."));
             await LoadSecurityStateAsync();
         }
         catch (Exception ex)
@@ -396,13 +396,13 @@
 
         if (!_twoFactorGloballyEnabled)
         {
-            SetError("Two-factor authentication is disabled by administrator.");
+            SetError(Language.T("관리자가 2차 인증을 비활성화했습니다.", "Two-factor authentication is disabled by an administrator."));
             return;
         }
 
         if (_currentMember is null)
         {
-            SetError("Current member could not be loaded.");
+            SetError(Language.T("현재 사용자 정보를 불러오지 못했습니다.", "Could not load your account details."));
             return;
         }
 
@@ -412,7 +412,7 @@
             _twoFactorQrCodeDataUrl = MemberAuthService.GenerateTwoFactorQrCodeDataUrl(_currentMember.UserName, _twoFactorSetupSecret);
             _twoFactorCode = string.Empty;
             _recoveryCodes.Clear();
-            SetSuccess("Two-factor setup started. Scan the key or enter it in your authenticator app.");
+            SetSuccess(Language.T("2차 인증 설정을 시작했습니다. QR 코드를 스캔하거나 설정 키를 인증 앱에 입력하세요.", "Two-factor setup has started. Scan the QR code or enter the setup key in your authenticator app."));
         }
         catch (Exception ex)
         {
@@ -426,13 +426,13 @@
 
         if (!_twoFactorGloballyEnabled)
         {
-            SetError("Two-factor authentication is disabled by administrator.");
+            SetError(Language.T("관리자가 2차 인증을 비활성화했습니다.", "Two-factor authentication is disabled by an administrator."));
             return;
         }
 
         if (_currentMember is null || string.IsNullOrWhiteSpace(_twoFactorSetupSecret))
         {
-            SetError("Two-factor setup has not been started.");
+            SetError(Language.T("2차 인증 설정을 먼저 시작하세요.", "Start two-factor setup before confirming it."));
             return;
         }
 
@@ -443,7 +443,7 @@
             _twoFactorQrCodeDataUrl = null;
             _twoFactorCode = string.Empty;
             await ReloadCurrentMemberAsync();
-            SetSuccess("Two-factor authentication has been enabled.");
+            SetSuccess(Language.T("2차 인증을 설정했습니다.", "Two-factor authentication has been enabled."));
         }
         catch (Exception ex)
         {
@@ -457,7 +457,7 @@
 
         if (!_twoFactorGloballyEnabled)
         {
-            SetError("Two-factor authentication is disabled by administrator.");
+            SetError(Language.T("관리자가 2차 인증을 비활성화했습니다.", "Two-factor authentication is disabled by an administrator."));
             return;
         }
 
@@ -474,7 +474,7 @@
             _twoFactorCode = string.Empty;
             _recoveryCodes.Clear();
             await ReloadCurrentMemberAsync();
-            SetSuccess("Two-factor authentication has been disabled.");
+            SetSuccess(Language.T("2차 인증을 해제했습니다.", "Two-factor authentication has been disabled."));
         }
         catch (Exception ex)
         {
@@ -493,7 +493,7 @@
         {
             await MemberAuthService.RevokeSessionAsync(sessionId, "revoked by user");
             await LoadSecurityStateAsync();
-            SetSuccess("Session revoked.");
+            SetSuccess(Language.T("세션을 해지했습니다.", "The session has been revoked."));
         }
         catch (Exception ex)
         {
@@ -512,7 +512,7 @@
         {
             await MemberAuthService.RevokeAllSessionsAsync(_currentMember.Id, "revoked by user");
             await LoadSecurityStateAsync();
-            SetSuccess("Other sessions have been revoked.");
+            SetSuccess(Language.T("다른 세션을 모두 해지했습니다.", "All other sessions have been revoked."));
         }
         catch (Exception ex)
         {
@@ -526,13 +526,13 @@
 
         if (!_twoFactorGloballyEnabled)
         {
-            SetError("Two-factor authentication is disabled by administrator.");
+            SetError(Language.T("관리자가 2차 인증을 비활성화했습니다.", "Two-factor authentication is disabled by an administrator."));
             return;
         }
 
         if (_currentMember is null || _currentMember.TwoFactorEnabled != true)
         {
-            SetError("Enable two-factor authentication before generating recovery codes.");
+            SetError(Language.T("복구 코드를 만들기 전에 2차 인증을 설정하세요.", "Enable two-factor authentication before generating recovery codes."));
             return;
         }
 
@@ -540,7 +540,7 @@
         {
             _recoveryCodes.Clear();
             _recoveryCodes.AddRange(await MemberAuthService.GenerateRecoveryCodesAsync(_currentMember.Id));
-            SetSuccess("Recovery codes have been generated. Save them now because they will not be shown again.");
+            SetSuccess(Language.T("복구 코드를 생성했습니다. 다시 표시되지 않으니 지금 안전한 곳에 저장하세요.", "Recovery codes have been generated. Save them now; they will not be shown again."));
         }
         catch (Exception ex)
         {

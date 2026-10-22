@@ -1,5 +1,11 @@
 (function () {
   let chart = null;
+  const isKorean = () => document.documentElement.lang === "ko";
+  window.addEventListener("ops-language-changed", () => {
+    if (!chart) return;
+    chart.data.datasets[0].label = isKorean() ? "요청 수" : "Requests";
+    chart.update("none");
+  });
 
   function getThemeColors() {
     const styles = getComputedStyle(document.documentElement);
@@ -23,7 +29,7 @@
         data: {
           labels: rows.map(x => x.value ?? x.Value ?? "-"),
           datasets: [{
-            label: "요청 수",
+            label: isKorean() ? "요청 수" : "Requests",
             data: rows.map(x => x.count ?? x.Count ?? 0),
             backgroundColor: "color-mix(in srgb, " + colors.accent + " 78%, transparent)",
             borderColor: colors.accent,
@@ -40,7 +46,9 @@
             legend: { display: false },
             tooltip: {
               callbacks: {
-                label: context => ` ${Number(context.raw || 0).toLocaleString()}건`
+                label: context => isKorean()
+                  ? ` ${Number(context.raw || 0).toLocaleString("ko-KR")}건`
+                  : ` ${Number(context.raw || 0).toLocaleString("en-US")} requests`
               }
             }
           },

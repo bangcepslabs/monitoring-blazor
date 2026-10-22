@@ -90,6 +90,11 @@ window.monitorSettings = (function () {
     }
   }
 
+  async function getJson(url) {
+    const response = await fetch(url, { credentials: 'same-origin', cache: 'no-store' });
+    return { ok: response.ok, status: response.status, body: await response.text() };
+  }
+
   async function postJson(url, payload) {
     const response = await fetch(url, {
       method: 'POST',
@@ -133,5 +138,5 @@ window.monitorSettings = (function () {
     }, 4200);
   }
 
-  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, postJson, showToast };
+  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, getJson, postJson, showToast };
 })();

@@ -9,6 +9,42 @@ public sealed class OllamaClient(
     IConfiguration configuration,
     RuntimeSettingsRepository runtimeSettingsRepository)
 {
+    public sealed record ConnectionStatus(bool Enabled, bool Reachable, bool ModelAvailable, string Model, string Message);
+
+    public async Task<ConnectionStatus> CheckConnectionAsync(CancellationToken ct)
+    {
+        var settings = LoadSettings();
+        if (!settings.Enabled)
+        {
+            return new(false, false, false, settings.Model, "Ollama is disabled in the application settings.");
+        }
+
+        try
+        {
+            using var client = httpClientFactory.CreateClient(nameof(OllamaClient));
+            client.BaseAddress = new Uri(settings.BaseUrl);
+            using var response = await client.GetAsync("/api/tags", ct);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new(true, false, false, settings.Model, $"Ollama returned HTTP {(int)response.StatusCode}.");
+            }
+
+            using var document = await JsonDocument.ParseAsync(await response.Content.ReadAsStreamAsync(ct), cancellationToken: ct);
+            var available = document.RootElement.TryGetProperty("models", out var models) &&
+                models.EnumerateArray().Any(item =>
+                    item.TryGetProperty("name", out var name) &&
+                    string.Equals(name.GetString(), settings.Model, StringComparison.OrdinalIgnoreCase));
+
+            return available
+                ? new(true, true, true, settings.Model, "Ollama is reachable and the configured model is installed.")
+                : new(true, true, false, settings.Model, $"Ollama is reachable, but model '{settings.Model}' is not installed.");
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or UriFormatException)
+        {
+            return new(true, false, false, settings.Model, $"Cannot reach Ollama at the configured URL: {ex.Message}");
+        }
+    }
+
     public async Task<string> GenerateAsync(string prompt, string? systemPrompt, CancellationToken ct)
     {
         var settings = LoadSettings();
@@ -58,7 +94,7 @@ public sealed class OllamaClient(
         var enabled = settings.Enabled;
         if (!enabled)
         {
-            yield break;
+            throw new InvalidOperationException("Ollama is disabled in the application settings. Enable it in Settings > AI Analysis.");
         }
 
         var model = settings.Model;

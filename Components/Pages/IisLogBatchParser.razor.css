@@ -1,0 +1,72 @@
+.batch-log-entries-grid {
+  table-layout: fixed;
+  width: max(100%, 1500px);
+}
+
+.batch-log-entries-grid col[data-column="date"],
+.batch-log-entries-grid col[data-column="time"],
+.batch-log-entries-grid col[data-column="method"],
+.batch-log-entries-grid col[data-column="status"] {
+  width: 6.5rem;
+}
+
+.batch-log-entries-grid col[data-column="ip"] {
+  width: 8.5rem;
+}
+
+.batch-log-entries-grid col[data-column="uri"] {
+  width: 24%;
+}
+
+.batch-log-entries-grid col[data-column="referer"] {
+  width: 14rem;
+}
+
+.batch-log-entries-grid col[data-column="agent"] {
+  width: auto;
+}
+
+.batch-log-entries-grid th,
+.batch-log-entries-grid td {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.batch-log-header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+  min-height: 2rem;
+  padding-right: 0.35rem;
+}
+
+.batch-log-header .column-resizer {
+  position: absolute;
+  top: -0.25rem;
+  right: -0.35rem;
+  width: 0.7rem;
+  height: calc(100% + 0.5rem);
+  cursor: col-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.batch-log-header .column-resizer::before {
+  content: "";
+  position: absolute;
+  top: 0.3rem;
+  bottom: 0.3rem;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--card-border) 86%, transparent);
+}
+
+.batch-log-header:hover .column-resizer::before,
+.batch-log-header .column-resizer.is-resizing::before {
+  background: color-mix(in srgb, var(--accent) 68%, var(--card-border));
+}

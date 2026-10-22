@@ -117,6 +117,8 @@ builder.Services.AddSingleton<SettingsBackupService>();
 builder.Services.AddSingleton<EventTimelineService>();
 builder.Services.AddSingleton<DependencyStatusService>();
 builder.Services.AddSingleton<JavaLogParserService>();
+builder.Services.AddSingleton<IisLogWorkspaceStore>();
+builder.Services.AddSingleton<IisLogPreviewService>();
 builder.Services.AddSingleton<OllamaClient>();
 builder.Services.AddSingleton<OllamaAnalysisStore>();
 builder.Services.AddSingleton<LogAutoExportService>();
@@ -150,6 +152,7 @@ builder.Services.AddHostedService<DataRetentionWorker>();
 builder.Services.AddHostedService<LogAutoExportWorker>();
 builder.Services.AddHostedService<LogAutoImportWorker>();
 builder.Services.AddHostedService<SettingsBackupWorker>();
+builder.Services.AddHostedService<IisLogWorkspaceCleanupWorker>();
 
 var app = builder.Build();
 
@@ -561,6 +564,11 @@ app.MapPost("/api/ollama/analyze", async (HttpRequest request, OllamaClient clie
 
     var effectivePrompt = BuildEffectiveOllamaPrompt(payload.Prompt, payload.UserQuestion);
     var response = await client.GenerateAsync(effectivePrompt, payload.SystemPrompt, ct);
+    if (IsOllamaDisabledResponse(response))
+    {
+        return Results.Problem("Ollama is disabled in the application settings. Enable it in Settings > AI Analysis.", statusCode: StatusCodes.Status503ServiceUnavailable);
+    }
+
     var entry = new OllamaAnalysisEntry
     {
         TimestampUtc = DateTime.UtcNow,
@@ -900,6 +908,9 @@ app.MapGet("/api/runtime/ollama", (RuntimeSettingsRepository repo, IConfiguratio
     return Results.Ok(repo.LoadOllama(baseSettings));
 });
 
+app.MapGet("/api/runtime/ollama/status", async (OllamaClient client, CancellationToken ct) =>
+    Results.Ok(await client.CheckConnectionAsync(ct))).RequireAuthorization();
+
 app.MapPost("/api/runtime/ollama", async (HttpRequest request, HttpContext context, RuntimeSettingsRepository repo, AuditLogService auditLogService) =>
 {
     var settings = await request.ReadFromJsonAsync<OllamaRuntimeSettings>();
@@ -1229,6 +1240,37 @@ app.MapGet("/api/logs/top-ip-access", async (string? date, int? take, IDbContext
     return Results.Ok(new TopIpResponseDto(selectedDate, limit, rows));
 });
 
+app.MapGet("/api/log-parser/workspaces/{workspaceId}/export", (
+    string workspaceId,
+    HttpRequest request,
+    IisLogWorkspaceStore workspaceStore,
+    CancellationToken cancellationToken) =>
+{
+    var query = request.Query;
+    var criteria = new IisLogFilterCriteria
+    {
+        StatusGroup = query["statusGroup"].ToString(),
+        StatusCode = query["statusCode"].ToString(),
+        UrlQuery = query["urlQuery"].ToString(),
+        MethodQuery = query["methodQuery"].ToString(),
+        TextQuery = query["textQuery"].ToString(),
+        ExcludeIpQuery = query["excludeIpQuery"].ToString(),
+        Date = query["date"].ToString(),
+        Time = query["time"].ToString(),
+        Ip = query["ip"].ToString(),
+        Method = query["method"].ToString(),
+        Uri = query["uri"].ToString(),
+        Status = query["status"].ToString(),
+        Referrer = query["referrer"].ToString(),
+        UserAgent = query["userAgent"].ToString()
+    };
+    var sorts = ParseLogExportSorts(query["sorts"].ToString());
+    return Results.Stream(
+        output => workspaceStore.WriteCsvAsync(workspaceId, criteria, sorts, output, cancellationToken),
+        "text/csv; charset=utf-8",
+        $"iis-log-export-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv");
+}).RequireAuthorization();
+
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
@@ -1503,6 +1545,27 @@ static async Task<IResult> ProcessLogUploadAsync(HttpRequest request, IDbContext
 
     await LogIpDailyStatsPersistenceService.AddAggregatesAsync(db, serverName, aggregateMap.Values, nowUtc);
     return Results.Ok(new { files = files.Count, aggregates = aggregateMap.Count });
+}
+
+static IReadOnlyList<LogRowSort> ParseLogExportSorts(string? value)
+{
+    var allowedColumns = new HashSet<string>(StringComparer.Ordinal)
+    {
+        nameof(ParsedLogRow.Date), nameof(ParsedLogRow.Time), nameof(ParsedLogRow.Ip),
+        nameof(ParsedLogRow.Method), nameof(ParsedLogRow.Uri), nameof(ParsedLogRow.Status),
+        nameof(ParsedLogRow.Referrer), nameof(ParsedLogRow.UserAgent)
+    };
+    var sorts = new List<LogRowSort>();
+    foreach (var item in (value ?? string.Empty).Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        var parts = item.Split(':', StringSplitOptions.TrimEntries);
+        if (parts.Length == 2 && allowedColumns.Contains(parts[0]))
+        {
+            sorts.Add(new LogRowSort(parts[0], !string.Equals(parts[1], "desc", StringComparison.OrdinalIgnoreCase)));
+        }
+    }
+
+    return sorts.Count > 0 ? sorts : [new LogRowSort(nameof(ParsedLogRow.Date), true)];
 }
 
 internal sealed record TopIpResponseDto(DateOnly Date, int Take, List<TopIpGroupDto> Items);

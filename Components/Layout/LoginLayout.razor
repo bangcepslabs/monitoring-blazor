@@ -1,11 +1,29 @@
 @inherits LayoutComponentBase
 @inject IJSRuntime JS
+@implements IDisposable
 
 <div class="login-layout">
-    @Body
+    <div class="auth-preferences">
+        <button type="button" class="btn btn-sm btn-outline-secondary" @onclick="ToggleLanguageAsync" aria-label="@Language.T("영어로 전환", "Switch to Korean")">@(Language.IsKorean ? "English" : "한국어")</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="themeManager.toggle()" aria-label="@Language.T("테마 전환", "Toggle theme")"><i class="bi bi-circle-half" aria-hidden="true"></i></button>
+    </div>
+    <CascadingValue Name="UiLanguage" Value="Language.Code">
+        @if (_languageReady)
+        {
+            @Body
+        }
+        else
+        {
+            <div class="workspace-loading" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>@Language.T("화면을 준비하고 있습니다.", "Preparing your workspace.")</div>
+        }
+    </CascadingValue>
 </div>
 
 @code {
+    private bool _languageReady;
+    protected override void OnInitialized() => Language.Changed += OnLanguageChanged;
+    private void OnLanguageChanged() => _ = InvokeAsync(StateHasChanged);
+
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender)
@@ -13,8 +31,19 @@
             return;
         }
 
-        var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "en");
+        var savedLanguage = await JS.InvokeAsync<string?>("monitorSettings.get", "language", "ko");
         Language.SetLanguage(savedLanguage);
         await JS.InvokeVoidAsync("opsLanguage.apply", Language.Code);
+        _languageReady = true;
+        StateHasChanged();
     }
+
+    private async Task ToggleLanguageAsync()
+    {
+        Language.SetLanguage(Language.IsKorean ? "en" : "ko");
+        await JS.InvokeVoidAsync("monitorSettings.set", "language", Language.Code);
+        await JS.InvokeVoidAsync("opsLanguage.apply", Language.Code);
+    }
+
+    public void Dispose() => Language.Changed -= OnLanguageChanged;
 }

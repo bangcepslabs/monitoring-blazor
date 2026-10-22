@@ -1,5 +1,6 @@
 (function () {
   const minWidth = 72;
+  const maxWidth = 720;
 
   function loadState(storageKey) {
     try {
@@ -27,21 +28,9 @@
       const key = col.dataset.column;
       const width = state[key];
       if (typeof width === "number" && Number.isFinite(width)) {
-        col.style.width = `${Math.max(minWidth, width)}px`;
+        col.style.width = `${Math.min(maxWidth, Math.max(minWidth, width))}px`;
       }
     });
-  }
-
-  function captureDefaultWidths(table) {
-    const defaults = {};
-    getColumns(table).forEach((col) => {
-      const key = col.dataset.column;
-      const width = Math.round(col.getBoundingClientRect().width);
-      defaults[key] = Math.max(minWidth, width);
-    });
-
-    table.dataset.defaultWidths = JSON.stringify(defaults);
-    return defaults;
   }
 
   function bindResizer(table, resizer, storageKey, state) {
@@ -66,7 +55,7 @@
       resizer.classList.add("is-resizing");
 
       const onMove = (moveEvent) => {
-        const nextWidth = Math.max(minWidth, Math.round(startWidth + (moveEvent.clientX - startX)));
+        const nextWidth = Math.min(maxWidth, Math.max(minWidth, Math.round(startWidth + (moveEvent.clientX - startX))));
         targetCol.style.width = `${nextWidth}px`;
         state[columnKey] = nextWidth;
       };
@@ -90,8 +79,7 @@
         return;
       }
 
-      const defaults = captureDefaultWidths(table);
-      const state = { ...defaults, ...loadState(storageKey) };
+      const state = loadState(storageKey);
       applyWidths(table, state);
 
       table.querySelectorAll(".column-resizer[data-column]").forEach((resizer) => {
@@ -105,14 +93,15 @@
         return;
       }
 
-      const defaults = table.dataset.defaultWidths ? JSON.parse(table.dataset.defaultWidths) : captureDefaultWidths(table);
       getColumns(table).forEach((col) => {
-        const key = col.dataset.column;
-        const width = defaults[key];
-        col.style.width = `${Math.max(minWidth, width)}px`;
+        col.style.removeProperty("width");
       });
 
-      saveState(storageKey, defaults);
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch {
+        // ignore storage failures
+      }
     }
   };
 })();

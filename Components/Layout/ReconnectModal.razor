@@ -8,25 +8,25 @@
             <div></div>
         </div>
         <p class="components-reconnect-first-attempt-visible" role="status" aria-live="polite">
-            Rejoining the server...
+            <span data-ui-ko="서버에 다시 연결하고 있습니다." data-ui-en="Reconnecting to the server.">서버에 다시 연결하고 있습니다.</span>
         </p>
         <p class="components-reconnect-repeated-attempt-visible" role="status" aria-live="polite">
-            Rejoin failed... trying again in <span id="components-seconds-to-next-attempt"></span> seconds.
+            <span data-ui-ko="다음 재연결까지 남은 시간:" data-ui-en="Next reconnection attempt in:">다음 재연결까지 남은 시간:</span> <span id="components-seconds-to-next-attempt"></span> <span data-ui-ko="초" data-ui-en="seconds">초</span>
         </p>
         <p class="components-reconnect-failed-visible">
-            Failed to rejoin.<br />Please retry or reload the page.
+            <span data-ui-ko="서버에 연결하지 못했습니다. 다시 시도하거나 페이지를 새로고침하세요." data-ui-en="Unable to reconnect. Retry or reload the page.">서버에 연결하지 못했습니다. 다시 시도하거나 페이지를 새로고침하세요.</span>
         </p>
         <button id="components-reconnect-button" class="components-reconnect-failed-visible">
-            Retry
+            <span data-ui-ko="다시 시도" data-ui-en="Retry">다시 시도</span>
         </button>
         <p class="components-pause-visible">
-            The session has been paused by the server.
+            <span data-ui-ko="서버에서 세션을 일시 중지했습니다." data-ui-en="The server has paused this session.">서버에서 세션을 일시 중지했습니다.</span>
         </p>
         <p class="components-resume-failed-visible">
-            Failed to resume the session.<br />Please retry or reload the page.
+            <span data-ui-ko="세션을 재개하지 못했습니다. 다시 시도하거나 페이지를 새로고침하세요." data-ui-en="Unable to resume the session. Retry or reload the page.">세션을 재개하지 못했습니다. 다시 시도하거나 페이지를 새로고침하세요.</span>
         </p>
         <button id="components-resume-button" class="components-pause-visible components-resume-failed-visible">
-            Resume
+            <span data-ui-ko="세션 재개" data-ui-en="Resume session">세션 재개</span>
         </button>
     </div>
 </dialog>

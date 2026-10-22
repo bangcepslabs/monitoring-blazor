@@ -23,7 +23,7 @@
     <div>
         <div class="page-eyebrow">@Language.T("개요", "Overview")</div>
         <h1>@Language.T("대시보드", "Dashboard")</h1>
-        <p>@Language.T("하나의 워크스페이스에서 서버 상태, 알림, 성능을 확인하세요.", "Monitor host health, alerts, and performance from one workspace.")</p>
+        <p>@Language.T("하나의 작업 공간에서 서버 상태, 알림, 성능을 확인하세요.", "Monitor host health, alerts, and performance from one workspace.")</p>
     </div>
     <div class="dashboard-page-status" role="status">
         <span class="status-dot @(Hosts.Count > 0 ? "status-online" : "status-offline")" aria-hidden="true"></span>
@@ -34,13 +34,13 @@
 
 @if (IsDashboardLoading)
 {
-    <div class="alert alert-info dashboard-load-state" role="status">Loading dashboard data...</div>
+    <div class="alert alert-info dashboard-load-state" role="status">@Language.T("대시보드 데이터를 불러오는 중입니다...", "Loading dashboard data...")</div>
 }
 else if (!string.IsNullOrWhiteSpace(DashboardError))
 {
     <div class="alert alert-danger dashboard-load-state" role="alert">
-        <span>@DashboardError</span>
-        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="RetryDashboardAsync">Retry</button>
+        <span>@Language.Localize(DashboardError)</span>
+        <button class="btn btn-sm btn-outline-danger ms-2" @onclick="RetryDashboardAsync">@Language.T("다시 시도", "Retry")</button>
     </div>
 }
 
@@ -56,24 +56,24 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             @if (ShowManageMenu)
             {
                 <div class="dashboard-menu-backdrop" @onclick="CloseManageMenu"></div>
-                <div class="dashboard-menu-popover" role="menu" aria-label="Manage menu" @onclick:stopPropagation="true">
+                <div class="dashboard-menu-popover" role="menu" aria-label="@Language.T("관리 메뉴", "Manage menu")" @onclick:stopPropagation="true">
                     <AuthorizeView Roles="Admin">
                         <Authorized>
                             <button type="button" class="dashboard-menu-item" @onclick="ToggleAlertPanel">
-                                <i class="bi bi-bell me-2"></i>Alert Rules
+                                <i class="bi bi-bell me-2"></i>@Language.T("알림 규칙", "Alert rules")
                             </button>
                             <button type="button" class="dashboard-menu-item" @onclick="ToggleSqlAccessPanel">
-                                <i class="bi bi-database-lock me-2"></i>SQL Access
+                                <i class="bi bi-database-lock me-2"></i>@Language.T("SQL 접근", "SQL access")
                             </button>
                             <a class="dashboard-menu-item" href="/admin/data-health" @onclick="CloseManageMenu">
-                                <i class="bi bi-hdd-stack me-2"></i>Data Health
+                                <i class="bi bi-hdd-stack me-2"></i>@Language.T("데이터 상태", "Data health")
                             </a>
                         </Authorized>
                     </AuthorizeView>
-                    <a class="dashboard-menu-item" href="/api/reports/dashboard" @onclick="CloseManageMenu"><i class="bi bi-download me-2"></i>@Language.T("리포트 내보내기", "Export Report")</a>
+                    <a class="dashboard-menu-item" href="/api/reports/dashboard" @onclick="CloseManageMenu"><i class="bi bi-download me-2"></i>@Language.T("보고서 내보내기", "Export Report")</a>
                     <a class="dashboard-menu-item" href="/server-groups" @onclick="CloseManageMenu"><i class="bi bi-tags me-2"></i>@Language.T("서버 그룹", "Server Groups")</a>
                     <a class="dashboard-menu-item" href="/events" @onclick="CloseManageMenu"><i class="bi bi-clock-history me-2"></i>@Language.T("이벤트 타임라인", "Event Timeline")</a>
-                    <a class="dashboard-menu-item" href="/dependencies" @onclick="CloseManageMenu"><i class="bi bi-diagram-3 me-2"></i>@Language.T("의존 서비스", "Dependencies")</a>
+                    <a class="dashboard-menu-item" href="/dependencies" @onclick="CloseManageMenu"><i class="bi bi-diagram-3 me-2"></i>@Language.T("연결 서비스", "Dependencies")</a>
                 </div>
             }
         </div>
@@ -84,12 +84,12 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
         {
             <button class="btn dashboard-host-button @(CurrentHost == host.Info.Hostname ? "btn-primary" : "btn-outline-secondary") @(host.IsOnline ? "host-online" : "host-offline")"
                     disabled="@(!host.IsOnline)"
-                    aria-label="@(host.Info.Hostname + (host.IsOnline ? " online" : " offline"))"
+                    aria-label="@(host.Info.Hostname + " " + (host.IsOnline ? Language.T("온라인", "Online") : Language.T("오프라인", "Offline")))"
                     @onclick="() => SelectHost(host.Info.Hostname)">
                 <span class="status-dot @(host.IsOnline ? "status-online" : "status-offline")" aria-hidden="true"></span>
                 <span class="host-name">@host.Info.Hostname</span>
                 <span class="host-state @(host.IsOnline ? "host-state-online" : "host-state-offline")">
-                    @(host.IsOnline ? "Online" : "Offline")
+                    @(host.IsOnline ? Language.T("온라인", "Online") : Language.T("오프라인", "Offline"))
                 </span>
             </button>
         }
@@ -116,7 +116,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card h-100 metric-card metric-card-compact" title="Warning: CPU is at or above 60%, memory is at or above 75%, or disk usage is at or above 85%." aria-label="Hosts Warning: CPU 60 percent or higher, memory 75 percent or higher, or disk 85 percent or higher.">
+            <div class="card h-100 metric-card metric-card-compact" title="@Language.T("주의: CPU 60% 이상, 메모리 75% 이상 또는 디스크 85% 이상", "Warning: CPU ≥60%, memory ≥75%, or disk usage ≥85%")" aria-label="@Language.T("주의 호스트: CPU 60% 이상, 메모리 75% 이상 또는 디스크 85% 이상", "Hosts warning: CPU ≥60%, memory ≥75%, or disk usage ≥85%")">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("주의 호스트", "Hosts Warning")</div>
                     <div class="metric-value">@Hosts.Count(x => IsWarning(x.Info)).ToString("N0")</div>
@@ -124,7 +124,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             </div>
         </div>
         <div class="col-6 col-lg-3">
-            <div class="card h-100 metric-card metric-card-compact" title="Critical: CPU is at or above 85%, memory is at or above 90%, or disk usage is at or above 95%." aria-label="Hosts Critical: CPU 85 percent or higher, memory 90 percent or higher, or disk 95 percent or higher.">
+            <div class="card h-100 metric-card metric-card-compact" title="@Language.T("위험: CPU 85% 이상, 메모리 90% 이상 또는 디스크 95% 이상", "Critical: CPU ≥85%, memory ≥90%, or disk usage ≥95%")" aria-label="@Language.T("위험 호스트: CPU 85% 이상, 메모리 90% 이상 또는 디스크 95% 이상", "Hosts critical: CPU ≥85%, memory ≥90%, or disk usage ≥95%")">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("위험 호스트", "Hosts Critical")</div>
                     <div class="metric-value">@Hosts.Count(x => IsCritical(x.Info)).ToString("N0")</div>
@@ -135,7 +135,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
 
     <div class="row g-3 mb-3">
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history to inspect all recent alerts." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="@Language.T("최근 알림 전체 보기", "View all recent alerts")" @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("최근 알림", "Recent Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count.ToString("N0")</div>
@@ -143,7 +143,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             </div>
         </div>
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review threshold events." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="@Language.T("임계값 알림 이력 보기", "View threshold alert history")" @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("임계값 알림", "Threshold Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Threshold).ToString("N0")</div>
@@ -151,7 +151,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             </div>
         </div>
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review recovery events." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="@Language.T("복구 알림 이력 보기", "View recovery alert history")" @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("복구 알림", "Recovery Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Recovery).ToString("N0")</div>
@@ -159,7 +159,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             </div>
         </div>
         <div class="col-12 col-md-3">
-            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="Open alert history and review anomaly events." @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
+            <div class="card h-100 metric-card metric-link-card" role="button" tabindex="0" title="@Language.T("이상 징후 알림 이력 보기", "View anomaly alert history")" @onclick="OpenAlertHistory" @onkeydown="HandleMetricCardKeyDown">
                 <div class="card-body">
                     <div class="metric-label">@Language.T("이상 징후 알림", "Anomaly Alerts")</div>
                     <div class="metric-value">@RecentAlerts.Count(x => x.Type == AlertType.Anomaly).ToString("N0")</div>
@@ -171,7 +171,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
     <div class="card mb-3 dashboard-data-card">
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
             <strong class="dashboard-data-title">@Language.T("최근 알림", "Recent Alerts")</strong>
-            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent alerts" @onclick="LoadRecentAlertsAsync">@Language.T("새로고침", "Refresh")</button>
+            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="@Language.T("최근 알림 새로고침", "Refresh recent alerts")" @onclick="LoadRecentAlertsAsync">@Language.T("새로고침", "Refresh")</button>
         </div>
         <div class="card-body">
             @if (RecentAlerts.Count == 0)
@@ -184,12 +184,12 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                     <table class="table table-sm align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>Host</th>
-                                <th>Metric</th>
-                                <th>Value</th>
-                                <th>Message</th>
-                                <th>Status</th>
+                                <th>@Language.T("시간", "Time")</th>
+                                <th>@Language.T("호스트", "Host")</th>
+                                <th>@Language.T("항목", "Metric")</th>
+                                <th>@Language.T("값", "Value")</th>
+                                <th>@Language.T("메시지", "Message")</th>
+                                <th>@Language.T("상태", "Status")</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -198,17 +198,17 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                                 <tr>
                                     <td>@alert.TimestampUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
                                     <td>@alert.Hostname</td>
-                                    <td><span class="badge text-bg-warning">@alert.Metric</span></td>
+                                    <td><span class="badge text-bg-warning">@Language.Label(alert.Metric)</span></td>
                                     <td>@alert.Value.ToString("0.0") / @alert.Threshold.ToString("0.0")</td>
                                     <td class="text-break">@alert.Message</td>
                                     <td>
                                         @if (IsAlertAcknowledged(alert))
                                         {
-                                            <span class="badge text-bg-secondary">Acknowledged</span>
+                                            <span class="badge text-bg-secondary">@Language.T("확인 완료", "Acknowledged")</span>
                                         }
                                         else
                                         {
-                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AcknowledgeAlert(alert)">Acknowledge</button>
+                                            <button class="btn btn-sm btn-outline-primary" @onclick="() => AcknowledgeAlert(alert)">@Language.T("확인", "Acknowledge")</button>
                                         }
                                     </td>
                                 </tr>
@@ -223,7 +223,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
     <div class="card mb-3 dashboard-data-card">
         <div class="card-header d-flex justify-content-between align-items-center gap-2">
             <strong class="dashboard-data-title">@Language.T("최근 로그인 실패", "Recent Login Failures")</strong>
-            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="Refresh recent failed sign-ins" @onclick="LoadRecentLoginFailuresAsync">@Language.T("새로고침", "Refresh")</button>
+            <button class="btn btn-sm btn-outline-secondary dashboard-data-action" title="@Language.T("최근 로그인 실패 내역 새로고침", "Refresh recent sign-in failures")" @onclick="LoadRecentLoginFailuresAsync">@Language.T("새로고침", "Refresh")</button>
         </div>
         <div class="card-body">
             @if (RecentLoginFailures.Count == 0)
@@ -236,9 +236,9 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                     <table class="table table-sm align-middle mb-0">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>User</th>
-                                <th>Reason</th>
+                                <th>@Language.T("시간", "Time")</th>
+                                <th>@Language.T("사용자", "User")</th>
+                                <th>@Language.T("사유", "Reason")</th>
                                 <th>IP</th>
                             </tr>
                         </thead>
@@ -248,7 +248,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                                 <tr>
                                     <td>@attempt.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm:ss")</td>
                                     <td>@attempt.UserName</td>
-                                    <td><span class="badge text-bg-danger">@attempt.Reason</span></td>
+                                    <td><span class="badge text-bg-danger">@Language.Label(attempt.Reason)</span></td>
                                     <td>@(attempt.IpAddress ?? "-")</td>
                                 </tr>
                             }
@@ -265,16 +265,16 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
             <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alert-rules-title" @onclick:stopPropagation="true">
                 <div class="alert-modal-header">
                     <div>
-                        <div class="settings-kicker">Configuration</div>
-                        <h2 id="alert-rules-title">Alert Rules</h2>
-                        <div class="text-muted small">Tune threshold, recovery, anomaly, and maintenance window rules here.</div>
+                        <div class="settings-kicker">@Language.T("설정", "Configuration")</div>
+                        <h2 id="alert-rules-title">@Language.T("알림 규칙", "Alert rules")</h2>
+                        <div class="text-muted small">@Language.T("임계값, 복구, 이상 징후 및 점검 시간 규칙을 설정합니다.", "Configure threshold, recovery, anomaly, and maintenance-window rules.")</div>
                     </div>
-                    <button type="button" class="modal-close-button" aria-label="Close" @onclick="ToggleAlertPanel">&times;</button>
+                    <button type="button" class="modal-close-button" aria-label="@Language.T("닫기", "Close")" @onclick="ToggleAlertPanel">&times;</button>
                 </div>
                 <div class="alert-modal-body">
                     <div class="row g-2">
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Enabled</label>
+                            <label class="form-label">@Language.T("사용", "Enabled")</label>
                             <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.Enabled" />
                         </div>
                         <div class="col-12 col-md-2">
@@ -282,65 +282,65 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                             <input class="form-control" type="number" @bind="AlertSettings.CpuThreshold" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">CPU Minutes</label>
+                            <label class="form-label">@Language.T("CPU 임계값 유지 시간(분)", "CPU duration (min)")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.CpuDurationMinutes" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">RAM %</label>
+                            <label class="form-label">@Language.T("메모리 %", "Memory %")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.RamThreshold" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Disk %</label>
+                            <label class="form-label">@Language.T("디스크 %", "Disk %")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.DiskThreshold" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Cooldown (min)</label>
+                            <label class="form-label">@Language.T("재알림 대기(분)", "Alert cooldown (min)")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.CooldownMinutes" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Recovery</label>
+                            <label class="form-label">@Language.T("복구 알림", "Recovery alerts")</label>
                             <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.RecoveryEnabled" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Recovery Cooldown</label>
+                            <label class="form-label">@Language.T("복구 알림 대기(분)", "Recovery cooldown (min)")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.RecoveryCooldownMinutes" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Anomaly</label>
+                            <label class="form-label">@Language.T("이상 징후 감지", "Anomaly detection")</label>
                             <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.AnomalyEnabled" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Window</label>
+                            <label class="form-label">@Language.T("분석 구간", "Analysis window")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.AnomalyWindow" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">StdDev</label>
+                            <label class="form-label">@Language.T("표준편차", "Std. deviation")</label>
                             <input class="form-control" type="number" step="0.1" @bind="AlertSettings.AnomalyStdDev" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Min Delta</label>
+                            <label class="form-label">@Language.T("최소 변화량", "Minimum change")</label>
                             <input class="form-control" type="number" step="0.1" @bind="AlertSettings.AnomalyMinDelta" />
                         </div>
                         <div class="col-12 col-md-2">
-                            <label class="form-label">Anomaly Cooldown</label>
+                            <label class="form-label">@Language.T("이상 징후 알림 대기(분)", "Anomaly cooldown (min)")</label>
                             <input class="form-control" type="number" @bind="AlertSettings.AnomalyCooldownMinutes" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Maintenance Window</label>
+                            <label class="form-label">@Language.T("점검 시간", "Maintenance window")</label>
                             <input type="checkbox" class="form-check-input ms-2" @bind="AlertSettings.MaintenanceWindowEnabled" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">Start</label>
+                            <label class="form-label">@Language.T("시작", "Start")</label>
                             <input class="form-control" type="time" @bind="MaintenanceWindowStartValue" />
                         </div>
                         <div class="col-12 col-md-3">
-                            <label class="form-label">End</label>
+                            <label class="form-label">@Language.T("종료", "End")</label>
                             <input class="form-control" type="time" @bind="MaintenanceWindowEndValue" />
                         </div>
                     </div>
                     <div class="mt-3 d-flex gap-2">
-                        <button class="btn btn-primary" @onclick="SaveAlertSettings">Save</button>
-                        <button class="btn btn-outline-secondary" @onclick="LoadAlertSettings">Reload</button>
+                        <button class="btn btn-primary" @onclick="SaveAlertSettings">@Language.T("저장", "Save")</button>
+                        <button class="btn btn-outline-secondary" @onclick="LoadAlertSettings">@Language.T("다시 불러오기", "Reload")</button>
                     </div>
                 </div>
             </div>
@@ -355,19 +355,19 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
         <span class="dashboard-section-count">@Hosts.Count.ToString("N0") @Language.T("대", "total")</span>
     </div>
 
-    <div class="row g-2 mb-3" role="search" aria-label="Host filters">
+    <div class="row g-2 mb-3" role="search" aria-label="@Language.T("호스트 필터", "Host filters")">
         <div class="col-12 col-md-7">
-            <label class="visually-hidden" for="host-search">Search hosts</label>
-            <input id="host-search" class="form-control" type="search" placeholder="Search hosts..." @bind="HostSearch" @bind:event="oninput" />
+            <label class="visually-hidden" for="host-search">@Language.T("호스트 검색", "Search hosts")</label>
+            <input id="host-search" class="form-control" type="search" placeholder="@Language.T("호스트 검색...", "Search hosts...")" @bind="HostSearch" @bind:event="oninput" />
         </div>
         <div class="col-12 col-md-5">
-            <label class="visually-hidden" for="host-filter">Filter hosts</label>
+            <label class="visually-hidden" for="host-filter">@Language.T("호스트 필터", "Filter hosts")</label>
             <select id="host-filter" class="form-select" @bind="HostFilter">
-                <option value="all">All hosts</option>
-                <option value="online">Online</option>
-                <option value="offline">Offline</option>
-                <option value="warning">Warning</option>
-                <option value="critical">Critical</option>
+                <option value="all">@Language.T("모든 호스트", "All hosts")</option>
+                <option value="online">@Language.T("온라인", "Online")</option>
+                <option value="offline">@Language.T("오프라인", "Offline")</option>
+                <option value="warning">@Language.T("주의", "Warning")</option>
+                <option value="critical">@Language.T("위험", "Critical")</option>
             </select>
         </div>
     </div>
@@ -384,7 +384,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                 <div class="card h-100 host-card @(host.IsOnline ? "" : "host-offline")"
                      role="button"
                      tabindex="0"
-                     aria-label="Open details for @host.Info.Hostname"
+                     aria-label="@Language.T($"{host.Info.Hostname} 상세 정보 열기", $"Open details for {host.Info.Hostname}")"
                      @onkeydown="(e) => HandleHostCardKeyDown(e, host.Info.Hostname)"
                      @onclick="() => SelectHost(host.Info.Hostname)">
                     <div class="card-body">
@@ -393,7 +393,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                                 <span class="status-dot @(host.IsOnline ? "status-online" : "status-offline")" aria-hidden="true"></span>
                                 <h3 class="card-title mb-0">@host.Info.Hostname</h3>
                             </div>
-                            <span class="host-status-badge @(host.IsOnline ? "host-status-online" : "host-status-offline")">@(host.IsOnline ? "Online" : "Offline")</span>
+                        <span class="host-status-badge @(host.IsOnline ? "host-status-online" : "host-status-offline")">@(host.IsOnline ? Language.T("온라인", "Online") : Language.T("오프라인", "Offline"))</span>
                         </div>
                         <p class="host-card-ip">@host.Info.Ip</p>
                         <div class="host-freshness @(host.IsOnline ? "freshness-current" : "freshness-stale")">
@@ -416,7 +416,7 @@ else if (!string.IsNullOrWhiteSpace(DashboardError))
                                 <div class="progress"><div class="progress-bar @cpuClass" style="width: @($"{cpu}%")"></div></div>
                             </div>
                             <div class="host-usage-item">
-                                <div class="host-usage-label"><span>Memory</span><strong>@mem.ToString("0.0")%</strong></div>
+                                <div class="host-usage-label"><span>@Language.T("메모리", "Memory")</span><strong>@mem.ToString("0.0")%</strong></div>
                                 <div class="progress"><div class="progress-bar @memoryClass" style="width: @($"{mem}%")"></div></div>
                             </div>
                         </div>
@@ -437,39 +437,39 @@ else if (SelectedHost is not null)
 
     <ul class="nav nav-tabs mb-3">
         <li class="nav-item">
-            <button class="nav-link @(SelectedDetailTab == DetailTab.Overview ? "active" : "")" @onclick="() => SetDetailTab(DetailTab.Overview)">Overview</button>
+            <button class="nav-link @(SelectedDetailTab == DetailTab.Overview ? "active" : "")" @onclick="() => SetDetailTab(DetailTab.Overview)">@Language.T("개요", "Overview")</button>
         </li>
         <li class="nav-item">
-            <button class="nav-link @(SelectedDetailTab == DetailTab.SlowQueries ? "active" : "")" @onclick="() => SetDetailTab(DetailTab.SlowQueries)">Slow Queries</button>
+            <button class="nav-link @(SelectedDetailTab == DetailTab.SlowQueries ? "active" : "")" @onclick="() => SetDetailTab(DetailTab.SlowQueries)">@Language.T("느린 쿼리", "Slow queries")</button>
         </li>
     </ul>
 
     @if (SelectedDetailTab == DetailTab.SlowQueries)
     {
         <div class="card mb-3">
-            <div class="card-header"><strong>@info.Hostname</strong> Slow Queries</div>
+            <div class="card-header"><strong>@info.Hostname</strong> @Language.T("느린 쿼리", "Slow queries")</div>
             <div class="card-body">
                 <div class="d-flex gap-2 mb-2 flex-wrap">
-                    <button class="btn btn-sm btn-outline-primary" @onclick="LoadSlowQueries" disabled="@IsLoadingSlowQueries">Refresh</button>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadBlockingQueries" disabled="@IsLoadingBlockingQueries">Blocking</button>
-                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadTopIoQueries" disabled="@IsLoadingTopIoQueries">Top IO</button>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="LoadSlowQueries" disabled="@IsLoadingSlowQueries">@Language.T("새로고침", "Refresh")</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadBlockingQueries" disabled="@IsLoadingBlockingQueries">@Language.T("블로킹", "Blocking")</button>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="LoadTopIoQueries" disabled="@IsLoadingTopIoQueries">@Language.T("상위 I/O", "Top I/O")</button>
                     @if (!string.IsNullOrWhiteSpace(SlowQueryError))
                     {
-                        <span class="text-danger">@SlowQueryError</span>
+                        <span class="text-danger">@Language.Localize(SlowQueryError)</span>
                     }
                     else if (SlowQueries is not null)
                     {
-                        <span class="text-muted">Rows: @SlowQueries.Count</span>
+                        <span class="text-muted">@Language.T($"행: {SlowQueries.Count}", $"Rows: {SlowQueries.Count}")</span>
                     }
                 </div>
 
                 @if (SlowQueries is null)
                 {
-                    <div class="text-muted">No data loaded yet.</div>
+                    <div class="text-muted">@Language.T("아직 불러온 데이터가 없습니다.", "No data loaded yet.")</div>
                 }
                 else if (SlowQueries.Count == 0)
                 {
-                    <div class="text-muted">No slow queries above threshold.</div>
+                    <div class="text-muted">@Language.T("설정한 기준을 초과한 느린 쿼리가 없습니다.", "No slow queries exceed the configured threshold.")</div>
                 }
                 else
                 {
@@ -477,17 +477,11 @@ else if (SelectedHost is not null)
                         <table class="table table-sm detail-table">
                             <thead>
                                 <tr>
-                                    <th>Session</th>
-                                    <th>DB</th>
-                                    <th>Status</th>
-                                    <th>Command</th>
-                                    <th class="text-end">Elapsed(ms)</th>
-                                    <th class="text-end">CPU(ms)</th>
-                                    <th class="text-end">Reads</th>
-                                    <th class="text-end">Writes</th>
-                                    <th>Wait</th>
-                                    <th>Blocking</th>
-                                    <th>Statement</th>
+                                    <th>@Language.T("세션", "Session")</th><th>DB</th><th>@Language.T("상태", "Status")</th>
+                                    <th>@Language.T("명령", "Command")</th><th class="text-end">@Language.T("경과 시간(ms)", "Elapsed (ms)")</th>
+                                    <th class="text-end">CPU (ms)</th><th class="text-end">@Language.T("읽기", "Reads")</th>
+                                    <th class="text-end">@Language.T("쓰기", "Writes")</th><th>@Language.T("대기", "Wait")</th>
+                                    <th>@Language.T("블로킹 세션", "Blocking session")</th><th>@Language.T("SQL 문", "Statement")</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -514,14 +508,14 @@ else if (SelectedHost is not null)
 
                 @if (!string.IsNullOrWhiteSpace(BlockingQueryError))
                 {
-                    <div class="text-danger mt-3">@BlockingQueryError</div>
+                    <div class="text-danger mt-3">@Language.Localize(BlockingQueryError)</div>
                 }
                 else if (BlockingQueries is not null)
                 {
-                    <div class="mt-3 mb-2"><strong>Blocking / Deadlock 후보</strong></div>
+                    <div class="mt-3 mb-2"><strong>@Language.T("블로킹 / 데드락 후보", "Potential blocking / deadlocks")</strong></div>
                     @if (BlockingQueries.Count == 0)
                     {
-                        <div class="text-muted">No blocking sessions.</div>
+                        <div class="text-muted">@Language.T("블로킹 중인 세션이 없습니다.", "No blocking sessions.")</div>
                     }
                     else
                     {
@@ -529,15 +523,15 @@ else if (SelectedHost is not null)
                             <table class="table table-sm detail-table">
                                 <thead>
                                     <tr>
-                                        <th>Session</th>
+                                        <th>@Language.T("세션", "Session")</th>
                                         <th>DB</th>
-                                        <th>Status</th>
-                                        <th>Command</th>
-                                        <th class="text-end">Elapsed(ms)</th>
-                                        <th class="text-end">CPU(ms)</th>
-                                        <th>Wait</th>
-                                        <th>Blocking</th>
-                                        <th>Statement</th>
+                                        <th>@Language.T("상태", "Status")</th>
+                                        <th>@Language.T("명령", "Command")</th>
+                                        <th class="text-end">@Language.T("경과 시간(ms)", "Elapsed (ms)")</th>
+                                        <th class="text-end">CPU (ms)</th>
+                                        <th>@Language.T("대기", "Wait")</th>
+                                        <th>@Language.T("블로킹 세션", "Blocking session")</th>
+                                        <th>@Language.T("SQL 문", "Statement")</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -563,14 +557,14 @@ else if (SelectedHost is not null)
 
                 @if (!string.IsNullOrWhiteSpace(TopIoError))
                 {
-                    <div class="text-danger mt-3">@TopIoError</div>
+                    <div class="text-danger mt-3">@Language.Localize(TopIoError)</div>
                 }
                 else if (TopIoQueries is not null)
                 {
-                    <div class="mt-3 mb-2"><strong>Top IO Queries</strong></div>
+                    <div class="mt-3 mb-2"><strong>@Language.T("I/O 사용량이 많은 쿼리", "Top I/O queries")</strong></div>
                     @if (TopIoQueries.Count == 0)
                     {
-                        <div class="text-muted">No heavy IO queries.</div>
+                        <div class="text-muted">@Language.T("I/O 사용량이 많은 쿼리가 없습니다.", "No high-I/O queries found.")</div>
                     }
                     else
                     {
@@ -579,12 +573,12 @@ else if (SelectedHost is not null)
                                 <thead>
                                     <tr>
                                         <th>DB</th>
-                                        <th class="text-end">Reads</th>
-                                        <th class="text-end">Writes</th>
-                                        <th class="text-end">CPU(ms)</th>
-                                        <th class="text-end">Elapsed(ms)</th>
-                                        <th class="text-end">Execs</th>
-                                        <th>Statement</th>
+                                        <th class="text-end">@Language.T("읽기", "Reads")</th>
+                                        <th class="text-end">@Language.T("쓰기", "Writes")</th>
+                                        <th class="text-end">CPU (ms)</th>
+                                        <th class="text-end">@Language.T("경과 시간(ms)", "Elapsed (ms)")</th>
+                                        <th class="text-end">@Language.T("실행 횟수", "Executions")</th>
+                                        <th>@Language.T("SQL 문", "Statement")</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -611,7 +605,7 @@ else if (SelectedHost is not null)
     else
     {
         <div class="card mb-3">
-            <div class="card-header"><strong>@info.Hostname</strong> Server Status</div>
+            <div class="card-header"><strong>@info.Hostname</strong> @Language.T("서버 상태", "Server status")</div>
             <div class="card-body">
                 <div class="row text-center g-3">
                     <div class="col-12 col-md-4">
@@ -620,11 +614,11 @@ else if (SelectedHost is not null)
                     </div>
                     <div class="col-12 col-md-4">
                         <div class="gauge-wrap"><canvas id="memoryGauge"></canvas></div>
-                        <div class="mt-2">Memory: <strong>@info.Dynamic.MemoryInfo.Usage.ToString("0.0")%</strong></div>
+                        <div class="mt-2">@Language.T("메모리", "Memory"): <strong>@info.Dynamic.MemoryInfo.Usage.ToString("0.0")%</strong></div>
                     </div>
                     <div class="col-12 col-md-4">
                         <div class="gauge-wrap"><canvas id="diskGauge"></canvas></div>
-                        <div class="mt-2">Disk: <strong>@info.Dynamic.DiskInfo.Percent.ToString("0.0")%</strong></div>
+                        <div class="mt-2">@Language.T("디스크", "Disk"): <strong>@info.Dynamic.DiskInfo.Percent.ToString("0.0")%</strong></div>
                     </div>
                 </div>
             </div>
@@ -633,19 +627,19 @@ else if (SelectedHost is not null)
         <div class="row g-3 mt-0 align-items-stretch detail-split-row">
             <div class="col-12 col-xl-4">
                 <div class="card detail-card">
-                    <div class="card-header"><strong>@info.Hostname</strong> Details</div>
+                    <div class="card-header"><strong>@info.Hostname</strong> @Language.T("상세 정보", "Details")</div>
                     <div class="card-body p-0">
                         <table class="table table-sm detail-table mb-0">
                             <tbody>
-                            <tr><td>Status</td><td>@(info.Status?.ToString() ?? "-")</td></tr>
-                            <tr><td>Host</td><td>@info.Hostname</td></tr>
+                            <tr><td>@Language.T("상태", "Status")</td><td>@(info.Status?.ToString() ?? "-")</td></tr>
+                            <tr><td>@Language.T("호스트", "Host")</td><td>@info.Hostname</td></tr>
                             <tr><td>IP</td><td>@info.Ip</td></tr>
-                            <tr><td>OS</td><td>@info.Os</td></tr>
+                            <tr><td>@Language.T("운영체제", "OS")</td><td>@info.Os</td></tr>
                             <tr><td>CPU</td><td>@info.Dynamic.CpuInfo.Usage.ToString("0.0")%</td></tr>
-                            <tr><td>Memory</td><td>@info.Dynamic.MemoryInfo.Usage.ToString("0.0")%</td></tr>
-                            <tr><td>Disk</td><td>@info.Dynamic.DiskInfo.Percent.ToString("0.0")%</td></tr>
-                            <tr><td>Disk Used</td><td>@ToGb((long)info.Dynamic.DiskInfo.Total - (long)info.Dynamic.DiskInfo.Free).ToString("0.00") GB</td></tr>
-                            <tr><td>Disk Total</td><td>@ToGb((long)info.Dynamic.DiskInfo.Total).ToString("0.00") GB</td></tr>
+                            <tr><td>@Language.T("메모리", "Memory")</td><td>@info.Dynamic.MemoryInfo.Usage.ToString("0.0")%</td></tr>
+                            <tr><td>@Language.T("디스크 사용률", "Disk usage")</td><td>@info.Dynamic.DiskInfo.Percent.ToString("0.0")%</td></tr>
+                            <tr><td>@Language.T("사용 중인 디스크", "Disk used")</td><td>@ToGb((long)info.Dynamic.DiskInfo.Total - (long)info.Dynamic.DiskInfo.Free).ToString("0.00") GB</td></tr>
+                            <tr><td>@Language.T("전체 디스크 용량", "Total disk")</td><td>@ToGb((long)info.Dynamic.DiskInfo.Total).ToString("0.00") GB</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -654,10 +648,10 @@ else if (SelectedHost is not null)
             </div>
             <div class="col-12 col-xl-8">
                 <div class="card detail-history-card">
-                    <div class="card-header"><strong>@info.Hostname</strong> History</div>
+                    <div class="card-header"><strong>@info.Hostname</strong> @Language.T("기록", "History")</div>
                     <div class="card-body p-0 detail-history-scroll">
                         <table class="table table-sm detail-table mb-0">
-                            <thead><tr><th>Time</th><th>TX Mbps</th><th>RX Mbps</th><th>CPU</th><th>MEM</th></tr></thead>
+                            <thead><tr><th>@Language.T("시간", "Time")</th><th>TX (Mbps)</th><th>RX (Mbps)</th><th>CPU</th><th>@Language.T("메모리", "Memory")</th></tr></thead>
                             <tbody>
                             @if (history is not null)
                             {
@@ -683,19 +677,19 @@ else if (SelectedHost is not null)
                 <div class="card dashboard-chart-card">
                     <div class="card-header dashboard-chart-header">
                         <div>
-                            <strong>Performance Charts</strong>
-                            <div class="text-muted small">Switch between network traffic and system resource trends without leaving the page.</div>
+                            <strong>@Language.T("성능 차트", "Performance charts")</strong>
+                            <div class="text-muted small">@Language.T("페이지를 이동하지 않고 네트워크 트래픽과 시스템 리소스 추이를 전환해 확인할 수 있습니다.", "Switch between network traffic and system resource trends without leaving the page.")</div>
                         </div>
-                        <div class="dashboard-chart-tabs" role="tablist" aria-label="Chart views">
+                        <div class="dashboard-chart-tabs" role="tablist" aria-label="@Language.T("차트 보기", "Chart views")">
                             <button type="button"
                                     class="btn btn-sm @(SelectedChartPanel == ChartPanel.Network ? "btn-primary" : "btn-outline-secondary")"
                                     @onclick="() => SelectChartPanel(ChartPanel.Network)">
-                                Network
+                                @Language.T("네트워크", "Network")
                             </button>
                             <button type="button"
                                     class="btn btn-sm @(SelectedChartPanel == ChartPanel.Resource ? "btn-primary" : "btn-outline-secondary")"
                                     @onclick="() => SelectChartPanel(ChartPanel.Resource)">
-                                Resource
+                                @Language.T("리소스", "Resources")
                             </button>
                         </div>
                     </div>
@@ -703,7 +697,7 @@ else if (SelectedHost is not null)
                     <div class="card-body border-bottom dashboard-chart-summary">
                         <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
                             <div>
-                                <div class="metric-label">Current focus</div>
+                                <div class="metric-label">@Language.T("현재 보기", "Current view")</div>
                                 <div class="dashboard-chart-title">@GetSelectedChartTitle()</div>
                             </div>
                             <div class="text-muted small text-end">
@@ -720,27 +714,27 @@ else if (SelectedHost is not null)
                             {
                                 <div class="chart-state-overlay">
                                     <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-                                    <div class="mt-2">Loading network chart...</div>
+                                    <div class="mt-2">@Language.T("네트워크 차트를 불러오는 중...", "Loading network chart...")</div>
                                 </div>
                             }
                         </div>
                         <div class="dashboard-chart-toolbar">
                             <div>
-                                <label class="form-label mb-1">Range</label>
+                                <label class="form-label mb-1">@Language.T("조회 기간", "Time range")</label>
                                 <select class="form-select" @bind="NetworkRangePreset" @bind:after="ApplyNetworkPresetAsync">
-                                    <option value="realtime">Real-time</option>
-                                    <option value="day">Last 24h</option>
-                                    <option value="week">Last 7 days</option>
-                                    <option value="month">Last 30 days</option>
-                                    <option value="year">Last 12 months</option>
+                                    <option value="realtime">@Language.T("실시간", "Real time")</option>
+                                    <option value="day">@Language.T("최근 24시간", "Last 24 hours")</option>
+                                    <option value="week">@Language.T("최근 7일", "Last 7 days")</option>
+                                    <option value="month">@Language.T("최근 30일", "Last 30 days")</option>
+                                    <option value="year">@Language.T("최근 12개월", "Last 12 months")</option>
                                 </select>
                             </div>
                             <div class="chart-range-note">@GetRangeDisplay(NetworkRangeStartLocal, NetworkRangeEndLocal)</div>
-                            <button class="btn btn-outline-secondary" @onclick="ResetNetworkZoom">Reset Zoom</button>
+                            <button class="btn btn-outline-secondary" @onclick="ResetNetworkZoom">@Language.T("확대 초기화", "Reset zoom")</button>
                         </div>
                         @if (!NetworkHasData)
                         {
-                            <div class="text-warning mt-2">No network data is available for this range. Try a wider range or wait for the next refresh.</div>
+                            <div class="text-warning mt-2">@Language.T("선택한 기간에 네트워크 데이터가 없습니다. 기간을 넓히거나 다음 새로고침까지 기다려 주세요.", "No network data is available for this range. Try a wider range or wait for the next refresh.")</div>
                         }
                     </div>
                     <div class="card-body chart-wrap dashboard-chart-panel @(SelectedChartPanel == ChartPanel.Resource ? "" : "d-none")">
@@ -751,27 +745,27 @@ else if (SelectedHost is not null)
                             {
                                 <div class="chart-state-overlay">
                                     <div class="spinner-border text-primary" role="status" aria-hidden="true"></div>
-                                    <div class="mt-2">Loading resource chart...</div>
+                                <div class="mt-2">@Language.T("리소스 차트를 불러오는 중...", "Loading resource chart...")</div>
                                 </div>
                             }
                         </div>
                         <div class="dashboard-chart-toolbar">
                             <div>
-                                <label class="form-label mb-1">Range</label>
+                                <label class="form-label mb-1">@Language.T("조회 기간", "Time range")</label>
                                 <select class="form-select" @bind="ResourceRangePreset" @bind:after="ApplyResourcePresetAsync">
-                                    <option value="realtime">Real-time</option>
-                                    <option value="day">Last 24h</option>
-                                    <option value="week">Last 7 days</option>
-                                    <option value="month">Last 30 days</option>
-                                    <option value="year">Last 12 months</option>
+                                    <option value="realtime">@Language.T("실시간", "Real time")</option>
+                                    <option value="day">@Language.T("최근 24시간", "Last 24 hours")</option>
+                                    <option value="week">@Language.T("최근 7일", "Last 7 days")</option>
+                                    <option value="month">@Language.T("최근 30일", "Last 30 days")</option>
+                                    <option value="year">@Language.T("최근 12개월", "Last 12 months")</option>
                                 </select>
                             </div>
                             <div class="chart-range-note">@GetRangeDisplay(ResourceRangeStartLocal, ResourceRangeEndLocal)</div>
-                            <button class="btn btn-outline-secondary" @onclick="ResetResourceZoom">Reset Zoom</button>
+                            <button class="btn btn-outline-secondary" @onclick="ResetResourceZoom">@Language.T("확대 초기화", "Reset zoom")</button>
                         </div>
                         @if (!ResourceHasData)
                         {
-                            <div class="text-warning mt-2">No resource data is available for this range. Try a wider range or wait for the next refresh.</div>
+                            <div class="text-warning mt-2">@Language.T("선택한 기간에 리소스 데이터가 없습니다. 기간을 넓히거나 다음 새로고침까지 기다려 주세요.", "No resource data is available for this range. Try a wider range or wait for the next refresh.")</div>
                         }
                     </div>
                 </div>
@@ -781,7 +775,7 @@ else if (SelectedHost is not null)
 }
 else
 {
-    <p>Host data not found.</p>
+    <p>@Language.T("호스트 데이터를 찾을 수 없습니다.", "Host data not found.")</p>
 }
 
 @if (ShowSqlAccessPanel)
@@ -790,11 +784,11 @@ else
         <div class="sql-modal" role="dialog" aria-modal="true" aria-labelledby="sql-access-title" @onclick:stopPropagation="true">
             <div class="sql-modal-header">
                 <div>
-                    <div class="settings-kicker">Configuration</div>
-                    <h2 id="sql-access-title">DB Access</h2>
-                    <div class="text-muted small">Manage SQL connection credentials per server from one place.</div>
+                    <div class="settings-kicker">@Language.T("설정", "Configuration")</div>
+                    <h2 id="sql-access-title">@Language.T("DB 연결 설정", "Database access")</h2>
+                    <div class="text-muted small">@Language.T("서버별 SQL 연결 정보를 한곳에서 관리합니다.", "Manage SQL connection settings for each server in one place.")</div>
                 </div>
-                <button type="button" class="modal-close-button" aria-label="Close" @onclick="CloseSqlAccessPanel">&times;</button>
+                                    <button type="button" class="modal-close-button" aria-label="@Language.T("닫기", "Close")" @onclick="CloseSqlAccessPanel">&times;</button>
             </div>
             <div class="sql-modal-body">
                 <div class="row g-3">
@@ -810,7 +804,7 @@ else
                                         <small class="opacity-75">@host.Info.Ip</small>
                                     </span>
                                     <span class="badge sql-status-badge @(host.IsOnline ? "sql-status-online" : "sql-status-offline")">
-                                        @(host.IsOnline ? "Online" : "Offline")
+                                        @(host.IsOnline ? Language.T("온라인", "Online") : Language.T("오프라인", "Offline"))
                                     </span>
                                 </button>
                             }
@@ -819,69 +813,69 @@ else
                     <div class="col-12 col-xl-8">
                         @if (SelectedSqlHost is null)
                         {
-                            <div class="text-muted">Select a server on the left.</div>
+                            <div class="text-muted">@Language.T("왼쪽 목록에서 서버를 선택하세요.", "Select a server from the list on the left.")</div>
                         }
                         else
                         {
                             <div class="row g-2">
                                 <div class="col-12">
-                                    <label class="form-label">Server</label>
+                                    <label class="form-label">@Language.T("서버 주소", "Server address")</label>
                                     <input class="form-control" @bind="SqlTargetSettings.Server" placeholder="127.0.0.1" />
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label">Port</label>
+                                    <label class="form-label">@Language.T("포트", "Port")</label>
                                     <input class="form-control" type="number" @bind="SqlTargetSettings.Port" />
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label">Database</label>
+                                    <label class="form-label">@Language.T("데이터베이스", "Database")</label>
                                     <input class="form-control" @bind="SqlTargetSettings.Database" placeholder="master" />
                                 </div>
                                 <div class="col-12">
-                                    <label class="form-label">Authentication</label>
+                                    <label class="form-label">@Language.T("인증 방식", "Authentication")</label>
                                     <select class="form-select" @bind="SqlIntegratedSecurityChoice">
-                                        <option value="N">SQL Authentication</option>
-                                        <option value="Y">Windows / Integrated</option>
+                                        <option value="N">@Language.T("SQL 인증", "SQL authentication")</option>
+                                        <option value="Y">@Language.T("Windows 통합 인증", "Windows integrated authentication")</option>
                                     </select>
                                 </div>
                                 @if (!SqlTargetSettings.IntegratedSecurity)
                                 {
                                     <div class="col-12">
-                                        <label class="form-label">Username</label>
+                                        <label class="form-label">@Language.T("사용자 이름", "Username")</label>
                                         <input class="form-control" @bind="SqlTargetSettings.Username" autocomplete="off" />
                                     </div>
                                     <div class="col-12">
-                                        <label class="form-label">Password</label>
+                                        <label class="form-label">@Language.T("비밀번호", "Password")</label>
                                         <input class="form-control" type="password" @bind="SqlTargetSettings.Password" autocomplete="new-password" />
                                     </div>
                                 }
                                 <div class="col-6">
-                                    <label class="form-label">Encrypt</label>
+                                    <label class="form-label">@Language.T("암호화", "Encrypt connection")</label>
                                     <select class="form-select" @bind="SqlEncryptChoice">
-                                        <option value="Y">Y</option>
-                                        <option value="N">N</option>
+                                        <option value="Y">@Language.T("사용", "Enabled")</option>
+                                        <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                                     </select>
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label">Trust Cert</label>
+                                    <label class="form-label">@Language.T("서버 인증서 신뢰", "Trust server certificate")</label>
                                     <select class="form-select" @bind="SqlTrustCertificateChoice">
-                                        <option value="Y">Y</option>
-                                        <option value="N">N</option>
+                                        <option value="Y">@Language.T("사용", "Enabled")</option>
+                                        <option value="N">@Language.T("사용 안 함", "Disabled")</option>
                                     </select>
                                 </div>
                                 <div class="col-12">
-                                    <div class="text-muted small">This host uses its own SQL target config for slow query, blocking, and top IO cards.</div>
+                                    <div class="text-muted small">@Language.T("이 서버의 SQL 연결 설정은 느린 쿼리, 블로킹 및 상위 I/O 조회에 사용됩니다.", "This server's SQL settings are used for slow-query, blocking, and top-I/O checks.")</div>
                                 </div>
                                 @if (!string.IsNullOrWhiteSpace(SqlTargetStatusMessage))
                                 {
                                     <div class="col-12">
-                                        <div class="alert alert-secondary mb-0">@SqlTargetStatusMessage</div>
+                                        <div class="alert alert-secondary mb-0">@Language.Localize(SqlTargetStatusMessage)</div>
                                     </div>
                                 }
                             </div>
                             <div class="mt-3 d-flex gap-2 flex-wrap">
-                                <button class="btn btn-outline-secondary" @onclick="LoadSqlTargetSettingsAsync">Reload</button>
-                                <button class="btn btn-outline-warning" @onclick="ResetSqlTargetSettingsAsync">Reset to Default</button>
-                                <button class="btn btn-primary" @onclick="SaveSqlTargetSettingsAsync" disabled="@IsSavingSqlTarget">Save</button>
+                                <button class="btn btn-outline-secondary" @onclick="LoadSqlTargetSettingsAsync">@Language.T("다시 불러오기", "Reload")</button>
+                                <button class="btn btn-outline-warning" @onclick="ResetSqlTargetSettingsAsync">@Language.T("기본값으로 재설정", "Reset to defaults")</button>
+                                <button class="btn btn-primary" @onclick="SaveSqlTargetSettingsAsync" disabled="@IsSavingSqlTarget">@Language.T("저장", "Save")</button>
                             </div>
                         }
                     </div>
@@ -1509,7 +1503,7 @@ else
     {
         if (startLocal is null || endLocal is null)
         {
-            return "Real-time";
+            return Language.T("실시간", "Real time");
         }
 
         var culture = CultureInfo.GetCultureInfo("ko-KR");
@@ -1518,33 +1512,35 @@ else
 
     private string GetSelectedChartTitle()
     {
-        return SelectedChartPanel == ChartPanel.Network ? "Network traffic" : "Resource usage";
+        return SelectedChartPanel == ChartPanel.Network
+            ? Language.T("네트워크 트래픽", "Network traffic")
+            : Language.T("리소스 사용량", "Resource usage");
     }
 
     private string GetSelectedChartSummary()
     {
         if (SelectedHost is null)
         {
-            return "Select a host to view chart details.";
+            return Language.T("차트 상세 정보를 보려면 호스트를 선택하세요.", "Select a host to view chart details.");
         }
 
         var info = SelectedHost.Info;
         return SelectedChartPanel == ChartPanel.Network
             ? $"TX {info.Dynamic.NetworkInfo.SentMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps · RX {info.Dynamic.NetworkInfo.RecvMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps"
-            : $"CPU {info.Dynamic.CpuInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · MEM {info.Dynamic.MemoryInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · DISK {info.Dynamic.DiskInfo.Percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
+            : $"CPU {info.Dynamic.CpuInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · {Language.T("메모리", "Memory")} {info.Dynamic.MemoryInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · {Language.T("디스크", "Disk")} {info.Dynamic.DiskInfo.Percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
     }
 
     private string GetSelectedChartSummaryText()
     {
         if (SelectedHost is null)
         {
-            return "Select a host to view chart details.";
+            return Language.T("차트 상세 정보를 보려면 호스트를 선택하세요.", "Select a host to view chart details.");
         }
 
         var info = SelectedHost.Info;
         return SelectedChartPanel == ChartPanel.Network
             ? $"TX {info.Dynamic.NetworkInfo.SentMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps · RX {info.Dynamic.NetworkInfo.RecvMbps.ToString("0.000", CultureInfo.InvariantCulture)} Mbps"
-            : $"CPU {info.Dynamic.CpuInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · MEM {info.Dynamic.MemoryInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · DISK {info.Dynamic.DiskInfo.Percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
+            : $"CPU {info.Dynamic.CpuInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · {Language.T("메모리", "Memory")} {info.Dynamic.MemoryInfo.Usage.ToString("0.0", CultureInfo.InvariantCulture)}% · {Language.T("디스크", "Disk")} {info.Dynamic.DiskInfo.Percent.ToString("0.0", CultureInfo.InvariantCulture)}%";
     }
 
     private async Task LoadHistoryAsync(string host, int? windowMinutesOverride = null)
@@ -1965,20 +1961,22 @@ else
         return value >= warningThreshold ? "bg-warning" : "bg-success";
     }
 
-    private static string GetHostFreshness(HostState host)
+    private string GetHostFreshness(HostState host)
     {
         var age = DateTime.UtcNow - host.LastUpdatedUtc;
         if (age.TotalSeconds < 5)
         {
-            return "Updated just now";
+            return Language.T("방금 업데이트됨", "Updated just now");
         }
 
         if (age.TotalMinutes < 1)
         {
-            return $"Last seen {Math.Max(1, (int)age.TotalSeconds)}s ago";
+            var seconds = Math.Max(1, (int)age.TotalSeconds);
+            return Language.T($"마지막 수신: {seconds}초 전", $"Last seen {seconds}s ago");
         }
 
-        return $"Last seen {Math.Max(1, (int)age.TotalMinutes)}m ago";
+        var minutes = Math.Max(1, (int)age.TotalMinutes);
+        return Language.T($"마지막 수신: {minutes}분 전", $"Last seen {minutes}m ago");
     }
 
     private async Task HandleHostCardKeyDown(KeyboardEventArgs args, string hostname)

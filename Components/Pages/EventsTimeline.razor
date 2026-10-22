@@ -10,7 +10,7 @@
         <div>
             <div class="text-uppercase text-muted small mb-1">@Language.T("운영", "Operations")</div>
             <h1 class="h3 mb-1">@Language.T("이벤트 타임라인", "Event timeline")</h1>
-            <p class="text-secondary mb-0">@Language.T("알림, 로그인 시도, 관리자 작업을 하나의 피드에서 확인합니다.", "Alerts, login attempts, and admin actions in one feed.")</p>
+            <p class="text-secondary mb-0">@Language.T("알림, 로그인 시도, 관리자 작업을 한 화면에서 확인합니다.", "View alerts, login attempts, and admin actions in a single feed.")</p>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
@@ -64,17 +64,17 @@
                     {
                         <div class="border rounded-3 p-3">
                             <div class="d-flex flex-wrap justify-content-between gap-2">
-                                <div class="fw-semibold">@item.Title</div>
-                                <span class="badge text-bg-secondary">@item.Category</span>
+                                <div class="fw-semibold">@Language.Label(item.Title)</div>
+                                <span class="badge text-bg-secondary">@Language.Label(item.Category)</span>
                             </div>
                             <div class="text-secondary small">@item.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
                             <div class="mt-2">
                                 <span class="badge text-bg-light text-dark border me-2">@item.Subject</span>
-                                <span class="text-break">@item.Message</span>
+                                <span class="text-break">@(item.Category == "Login" ? Language.Label(item.Message) : item.Message)</span>
                             </div>
                             @if (!string.IsNullOrWhiteSpace(item.Detail))
                             {
-                                <div class="text-muted small mt-1 text-break">@item.Detail</div>
+                                <div class="text-muted small mt-1 text-break">@(item.Category == "Login" ? item.Detail : Language.Label(item.Detail))</div>
                             }
                         </div>
                         }
@@ -82,9 +82,9 @@
 
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
                     <div class="text-muted small">
-                        @(Language.IsKorean ? $"{DisplayRangeStart}-{DisplayRangeEnd}개 중 {FilteredItems.Count}개 항목" : $"Showing {DisplayRangeStart}-{DisplayRangeEnd} of {FilteredItems.Count} item(s)")
+                        @Language.T($"전체 {FilteredItems.Count}개 중 {DisplayRangeStart}–{DisplayRangeEnd}개 표시", $"Showing {DisplayRangeStart}–{DisplayRangeEnd} of {FilteredItems.Count} items")
                     </div>
-                    <div class="btn-group" role="group" aria-label="Pagination">
+                    <div class="btn-group" role="group" aria-label="@Language.T("페이지 이동", "Pagination")">
                         <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">@Language.T("이전", "Previous")</button>
                         <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">@Language.T("다음", "Next")</button>
                     </div>

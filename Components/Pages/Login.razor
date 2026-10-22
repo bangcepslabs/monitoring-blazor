@@ -31,13 +31,13 @@
                 <div class="mb-4">
                     <h1 class="h3 mb-2">@Language.T("로그인", "Sign in")</h1>
                     <p class="text-secondary mb-0">
-                        @Language.T("계정으로 로그인하세요. 계정이 없다면 먼저 회원가입을 진행하세요.", "Sign in with your account. If you do not have one yet, create a new account first.")
+                        @Language.T("서버 상태와 운영 기록을 확인하려면 로그인하세요.", "Sign in to monitor your servers and review activity.")
                     </p>
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(_message))
                 {
-                    <div class="alert alert-warning" role="alert">@_message</div>
+                    <div class="alert alert-warning" role="alert">@Language.Localize(_message)</div>
                 }
 
                 <form method="post" action="/auth/login" class="d-grid gap-3">
@@ -60,7 +60,7 @@
 
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-box-arrow-in-right me-2"></i>@Language.T("로그인", "Login")
+                            <i class="bi bi-box-arrow-in-right me-2"></i>@Language.T("로그인", "Sign in")
                         </button>
                         @if (_passwordResetEnabled)
                         {
@@ -79,7 +79,7 @@
         <div class="login-footnote">
             <span>OpsEye</span>
             <span aria-hidden="true">&middot;</span>
-            <span>@Language.T("로컬 회원 인증", "Local member authentication")</span>
+            <span>@Language.T("로컬 계정 인증", "Local account authentication")</span>
         </div>
         </div>
     </section>
@@ -90,9 +90,9 @@
             <span>OpsEye</span>
         </div>
         <div class="login-visual-copy">
-            <p class="login-visual-kicker">OPERATIONS VISIBILITY</p>
-            <h2>@Language.T("모든 핵심 시스템을", "Clarity for every")<br />@Language.T("명확하게 확인하세요.", "critical system.")</h2>
-            <p>@Language.T("서비스 상태를 확인하고 이벤트를 조사하며 운영 현황을 한눈에 관리하세요.", "Monitor service health, investigate events, and keep your operations in view.")</p>
+            <p class="login-visual-kicker">@Language.T("운영 현황 한눈에 보기", "OPERATIONS AT A GLANCE")</p>
+            <h2>@Language.T("운영의 흐름을", "Your operations.")<br />@Language.T("한눈에.", "A clearer view.")</h2>
+            <p>@Language.T("서버 모니터링부터 로그 분석까지. 필요한 정보를 한곳에서 확인하고 문제에 빠르게 대응하세요.", "From server health to log analysis. Find what matters and respond with confidence.")</p>
         </div>
         <div class="login-globe-stage">
             <canvas @ref="_globeCanvas" class="login-globe-canvas"></canvas>
@@ -126,7 +126,7 @@
                 "locked" => Language.T("로그인 실패가 반복되어 계정이 일시적으로 잠겼습니다.", "This account is temporarily locked because of repeated failed sign-in attempts."),
                 "duplicate" => Language.T("이미 존재하는 사용자 이름입니다.", "This user name already exists."),
                 "password_mismatch" => Language.T("비밀번호가 일치하지 않습니다.", "Passwords do not match."),
-                "password_policy" => Language.T("비밀번호 정책을 충족하지 못했습니다.", "Password policy was not met."),
+                "password_policy" => Language.T("비밀번호가 요구 사항을 충족하지 않습니다.", "The password does not meet the requirements."),
                 "required" => Language.T("필수 입력값이 누락되었습니다.", "Required fields are missing."),
                 "email_unverified" => Language.T("로그인 전에 이메일 주소를 인증하세요.", "Please verify your email address before signing in."),
                 _ => error.ToString()

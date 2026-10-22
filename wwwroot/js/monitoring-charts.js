@@ -1,5 +1,6 @@
 window.monitorCharts = (function () {
   let cpuGauge, memoryGauge, diskGauge;
+  const label = (ko, en) => document.documentElement.lang === "ko" ? ko : en;
   let networkChart, resourceChart;
   let networkCanvas, resourceCanvas;
   let cpuGaugeCanvas = null, memGaugeCanvas = null, diskGaugeCanvas = null;
@@ -318,8 +319,8 @@ window.monitorCharts = (function () {
     const palette = currentPalette();
     networkChart = makeLineChart(canvas,
       [
-        { label: "Sent (TX)",     data: [], borderColor: "rgb(247,117,138)", fill: false, tension: 0.25, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 },
-        { label: "Received (RX)", data: [], borderColor: "rgb(92,176,255)",  fill: false, tension: 0.25, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 }
+        { label: label("송신 (TX)", "Sent (TX)"), data: [], borderColor: "rgb(247,117,138)", fill: false, tension: 0.25, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 },
+        { label: label("수신 (RX)", "Received (RX)"), data: [], borderColor: "rgb(92,176,255)", fill: false, tension: 0.25, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 }
       ],
       {
         beginAtZero: true,
@@ -339,7 +340,7 @@ window.monitorCharts = (function () {
     resourceChart = makeLineChart(canvas,
       [
         { label: "CPU (%)",    data: [], borderColor: "rgba(255,121,145,1)", backgroundColor: "rgba(255,121,145,0.18)", fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 },
-        { label: "Memory (%)", data: [], borderColor: "rgba(97,185,255,1)",  backgroundColor: "rgba(97,185,255,0.18)",  fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 }
+        { label: label("메모리 (%)", "Memory (%)"), data: [], borderColor: "rgba(97,185,255,1)", backgroundColor: "rgba(97,185,255,0.18)", fill: true, tension: 0.3, pointRadius: 0, pointHoverRadius: 4, pointHitRadius: 12 }
       ],
       { beginAtZero: true, max: 100, ticks: { color: palette.subtleText }, grid: { color: palette.grid } },
       null
@@ -420,6 +421,18 @@ window.monitorCharts = (function () {
       }
     },
 
+    refreshLanguage: function () {
+      if (networkChart) {
+        networkChart.data.datasets[0].label = label("송신 (TX)", "Sent (TX)");
+        networkChart.data.datasets[1].label = label("수신 (RX)", "Received (RX)");
+        networkChart.update("none");
+      }
+      if (resourceChart) {
+        resourceChart.data.datasets[1].label = label("메모리 (%)", "Memory (%)");
+        resourceChart.update("none");
+      }
+    },
+
     refreshTheme: function () {
       const palette = currentPalette();
       if (cpuGauge) {
@@ -439,6 +452,8 @@ window.monitorCharts = (function () {
     }
   };
 })();
+
+window.addEventListener("ops-language-changed", () => window.monitorCharts?.refreshLanguage());
 
 window.addEventListener("monitor-theme-changed", function () {
   if (window.monitorCharts && typeof window.monitorCharts.refreshTheme === "function") {

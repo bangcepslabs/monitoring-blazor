@@ -22,7 +22,7 @@
 
     @if (!string.IsNullOrWhiteSpace(_message))
     {
-        <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+        <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@Language.Localize(_message)</div>
     }
 
     <div class="card shadow-sm">

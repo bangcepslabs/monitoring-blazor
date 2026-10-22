@@ -10,25 +10,25 @@
 @inject MonitoringHealthState MonitoringHealthState
 @inject MonitorStateService MonitorState
 
-<PageTitle>OpsEye | Data health</PageTitle>
+<PageTitle>OpsEye | @Language.T("데이터 상태", "Data health")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4 data-health-page-header">
         <div>
-            <div class="text-uppercase text-muted small mb-1">Operations</div>
-            <h1 class="h3 mb-1">Data health</h1>
-            <p class="text-secondary mb-0">Monitor storage usage and retention settings.</p>
+            <div class="text-uppercase text-muted small mb-1">@Language.T("운영", "Operations")</div>
+            <h1 class="h3 mb-1">@Language.T("데이터 상태", "Data health")</h1>
+            <p class="text-secondary mb-0">@Language.T("저장 공간 사용량과 데이터 보존 설정을 확인합니다.", "Review storage usage and data-retention settings.")</p>
         </div>
         <div class="d-flex gap-2">
-            <button class="btn btn-outline-secondary" @onclick="LoadAsync">Refresh</button>
-            <button class="btn btn-outline-danger" @onclick="CleanupAsync" disabled="@IsCleaning">@(IsCleaning ? "Cleaning..." : "Run cleanup now")</button>
+            <button class="btn btn-outline-secondary" @onclick="LoadAsync">@Language.T("새로고침", "Refresh")</button>
+            <button class="btn btn-outline-danger" @onclick="CleanupAsync" disabled="@IsCleaning">@(IsCleaning ? Language.T("정리 중…", "Cleaning…") : Language.T("지금 정리 실행", "Run cleanup now"))</button>
         </div>
     </div>
 
     <div class="row g-3 mb-3">
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header"><strong>Monitoring workers</strong></div>
+                <div class="card-header"><strong>@Language.T("모니터링 작업 상태", "Monitoring workers")</strong></div>
                 <div class="card-body">
                     <div class="row g-2">
                         @foreach (var worker in WorkerNames)
@@ -37,10 +37,10 @@
                             <div class="col-12 col-md-4">
                                 <div class="border rounded p-3 h-100">
                                     <div class="fw-semibold">@worker</div>
-                                    <div class="small text-secondary">Last success: @(status.LastSuccessUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? "Never")</div>
+                                    <div class="small text-secondary">@Language.T("최근 성공:", "Last success:") @(status.LastSuccessUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") ?? Language.T("없음", "Never"))</div>
                                     @if (status.LastFailureUtc is not null)
                                     {
-                                        <div class="small text-danger">Last failure: @status.LastFailureUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
+                                        <div class="small text-danger">@Language.T("최근 실패:", "Last failure:") @status.LastFailureUtc.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
                                     }
                                 </div>
                             </div>
@@ -48,17 +48,17 @@
                     </div>
                     @if (StaleHosts.Count > 0)
                     {
-                        <div class="alert alert-warning mt-3 mb-0" role="alert">@StaleHosts.Count host(s) have not sent data for more than 15 seconds: @string.Join(", ", StaleHosts)</div>
+                        <div class="alert alert-warning mt-3 mb-0" role="alert">@Language.T($"{StaleHosts.Count}개 호스트에서 15초 넘게 데이터가 들어오지 않았습니다:", $"{StaleHosts.Count} host{(StaleHosts.Count == 1 ? "" : "s")} have not sent data for more than 15 seconds:") @string.Join(", ", StaleHosts)</div>
                     }
                 </div>
             </div>
         </div>
         <div class="col-12">
             <div class="card shadow-sm">
-                <div class="card-header"><strong>API metrics</strong></div>
+                <div class="card-header"><strong>@Language.T("API 요청 통계", "API metrics")</strong></div>
                 <div class="table-responsive">
                     <table class="table table-sm align-middle mb-0 data-health-table">
-                        <thead><tr><th>Endpoint</th><th class="text-end">Requests</th><th class="text-end">Errors</th><th class="text-end">Avg ms</th></tr></thead>
+                    <thead><tr><th>@Language.T("엔드포인트", "Endpoint")</th><th class="text-end">@Language.T("요청", "Requests")</th><th class="text-end">@Language.T("오류", "Errors")</th><th class="text-end">@Language.T("평균(ms)", "Avg. (ms)")</th></tr></thead>
                         <tbody>@foreach (var metric in ApiMetrics) { <tr><td>@metric.Path</td><td class="text-end">@metric.Requests.ToString("N0")</td><td class="text-end">@metric.Errors.ToString("N0")</td><td class="text-end">@metric.AverageMs.ToString("N1")</td></tr> }</tbody>
                     </table>
                 </div>
@@ -66,23 +66,23 @@
         </div>
         <div class="col-12 col-lg-8">
             <div class="card shadow-sm h-100">
-                <div class="card-header"><strong>Table storage</strong></div>
+                <div class="card-header"><strong>@Language.T("테이블별 저장 공간", "Table storage")</strong></div>
                 <div class="table-responsive">
                     @if (IsLoading)
                     {
-                        <div class="p-4 text-secondary" role="status">Loading storage metrics...</div>
+                        <div class="p-4 text-secondary" role="status">@Language.T("저장 공간 정보를 불러오는 중…", "Loading storage metrics…")</div>
                     }
                     else if (!string.IsNullOrWhiteSpace(LoadError))
                     {
                         <div class="p-4">
-                            <div class="alert alert-danger mb-2" role="alert">@LoadError</div>
-                            <button class="btn btn-sm btn-outline-danger" @onclick="LoadAsync">Retry</button>
+                            <div class="alert alert-danger mb-2" role="alert">@Language.Localize(LoadError)</div>
+                            <button class="btn btn-sm btn-outline-danger" @onclick="LoadAsync">@Language.T("다시 시도", "Retry")</button>
                         </div>
                     }
                     else
                     {
                     <table class="table table-hover align-middle mb-0 data-health-table">
-                        <thead><tr><th>Table</th><th class="text-end">Rows</th><th class="text-end">Size</th></tr></thead>
+                        <thead><tr><th>@Language.T("테이블", "Table")</th><th class="text-end">@Language.T("행 수", "Rows")</th><th class="text-end">@Language.T("크기", "Size")</th></tr></thead>
                         <tbody>
                             @foreach (var table in Tables)
                             {
@@ -96,13 +96,13 @@
         </div>
         <div class="col-12 col-lg-4">
             <div class="card shadow-sm h-100">
-                <div class="card-header"><strong>Retention policy</strong></div>
+                <div class="card-header"><strong>@Language.T("데이터 보존 정책", "Retention policy")</strong></div>
                 <div class="card-body">
                     <dl class="row mb-0">
-                        <dt class="col-8">Snapshots</dt><dd class="col-4 text-end">@SnapshotDays days</dd>
-                        <dt class="col-8">Alerts</dt><dd class="col-4 text-end">@AlertDays days</dd>
-                        <dt class="col-8">IP statistics</dt><dd class="col-4 text-end">@LogStatsDays days</dd>
-                        <dt class="col-8">Cleanup interval</dt><dd class="col-4 text-end">@CleanupMinutes min</dd>
+                        <dt class="col-8">@Language.T("스냅샷", "Snapshots")</dt><dd class="col-4 text-end">@SnapshotDays @Language.T("일", "days")</dd>
+                        <dt class="col-8">@Language.T("알림", "Alerts")</dt><dd class="col-4 text-end">@AlertDays @Language.T("일", "days")</dd>
+                        <dt class="col-8">@Language.T("IP 통계", "IP statistics")</dt><dd class="col-4 text-end">@LogStatsDays @Language.T("일", "days")</dd>
+                        <dt class="col-8">@Language.T("정리 주기", "Cleanup interval")</dt><dd class="col-4 text-end">@CleanupMinutes @Language.T("분", "min")</dd>
                     </dl>
                 </div>
             </div>
@@ -110,7 +110,7 @@
     </div>
     @if (!string.IsNullOrWhiteSpace(CleanupMessage))
     {
-        <div class="alert alert-info" role="status">@CleanupMessage</div>
+        <div class="alert alert-info" role="status">@Language.Localize(CleanupMessage)</div>
     }
 </div>
 
@@ -151,7 +151,7 @@ GROUP BY t.name ORDER BY SizeMb DESC
         }
         catch
         {
-            LoadError = "Storage metrics could not be loaded.";
+            LoadError = Language.T("저장 공간 정보를 불러오지 못했습니다.", "Could not load storage metrics.");
         }
         finally
         {
@@ -168,12 +168,12 @@ GROUP BY t.name ORDER BY SizeMb DESC
             using var client = new HttpClient { BaseAddress = new Uri(NavigationManager.BaseUri) };
             var response = await client.PostAsync("api/admin/data-health/cleanup", null);
             response.EnsureSuccessStatusCode();
-            CleanupMessage = "Cleanup completed.";
+            CleanupMessage = Language.T("정리가 완료되었습니다.", "Cleanup completed.");
             await LoadAsync();
         }
         catch
         {
-            CleanupMessage = "Cleanup failed. Check the server logs.";
+            CleanupMessage = Language.T("정리에 실패했습니다. 서버 로그를 확인하세요.", "Cleanup failed. Check the server logs.");
         }
         finally
         {

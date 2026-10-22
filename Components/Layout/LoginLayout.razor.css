@@ -1,3 +1,4 @@
+/* The login page owns its visual layout; this wrapper only sets the viewport height. */
 .login-layout { min-height: 100vh; }
 
 /* Login.razor is rendered inside this layout, so these rules deliberately

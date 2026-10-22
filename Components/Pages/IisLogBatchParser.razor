@@ -1,0 +1,700 @@
+@page "/log-parser/batch"
+@attribute [Authorize]
+@implements IDisposable
+@using Microsoft.AspNetCore.Components.Forms
+@using Microsoft.EntityFrameworkCore
+@using Monitoring.Blazor.Models
+@using Monitoring.Blazor.Services
+@inject IJSRuntime JS
+@inject IisLogWorkspaceStore WorkspaceStore
+@inject IisLogPreviewService PreviewService
+@inject IDbContextFactory<MonitoringDbContext> DbFactory
+@inject NavigationManager Navigation
+
+<PageTitle>@Language.T("IIS 대량 로그 파서", "IIS Batch Log Parser")</PageTitle>
+
+<div class="log-analyzer-page">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div>
+            <h1 class="mb-1">@Language.T("IIS 대량 로그 파서", "IIS Batch Log Parser")</h1>
+            <p class="text-muted mb-0">@Language.T("대량 파일은 서버 임시 작업공간에서 처리합니다. 원본 로그는 모니터링 DB에 저장하지 않습니다.", "Large batches use a temporary server workspace. Raw log rows are not written to the monitoring database.")</p>
+        </div>
+        <a class="btn btn-outline-secondary" href="/log-parser">@Language.T("일반 로그 파서", "Standard parser")</a>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-body">
+            <div class="row g-2 align-items-end">
+                <div class="col-12 col-lg-6">
+                    <label class="form-label">@Language.T("IIS 로그 파일 (최대 35개)", "IIS log files (up to 35)")</label>
+                    <FilePicker OnChange="HandleFilesAsync" Multiple="true" Disabled="@IsBusy" />
+                </div>
+                <div class="col-12 col-md-6 col-lg-3">
+                    <label class="form-label">@Language.T("서버 이름", "Server name")</label>
+                    <input class="form-control" @bind="ServerName" placeholder="HOST-01" disabled="@IsSaving" />
+                </div>
+                <div class="col-12 col-md-6 col-lg-3 d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="ApplyFiltersAsync" disabled="@(WorkspaceId is null || IsBusy)">@Language.T("전체 로그 분석", "Analyze full dataset")</button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearWorkspaceAsync" disabled="@(WorkspaceId is null || IsBusy)">@Language.T("초기화", "Clear")</button>
+                </div>
+            </div>
+            <div class="form-text mt-2">@Language.T("최대 35개 파일, 합계 3GiB까지입니다. 처리에는 원본 크기보다 넉넉한 서버 디스크 공간이 필요합니다. 작업공간은 마지막 사용 후 24시간 뒤 자동 삭제됩니다.", "Up to 35 files and 3 GiB total. Processing requires additional free server disk space. The workspace is automatically deleted 24 hours after its last use.")</div>
+            @if (SelectedFiles.Count > 0)
+            {
+                <div class="small text-muted mt-2">@Language.T("선택", "Selected"): @SelectedFiles.Count / 35 · @FormatBytes(SelectedBytes)</div>
+            }
+            @if (!string.IsNullOrWhiteSpace(Message))
+            {
+                <div class="alert @(IsError ? "alert-danger" : "alert-info") py-2 mt-3 mb-0" role="status" aria-live="polite">@Language.Localize(Message)</div>
+            }
+            @if (IsUploading || IsSaving)
+            {
+                <div class="mt-3" role="status" aria-live="polite" aria-busy="true">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <span>@(IsSaving ? SaveStage : Stage)</span>
+                        <span>@((IsSaving ? SaveProgress : Progress).ToString("0"))%</span>
+                    </div>
+                    <div class="progress" style="height: 10px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated @(IsSaving ? "bg-warning" : string.Empty)" style="width:@($"{(IsSaving ? SaveProgress : Progress):0}%")"></div>
+                    </div>
+                    <div class="d-flex justify-content-end mt-2">
+                        <button class="btn btn-sm btn-outline-danger" @onclick="CancelCurrentOperationAsync">@Language.T("취소", "Cancel")</button>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @if (WorkspaceId is not null && !IsUploading)
+    {
+        <div class="card mb-3">
+            <div class="card-body">
+                <div class="row g-2">
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("상태 그룹", "Status group")</label>
+                        <select class="form-select" @bind="StatusGroup" @bind:after="QueueFilterSearch" disabled="@(IsUploading || IsSaving)">
+                            <option value="">@Language.T("전체", "All")</option>
+                            <option value="2">2xx</option><option value="3">3xx</option><option value="4">4xx</option><option value="5">5xx</option>
+                        </select>
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("날짜 포함 검색", "Date contains")</label>
+                        <input class="form-control" @bind="DateFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="yyyy-mm-dd" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("시간 포함 검색", "Time contains")</label>
+                        <input class="form-control" @bind="TimeFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="14:30" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("IP 검색", "IP contains")</label>
+                        <input class="form-control" @bind="IpFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="192.168" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("Method 검색", "Method contains")</label>
+                        <input class="form-control" @bind="MethodFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="GET, POST" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("URL 검색", "URL contains")</label>
+                        <input class="form-control" @bind="UriFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="/api/path" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("상태 코드 검색", "Status code contains")</label>
+                        <input class="form-control" @bind="StatusFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="404" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("리퍼러", "Referrer")</label>
+                        <input class="form-control" @bind="ReferrerFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="example.com" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">User-Agent</label>
+                        <input class="form-control" @bind="UserAgentFilter" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="Chrome" disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                    <div class="col-12 col-md-3">
+                        <label class="form-label">@Language.T("전체 텍스트 검색", "Search all text")</label>
+                        <input class="form-control" @bind="TextQuery" @bind:event="oninput" @bind:after="QueueFilterSearch" placeholder="IP, URL, user-agent..." disabled="@(IsUploading || IsSaving)" />
+                    </div>
+                </div>
+                <div class="form-text mt-2">@Language.T("각 항목은 해당 열에서만 검색합니다. 조건을 입력한 뒤 필터 적용을 눌러 전체 로그에 반영하세요.", "Each field searches only its corresponding column. Apply filters to run the search across the full dataset.")</div>
+                <div class="form-text mt-1">@Language.T("입력을 멈추면 잠시 후 자동으로 전체 로그를 검색합니다. 버튼은 즉시 적용할 때 사용할 수 있습니다.", "Search runs across the full dataset shortly after you stop typing. Use the button to apply immediately.")</div>
+                <div class="d-flex flex-wrap gap-2 align-items-center mt-3">
+                    <button class="btn btn-primary" @onclick="ApplyFiltersAsync" disabled="@IsBusy">
+                        @if (IsLoadingQuery || FilterDebounceCts is not null)
+                        {
+                            <span class="spinner-border spinner-border-sm me-2" aria-hidden="true"></span>
+                            @Language.T("전체 로그 검색 중...", "Searching all logs...")
+                        }
+                        else
+                        {
+                            @Language.T("전체 로그에서 필터 적용", "Apply filters to all logs")
+                        }
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearFiltersAsync" disabled="@IsBusy">@Language.T("필터 지우기", "Clear filters")</button>
+                    <button class="btn btn-outline-primary" @onclick="DownloadCsv" disabled="@(IsBusy || WorkspaceFilteredCount == 0)">@Language.T("CSV 다운로드 (Excel 호환)", "Download CSV (Excel-compatible)")</button>
+                    <button class="btn btn-outline-warning" @onclick="SaveAggregatesAsync" disabled="@(IsBusy || TotalRows == 0)">@Language.T("일별 IP 집계 저장", "Save daily IP aggregates")</button>
+                    <span class="small text-muted">@Language.T("필터 적용 때 요약을 계산하고, 페이지 이동은 행만 조회합니다. 집계 저장은 임시 SQLite에서 계산한 결과만 500건씩 메인 DB에 반영합니다.", "Filter application calculates summaries; paging fetches rows only. Saving aggregates streams results from temporary SQLite to the main DB in batches of 500.")</span>
+                </div>
+                @if (WorkspaceFilteredCount > 1_048_575)
+                {
+                    <div class="alert alert-warning py-2 mt-3 mb-0" role="status">@Language.T($"CSV에는 전체 {WorkspaceFilteredCount:N0}행이 포함되지만, Excel 한 시트는 헤더 포함 최대 1,048,576행까지만 표시합니다.", $"The CSV contains all {WorkspaceFilteredCount:N0} rows, but Excel displays at most 1,048,576 rows per worksheet including the header.")</div>
+                }
+            </div>
+        </div>
+
+        @if (IsLoadingQuery)
+        {
+            <div class="alert alert-primary d-flex align-items-center gap-2" role="status" aria-live="polite" aria-busy="true">
+                <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
+                <span>@Language.T("전체 로그 요약/검색 중입니다. 데이터가 많으면 잠시 걸릴 수 있습니다.", "Summarizing/searching the full dataset. Large datasets may take a while.")</span>
+            </div>
+        }
+
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-md-4"><div class="card h-100"><div class="card-body"><div class="metric-label">@Language.T("검색 결과", "Matching rows")</div><div class="metric-value">@WorkspaceFilteredCount.ToString("N0")</div></div></div></div>
+            <div class="col-12 col-md-4"><div class="card h-100"><div class="card-body"><div class="metric-label">@Language.T("고유 IP", "Unique IPs")</div><div class="metric-value">@Summary.UniqueIps.ToString("N0")</div></div></div></div>
+            <div class="col-12 col-md-4"><div class="card h-100"><div class="card-body"><div class="metric-label">@Language.T("고유 URL", "Unique URLs")</div><div class="metric-value">@Summary.UniqueUrls.ToString("N0")</div></div></div></div>
+        </div>
+
+        <div class="row g-3 mb-3">
+            <div class="col-12 col-xl-6">
+                <div class="card h-100"><div class="card-header"><strong>@Language.T("상태 코드 집계", "Status counts")</strong></div>
+                    <div class="table-responsive"><table class="table table-sm mb-0"><tbody>
+                        @foreach (var item in Summary.StatusCounts)
+                        {
+                            <tr><td>@item.Key</td><td class="text-end">@item.Value.ToString("N0")</td></tr>
+                        }
+                    </tbody></table></div>
+                </div>
+            </div>
+            <div class="col-12 col-xl-6">
+                <div class="card h-100"><div class="card-header"><strong>@Language.T("상위 URL", "Top URLs")</strong></div>
+                    <div class="table-responsive"><table class="table table-sm mb-0"><tbody>
+                        @foreach (var item in Summary.TopUrls)
+                        {
+                            <tr><td class="text-truncate" style="max-width:640px" title="@item.Key">@item.Key</td><td class="text-end">@item.Value.ToString("N0")</td></tr>
+                        }
+                    </tbody></table></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card log-entries-card">
+            <div class="card-header d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <strong>@Language.T("전체 로그 행", "All log rows") · @WorkspaceFilteredCount.ToString("N0")</strong>
+                <div class="d-flex align-items-center gap-2">
+                    <label class="small" for="batch-page-size">@Language.T("행 수", "Rows")</label>
+                    <button class="btn btn-sm btn-outline-secondary" @onclick="ResetColumnWidthsAsync" disabled="@IsBusy">@Language.T("열 너비 초기화", "Reset column widths")</button>
+                    <select id="batch-page-size" class="form-select form-select-sm w-auto" value="@PageSize" @onchange="ChangePageSizeAsync" disabled="@IsBusy">
+                        <option value="25">25</option><option value="50">50</option><option value="100">100</option><option value="250">250</option>
+                    </select>
+                </div>
+            </div>
+            <div class="table-responsive log-table-scroll" aria-busy="@IsLoadingQuery">
+                <table id="batch-log-entries-grid" class="table table-sm table-hover log-table mb-0 batch-log-entries-grid">
+                    <colgroup>
+                        <col data-column="date" /><col data-column="time" /><col data-column="ip" /><col data-column="method" />
+                        <col data-column="uri" /><col data-column="status" /><col data-column="referer" /><col data-column="agent" />
+                    </colgroup>
+                    <thead><tr>
+                        <th><div class="batch-log-header"><button class="btn btn-sm btn-link p-0" @onclick="() => SortBy(nameof(ParsedLogRow.Date))">@Language.T("날짜", "Date") @SortMark(nameof(ParsedLogRow.Date))</button><span class="column-resizer" data-column="date" title="@Language.T("날짜 열 너비 조절", "Resize date column")"></span></div></th>
+                        <th><div class="batch-log-header"><button class="btn btn-sm btn-link p-0" @onclick="() => SortBy(nameof(ParsedLogRow.Time))">@Language.T("시간", "Time") @SortMark(nameof(ParsedLogRow.Time))</button><span class="column-resizer" data-column="time" title="@Language.T("시간 열 너비 조절", "Resize time column")"></span></div></th>
+                        <th><div class="batch-log-header"><button class="btn btn-sm btn-link p-0" @onclick="() => SortBy(nameof(ParsedLogRow.Ip))">IP @SortMark(nameof(ParsedLogRow.Ip))</button><span class="column-resizer" data-column="ip" title="@Language.T("IP 열 너비 조절", "Resize IP column")"></span></div></th>
+                        <th><div class="batch-log-header"><button class="btn btn-sm btn-link p-0" @onclick="() => SortBy(nameof(ParsedLogRow.Method))">@Language.T("메서드", "Method") @SortMark(nameof(ParsedLogRow.Method))</button><span class="column-resizer" data-column="method" title="@Language.T("메서드 열 너비 조절", "Resize method column")"></span></div></th>
+                        <th><div class="batch-log-header"><button class="btn btn-sm btn-link p-0" @onclick="() => SortBy(nameof(ParsedLogRow.Uri))">URL @SortMark(nameof(ParsedLogRow.Uri))</button><span class="column-resizer" data-column="uri" title="@Language.T("URL 열 너비 조절", "Resize URL column")"></span></div></th>
+                        <th><div class="batch-log-header"><button class="btn btn-sm btn-link p-0" @onclick="() => SortBy(nameof(ParsedLogRow.Status))">@Language.T("상태", "Status") @SortMark(nameof(ParsedLogRow.Status))</button><span class="column-resizer" data-column="status" title="@Language.T("상태 열 너비 조절", "Resize status column")"></span></div></th>
+                        <th><div class="batch-log-header">@Language.T("리퍼러", "Referrer")<span class="column-resizer" data-column="referer" title="@Language.T("리퍼러 열 너비 조절", "Resize referrer column")"></span></div></th>
+                        <th><div class="batch-log-header">User-Agent<span class="column-resizer" data-column="agent" title="@Language.T("User-Agent 열 너비 조절", "Resize User-Agent column")"></span></div></th>
+                    </tr></thead>
+                    <tbody>
+                        @foreach (var row in PageRows)
+                        {
+                            <tr><td>@row.Date</td><td>@row.Time</td><td>@row.Ip</td><td>@row.Method</td><td class="text-truncate" style="max-width:420px" title="@row.Uri">@row.Uri</td><td>@row.Status</td><td class="text-truncate" style="max-width:300px" title="@row.Referrer">@row.Referrer</td><td class="text-truncate" style="max-width:360px" title="@row.UserAgent">@row.UserAgent</td></tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="card-footer d-flex flex-wrap justify-content-between align-items-center gap-2">
+                <span class="small text-muted">@Language.T($"{WorkspaceFilteredCount:N0}행 중 {PageStart:N0}-{PageEnd:N0} · {CurrentPage}/{TotalPages} 페이지", $"{PageStart:N0}-{PageEnd:N0} of {WorkspaceFilteredCount:N0} · page {CurrentPage}/{TotalPages}")</span>
+                <div class="d-flex align-items-center gap-2">
+                    @if (IsLoadingQuery)
+                    {
+                        <span class="small text-primary d-inline-flex align-items-center gap-2" role="status"><span class="spinner-border spinner-border-sm" aria-hidden="true"></span>@Language.T("페이지 로딩 중", "Loading page")</span>
+                    }
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => GoToPageAsync(1)" disabled="@(IsBusy || CurrentPage <= 1)">@Language.T("처음", "First")</button>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => GoToPageAsync(CurrentPage - 1)" disabled="@(IsBusy || CurrentPage <= 1)">@Language.T("이전", "Previous")</button>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => GoToPageAsync(CurrentPage + 1)" disabled="@(IsBusy || CurrentPage >= TotalPages)">@Language.T("다음", "Next")</button>
+                    <button class="btn btn-sm btn-outline-primary" @onclick="() => GoToPageAsync(TotalPages)" disabled="@(IsBusy || CurrentPage >= TotalPages)">@Language.T("마지막", "Last")</button>
+                </div>
+            </div>
+        </div>
+    }
+</div>
+
+@code {
+    private const int MaxFiles = 35;
+    private const long MaxBytes = 3L * 1024 * 1024 * 1024;
+
+    [SupplyParameterFromQuery(Name = "workspaceId")]
+    public string? WorkspaceIdQuery { get; set; }
+
+    private readonly List<LogRowSort> Sorts = [new(nameof(ParsedLogRow.Date), true), new(nameof(ParsedLogRow.Time), true)];
+    private readonly CancellationTokenSource LifetimeCts = new();
+    private CancellationTokenSource? UploadCts;
+    private CancellationTokenSource? SaveCts;
+    private CancellationTokenSource? FilterDebounceCts;
+    private List<IBrowserFile> SelectedFiles = [];
+    private List<ParsedLogRow> PageRows = [];
+    private IisLogWorkspaceSummary Summary = new(0, 0, 0, [], [], []);
+    private IisLogFilterCriteria AppliedCriteria = new();
+    private string? WorkspaceId;
+    private string? LoadedWorkspaceId;
+    private string? Message;
+    private string ServerName = "HOST-01";
+    private string StatusGroup = string.Empty;
+    private string DateFilter = string.Empty;
+    private string TimeFilter = string.Empty;
+    private string IpFilter = string.Empty;
+    private string MethodFilter = string.Empty;
+    private string UriFilter = string.Empty;
+    private string StatusFilter = string.Empty;
+    private string ReferrerFilter = string.Empty;
+    private string UserAgentFilter = string.Empty;
+    private string TextQuery = string.Empty;
+    private string Stage = string.Empty;
+    private string SaveStage = string.Empty;
+    private double Progress;
+    private double SaveProgress;
+    private long TotalRows;
+    private long WorkspaceFilteredCount;
+    private long SelectedBytes;
+    private int CurrentPage = 1;
+    private int PageSize = 50;
+    private bool IsUploading;
+    private bool IsLoadingQuery;
+    private bool IsSaving;
+    private bool IsError;
+    private const int FilterDebounceMilliseconds = 350;
+    private bool IsBusy => IsUploading || IsLoadingQuery || IsSaving;
+    private int TotalPages => Math.Max(1, (int)Math.Min(int.MaxValue, Math.Ceiling(WorkspaceFilteredCount / (double)PageSize)));
+    private long PageStart => WorkspaceFilteredCount == 0 ? 0 : ((long)CurrentPage - 1) * PageSize + 1;
+    private long PageEnd => Math.Min((long)CurrentPage * PageSize, WorkspaceFilteredCount);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (string.IsNullOrWhiteSpace(WorkspaceIdQuery) || WorkspaceIdQuery == LoadedWorkspaceId) return;
+        if (!WorkspaceStore.Exists(WorkspaceIdQuery))
+        {
+            IsError = true;
+            Message = Language.T("임시 작업공간을 찾을 수 없습니다. 만료되었거나 이미 삭제되었습니다.", "Workspace not found. It may have expired or been deleted.");
+            return;
+        }
+
+        WorkspaceId = LoadedWorkspaceId = WorkspaceIdQuery;
+        await ApplyFiltersAsync();
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (WorkspaceId is not null && !IsUploading)
+        {
+            await JS.InvokeVoidAsync("logParserColumns.init", "#batch-log-entries-grid", "logParser.batchColumns");
+        }
+    }
+
+    private async Task ResetColumnWidthsAsync()
+    {
+        await JS.InvokeVoidAsync("logParserColumns.reset", "#batch-log-entries-grid", "logParser.batchColumns");
+    }
+
+    private async Task HandleFilesAsync(InputFileChangeEventArgs args)
+    {
+        if (args.FileCount > MaxFiles)
+        {
+            SetMessage(Language.T($"최대 {MaxFiles}개까지 선택할 수 있습니다.", $"Select no more than {MaxFiles} files."), true);
+            return;
+        }
+
+        var files = args.GetMultipleFiles(MaxFiles).ToList();
+        var totalBytes = files.Sum(file => (long)file.Size);
+        if (totalBytes > MaxBytes)
+        {
+            SetMessage(Language.T($"선택한 파일은 {FormatBytes(totalBytes)}입니다. 전체 한도는 3GiB입니다.", $"Selected files total {FormatBytes(totalBytes)}. The batch limit is 3 GiB."), true);
+            return;
+        }
+
+        await ClearWorkspaceAsync();
+        SelectedFiles = files;
+        SelectedBytes = totalBytes;
+        await ParseFilesAsync();
+    }
+
+    private async Task ParseFilesAsync()
+    {
+        if (SelectedFiles.Count == 0 || IsBusy) return;
+        IsUploading = true;
+        IsError = false;
+        Message = null;
+        Progress = 0;
+        Stage = Language.T("업로드 준비 중", "Preparing upload");
+        await InvokeAsync(StateHasChanged);
+        var operationCts = CancellationTokenSource.CreateLinkedTokenSource(LifetimeCts.Token);
+        UploadCts = operationCts;
+
+        try
+        {
+            var result = await PreviewService.ParseFilesAsync(
+                SelectedFiles,
+                MaxBytes,
+                DateTime.UtcNow,
+                async (stage, progress) =>
+                {
+                    Stage = stage;
+                    Progress = progress;
+                    await InvokeAsync(StateHasChanged);
+                },
+                operationCts.Token,
+                retainPreviewRows: false,
+                retainAggregates: false);
+
+            WorkspaceId = LoadedWorkspaceId = result.WorkspaceId;
+            TotalRows = result.TotalRows;
+            Stage = Language.T("전체 로그 요약 계산 중", "Calculating full-dataset summary");
+            Progress = 96;
+            await InvokeAsync(StateHasChanged);
+            AppliedCriteria = BuildCriteria();
+            var data = await QuerySummaryAndPageAsync(WorkspaceId, AppliedCriteria, 1, LifetimeCts.Token);
+            ApplyQueryData(data);
+            Progress = 100;
+            Message = Language.T($"{TotalRows:N0}행 처리가 완료되었습니다.", $"Processed {TotalRows:N0} rows.");
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Language.T("처리가 취소되었습니다.", "Processing was cancelled."), true);
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Language.T($"대량 로그 처리 실패: {exception.Message}", $"Batch processing failed: {exception.Message}"), true);
+        }
+        finally
+        {
+            IsUploading = false;
+            if (ReferenceEquals(UploadCts, operationCts)) UploadCts = null;
+            operationCts.Dispose();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        if (WorkspaceId is null || IsBusy) return;
+        CancelPendingFilterSearch();
+        CurrentPage = 1;
+        AppliedCriteria = BuildCriteria();
+        await LoadSummaryAndPageAsync(1);
+    }
+
+    private void QueueFilterSearch()
+    {
+        if (WorkspaceId is null || IsUploading || IsSaving) return;
+
+        CancelPendingFilterSearch();
+        var debounceCts = CancellationTokenSource.CreateLinkedTokenSource(LifetimeCts.Token);
+        FilterDebounceCts = debounceCts;
+        _ = ApplyFiltersAfterDebounceAsync(debounceCts);
+    }
+
+    private async Task ApplyFiltersAfterDebounceAsync(CancellationTokenSource debounceCts)
+    {
+        try
+        {
+            await Task.Delay(FilterDebounceMilliseconds, debounceCts.Token);
+            while (IsLoadingQuery)
+            {
+                await Task.Delay(50, debounceCts.Token);
+            }
+
+            if (debounceCts.IsCancellationRequested || !ReferenceEquals(FilterDebounceCts, debounceCts) || WorkspaceId is null) return;
+            CurrentPage = 1;
+            AppliedCriteria = BuildCriteria();
+            await LoadSummaryAndPageAsync(1);
+        }
+        catch (OperationCanceledException)
+        {
+            // A newer keystroke replaced this pending search.
+        }
+        finally
+        {
+            if (ReferenceEquals(FilterDebounceCts, debounceCts)) FilterDebounceCts = null;
+            debounceCts.Dispose();
+        }
+    }
+
+    private void CancelPendingFilterSearch()
+    {
+        var pending = FilterDebounceCts;
+        FilterDebounceCts = null;
+        if (pending is null) return;
+        pending.Cancel();
+        pending.Dispose();
+    }
+
+    private async Task LoadSummaryAndPageAsync(int page)
+    {
+        if (WorkspaceId is null || IsBusy) return;
+        IsLoadingQuery = true;
+        IsError = false;
+        Message = null;
+        CurrentPage = Math.Max(1, page);
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var data = await QuerySummaryAndPageAsync(WorkspaceId, AppliedCriteria, CurrentPage, LifetimeCts.Token);
+            ApplyQueryData(data);
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Language.T("조회가 취소되었습니다.", "Query was cancelled."), true);
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Language.T($"전체 로그 조회 실패: {exception.Message}", $"Could not query the full workspace: {exception.Message}"), true);
+        }
+        finally
+        {
+            IsLoadingQuery = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task LoadPageOnlyAsync(int page)
+    {
+        if (WorkspaceId is null || IsBusy) return;
+        CurrentPage = Math.Clamp(page, 1, TotalPages);
+        IsLoadingQuery = true;
+        IsError = false;
+        Message = null;
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            var stableSorts = Sorts.Select(sort => new LogRowSort(sort.Column, sort.Ascending)).ToList();
+            PageRows = await Task.Run(
+                () => WorkspaceStore.GetPageAsync(WorkspaceId, AppliedCriteria, stableSorts, CurrentPage, PageSize, LifetimeCts.Token),
+                LifetimeCts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Language.T("페이지 조회가 취소되었습니다.", "Page query was cancelled."), true);
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Language.T($"페이지 조회 실패: {exception.Message}", $"Could not load page: {exception.Message}"), true);
+        }
+        finally
+        {
+            IsLoadingQuery = false;
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private Task<(IisLogWorkspaceSummary Summary, List<ParsedLogRow> Rows)> QuerySummaryAndPageAsync(
+        string workspaceId,
+        IisLogFilterCriteria criteria,
+        int page,
+        CancellationToken cancellationToken)
+    {
+        var stableSorts = Sorts.Select(sort => new LogRowSort(sort.Column, sort.Ascending)).ToList();
+        return Task.Run(async () =>
+        {
+            var summary = await WorkspaceStore.GetSummaryAsync(workspaceId, criteria, cancellationToken);
+            var rows = await WorkspaceStore.GetPageAsync(workspaceId, criteria, stableSorts, page, PageSize, cancellationToken);
+            return (summary, rows);
+        }, cancellationToken);
+    }
+
+    private void ApplyQueryData((IisLogWorkspaceSummary Summary, List<ParsedLogRow> Rows) data)
+    {
+        Summary = data.Summary;
+        WorkspaceFilteredCount = Summary.TotalRows;
+        CurrentPage = Math.Clamp(CurrentPage, 1, TotalPages);
+        PageRows = data.Rows;
+    }
+
+    private IisLogFilterCriteria BuildCriteria() => new()
+    {
+        StatusGroup = StatusGroup,
+        Date = DateFilter,
+        Time = TimeFilter,
+        Ip = IpFilter,
+        Method = MethodFilter,
+        Uri = UriFilter,
+        Status = StatusFilter,
+        Referrer = ReferrerFilter,
+        UserAgent = UserAgentFilter,
+        TextQuery = TextQuery
+    };
+
+    private async Task ChangePageSizeAsync(ChangeEventArgs args)
+    {
+        if (int.TryParse(args.Value?.ToString(), out var pageSize))
+        {
+            PageSize = Math.Clamp(pageSize, 25, 250);
+            await LoadPageOnlyAsync(1);
+        }
+    }
+
+    private Task GoToPageAsync(int page) => LoadPageOnlyAsync(page);
+
+    private async Task SortBy(string column)
+    {
+        var existing = Sorts.FirstOrDefault(sort => sort.Column == column);
+        if (existing is null) Sorts.Insert(0, new LogRowSort(column, true));
+        else existing.Ascending = !existing.Ascending;
+        await LoadPageOnlyAsync(CurrentPage);
+    }
+
+    private string SortMark(string column)
+    {
+        var sort = Sorts.FirstOrDefault(item => item.Column == column);
+        return sort is null ? string.Empty : sort.Ascending ? "▲" : "▼";
+    }
+
+    private async Task SaveAggregatesAsync()
+    {
+        if (TotalRows == 0 || WorkspaceId is null || IsBusy) return;
+        IsSaving = true;
+        SaveProgress = 0;
+        IsError = false;
+        Message = null;
+        SaveStage = Language.T("날짜/IP 집계 그룹 수 계산 중", "Counting date/IP aggregate groups");
+        await InvokeAsync(StateHasChanged);
+        var operationCts = CancellationTokenSource.CreateLinkedTokenSource(LifetimeCts.Token);
+        SaveCts = operationCts;
+        try
+        {
+            var workspaceId = WorkspaceId;
+            var serverName = string.IsNullOrWhiteSpace(ServerName) ? "unknown" : ServerName.Trim();
+            var nowUtc = DateTime.UtcNow;
+            var totalGroups = await Task.Run(
+                () => WorkspaceStore.GetAggregateGroupCountAsync(workspaceId, operationCts.Token),
+                operationCts.Token);
+            SaveStage = Language.T($"{totalGroups:N0}개 집계 그룹을 500개씩 저장 중", $"Saving {totalGroups:N0} groups in batches of 500");
+            await InvokeAsync(StateHasChanged);
+            var savedCount = await Task.Run(async () =>
+            {
+                await using var db = await DbFactory.CreateDbContextAsync(operationCts.Token);
+                return await LogIpDailyStatsPersistenceService.AddAggregatesInBatchesAsync(
+                    db,
+                    serverName,
+                    WorkspaceStore.ReadAggregateBatchesAsync(workspaceId, 500, operationCts.Token),
+                    totalGroups,
+                    nowUtc,
+                    async (index, total) =>
+                    {
+                        SaveStage = Language.T($"집계 저장 {index:N0}/{total:N0}", $"Saving aggregate {index:N0}/{total:N0}");
+                        SaveProgress = total == 0 ? 100 : index * 100d / total;
+                        await InvokeAsync(StateHasChanged);
+                    },
+                    operationCts.Token);
+            }, operationCts.Token);
+            SaveProgress = 100;
+            SetMessage(Language.T($"{savedCount:N0}개 일별 IP 집계를 저장했습니다. 원본 로그 행은 저장하지 않았습니다.", $"Saved {savedCount:N0} daily IP aggregates. Raw log rows were not stored."), false);
+        }
+        catch (OperationCanceledException)
+        {
+            SetMessage(Language.T("집계 저장이 취소되었습니다.", "Aggregate save was cancelled."), true);
+        }
+        catch (Exception exception)
+        {
+            SetMessage(Language.T($"집계 저장 실패: {exception.Message}", $"Could not save aggregates: {exception.Message}"), true);
+        }
+        finally
+        {
+            IsSaving = false;
+            if (ReferenceEquals(SaveCts, operationCts)) SaveCts = null;
+            operationCts.Dispose();
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private void DownloadCsv()
+    {
+        if (WorkspaceId is null || IsBusy) return;
+        var values = new Dictionary<string, string>
+        {
+            ["statusGroup"] = AppliedCriteria.StatusGroup,
+            ["date"] = AppliedCriteria.Date,
+            ["time"] = AppliedCriteria.Time,
+            ["ip"] = AppliedCriteria.Ip,
+            ["method"] = AppliedCriteria.Method,
+            ["uri"] = AppliedCriteria.Uri,
+            ["status"] = AppliedCriteria.Status,
+            ["referrer"] = AppliedCriteria.Referrer,
+            ["userAgent"] = AppliedCriteria.UserAgent,
+            ["textQuery"] = AppliedCriteria.TextQuery,
+            ["sorts"] = string.Join(',', Sorts.Select(sort => $"{sort.Column}:{(sort.Ascending ? "asc" : "desc")}"))
+        };
+        var query = string.Join('&', values.Select(pair => $"{Uri.EscapeDataString(pair.Key)}={Uri.EscapeDataString(pair.Value)}"));
+        var url = new Uri(new Uri(Navigation.BaseUri), $"api/log-parser/workspaces/{WorkspaceId}/export?{query}");
+        Navigation.NavigateTo(url.ToString(), forceLoad: true);
+    }
+
+    private async Task ClearWorkspaceAsync()
+    {
+        CancelPendingFilterSearch();
+        var oldId = WorkspaceId;
+        WorkspaceId = null;
+        LoadedWorkspaceId = null;
+        await WorkspaceStore.DeleteAsync(oldId);
+        SelectedFiles = [];
+        SelectedBytes = 0;
+        PageRows = [];
+        Summary = new IisLogWorkspaceSummary(0, 0, 0, [], [], []);
+        AppliedCriteria = new IisLogFilterCriteria();
+        WorkspaceFilteredCount = TotalRows = 0;
+        CurrentPage = 1;
+        ClearFilterValues();
+        Message = null;
+        IsError = false;
+        if (!string.IsNullOrWhiteSpace(WorkspaceIdQuery)) Navigation.NavigateTo("/log-parser/batch", replace: true);
+    }
+
+    private async Task ClearFiltersAsync()
+    {
+        ClearFilterValues();
+        await ApplyFiltersAsync();
+    }
+
+    private void ClearFilterValues()
+    {
+        StatusGroup = DateFilter = TimeFilter = IpFilter = MethodFilter = UriFilter = StatusFilter = ReferrerFilter = UserAgentFilter = TextQuery = string.Empty;
+    }
+
+    private async Task CancelCurrentOperationAsync()
+    {
+        if (IsUploading && UploadCts is not null) await UploadCts.CancelAsync();
+        if (IsSaving && SaveCts is not null) await SaveCts.CancelAsync();
+    }
+
+    private void SetMessage(string message, bool isError)
+    {
+        Message = message;
+        IsError = isError;
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        string[] units = ["B", "KB", "MB", "GB", "TB"];
+        var value = (double)bytes;
+        var index = 0;
+        while (value >= 1024 && index < units.Length - 1) { value /= 1024; index++; }
+        return $"{value:0.##} {units[index]}";
+    }
+
+    public void Dispose()
+    {
+        CancelPendingFilterSearch();
+        LifetimeCts.Cancel();
+        UploadCts?.Cancel();
+        SaveCts?.Cancel();
+        LifetimeCts.Dispose();
+    }
+}

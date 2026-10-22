@@ -9,14 +9,14 @@
 <PageTitle>OpsEye | @Language.T("2차 인증", "Two-Factor Verification")</PageTitle>
 
 <div class="login-page">
-    <section class="login-shell" aria-label="Two-factor verification form">
+    <section class="login-shell" aria-label="@Language.T("2차 인증 양식", "Two-factor verification form")">
         <div class="login-brand">
             <div class="login-brand-mark" aria-hidden="true">
                 <i class="bi bi-shield-check"></i>
             </div>
             <div>
                 <div class="login-brand-name">OpsEye</div>
-                <div class="login-brand-sub">Two-factor verification</div>
+                <div class="login-brand-sub">@Language.T("2차 인증", "Two-factor verification")</div>
             </div>
         </div>
 
@@ -25,30 +25,30 @@
                 <div class="mb-4">
                     <h1 class="h3 mb-2">@Language.T("인증 코드 입력", "Enter verification code")</h1>
                     <p class="text-secondary mb-0">
-                        Your account requires a one-time verification code.
+                        @Language.T("계정 보호를 위해 일회용 인증 코드가 필요합니다.", "Enter a one-time verification code to protect your account.")
                     </p>
                 </div>
 
                 @if (!string.IsNullOrWhiteSpace(_message))
                 {
-                    <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@_message</div>
+                    <div class="alert @( _isError ? "alert-danger" : "alert-success")" role="alert">@Language.Localize(_message)</div>
                 }
 
                 <form method="post" action="/auth/two-factor" class="d-grid gap-3">
                     <input type="hidden" name="returnUrl" value="@_returnUrl" />
                     <div>
-                        <label class="form-label">Account</label>
+                        <label class="form-label">@Language.T("계정", "Account")</label>
                         <input class="form-control" value="@(_pendingUserName ?? "-")" disabled />
                     </div>
                     <div>
-                        <label class="form-label" for="two-factor-code">Verification code</label>
+                        <label class="form-label" for="two-factor-code">@Language.T("인증 코드", "Verification code")</label>
                         <input id="two-factor-code" name="code" class="form-control" inputmode="numeric" autocomplete="one-time-code" required />
                     </div>
                     <div class="d-grid gap-2">
                         <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="bi bi-shield-check me-2"></i>Verify
+                            <i class="bi bi-shield-check me-2"></i>@Language.T("인증", "Verify")
                         </button>
-                        <a class="btn btn-outline-secondary" href="/login">Back to login</a>
+                        <a class="btn btn-outline-secondary" href="/login">@Language.T("로그인으로 돌아가기", "Back to sign in")</a>
                     </div>
                 </form>
             </div>
@@ -81,7 +81,7 @@
         {
             _message = Error switch
             {
-                "invalid" => "The verification code is invalid.",
+                "invalid" => Language.T("인증 코드가 올바르지 않습니다.", "The verification code is invalid."),
                 _ => Error
             };
             _isError = true;

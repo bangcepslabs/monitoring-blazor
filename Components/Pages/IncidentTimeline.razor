@@ -3,14 +3,14 @@
 @using Monitoring.Blazor.Services
 @inject EventTimelineService TimelineService
 
-<PageTitle>OpsEye | @Language.T("인시던트 타임라인", "Incident Timeline")</PageTitle>
+<PageTitle>OpsEye | @Language.T("장애·보안 이력", "Incident Timeline")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
             <div class="text-uppercase text-muted small mb-1">@Language.T("운영", "Operations")</div>
-            <h1 class="h3 mb-1">@Language.T("인시던트 타임라인", "Incident timeline")</h1>
-            <p class="text-secondary mb-0">@Language.T("보안·알림·구성 변경 이벤트를 인시던트 우선순위로 확인합니다.", "Security, alert, and configuration events prioritized as incidents.")</p>
+            <h1 class="h3 mb-1">@Language.T("장애·보안 이력", "Incident timeline")</h1>
+            <p class="text-secondary mb-0">@Language.T("보안·알림·구성 변경 이벤트를 중요도순으로 확인합니다.", "Review security, alert, and configuration events ordered by priority.")</p>
         </div>
         <div class="d-flex gap-2">
             <button class="btn btn-outline-secondary" @onclick="ReloadAsync">@Language.T("새로고침", "Refresh")</button>
@@ -107,20 +107,20 @@
                     {
                         <div class="border rounded-3 p-3">
                             <div class="d-flex flex-wrap justify-content-between gap-2">
-                                <div class="fw-semibold">@row.Title</div>
+                                <div class="fw-semibold">@Language.Label(row.Title)</div>
                                 <div class="d-flex gap-2">
-                                    <span class="badge text-bg-secondary">@row.Category</span>
-                                    <span class="badge @GetSeverityBadge(row.Severity)">@row.Severity</span>
+                                    <span class="badge text-bg-secondary">@GetCategoryLabel(row.Category)</span>
+                                    <span class="badge @GetSeverityBadge(row.Severity)">@GetSeverityLabel(row.Severity)</span>
                                 </div>
                             </div>
                             <div class="text-secondary small">@row.TimestampUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</div>
                             <div class="mt-2">
                                 <span class="badge text-bg-light text-dark border me-2">@row.Subject</span>
-                                <span class="text-break">@row.Message</span>
+                                <span class="text-break">@(row.Category == "Login" ? Language.Label(row.Message) : row.Message)</span>
                             </div>
                             @if (!string.IsNullOrWhiteSpace(row.Detail))
                             {
-                                <div class="text-muted small mt-1 text-break">@row.Detail</div>
+                                <div class="text-muted small mt-1 text-break">@(row.Category == "Login" ? row.Detail : Language.Label(row.Detail))</div>
                             }
                         </div>
                     }
@@ -128,9 +128,9 @@
 
                 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
                     <div class="text-muted small">
-                        @(Language.IsKorean ? $"{DisplayRangeStart}-{DisplayRangeEnd}개 중 {FilteredRows.Count}개 항목" : $"Showing {DisplayRangeStart}-{DisplayRangeEnd} of {FilteredRows.Count} item(s)")
+                        @Language.T($"전체 {FilteredRows.Count}개 중 {DisplayRangeStart}–{DisplayRangeEnd}개 표시", $"Showing {DisplayRangeStart}–{DisplayRangeEnd} of {FilteredRows.Count} items")
                     </div>
-                    <div class="btn-group" role="group" aria-label="Pagination">
+                    <div class="btn-group" role="group" aria-label="@Language.T("페이지 이동", "Pagination")">
                         <button class="btn btn-outline-secondary btn-sm" @onclick="PreviousPage" disabled="@IsFirstPage">@Language.T("이전", "Previous")</button>
                         <button class="btn btn-outline-secondary btn-sm" @onclick="NextPage" disabled="@IsLastPage">@Language.T("다음", "Next")</button>
                     </div>
@@ -284,6 +284,23 @@
             IsActive = severity is "Critical" or "High"
         };
     }
+
+    private string GetCategoryLabel(string category) => category switch
+    {
+        "Alert" => Language.T("알림", "Alert"),
+        "Login" => Language.T("로그인", "Sign-in"),
+        "Audit" => Language.T("감사 기록", "Audit"),
+        _ => category
+    };
+
+    private string GetSeverityLabel(string severity) => severity switch
+    {
+        "Critical" => Language.T("긴급", "Critical"),
+        "High" => Language.T("높음", "High"),
+        "Medium" => Language.T("보통", "Medium"),
+        "Low" => Language.T("낮음", "Low"),
+        _ => severity
+    };
 
     private static string GetSeverity(EventTimelineEntry item)
     {

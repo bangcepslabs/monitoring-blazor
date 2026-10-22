@@ -8,19 +8,19 @@
 
 <div class="log-analyzer-page">
     <h1>@Language.T("Java 로그 분석기", "Java Log Analyzer")</h1>
-    <p class="text-muted mb-3">Upload Java, Spring Boot, or Tomcat logs and inspect levels, loggers, and messages.</p>
+    <p class="text-muted mb-3">@Language.T("Java, Spring Boot 또는 Tomcat 로그를 업로드해 로그 레벨, 로거, 메시지를 확인합니다.", "Upload Java, Spring Boot, or Tomcat logs to review log levels, logger names, and messages.")</p>
 
     <div class="card mb-3">
         <div class="card-body">
             <div class="row g-2 align-items-end">
                 <div class="col-12 col-md-5">
-                    <label class="form-label">Upload Logs</label>
-                    <InputFile OnChange="HandleFiles" multiple class="form-control" />
+                    <label class="form-label">@Language.T("로그 파일 업로드", "Upload log files")</label>
+                    <FilePicker OnChange="HandleFiles" Multiple="true" />
                 </div>
                 <div class="col-12 col-md-3">
-                    <label class="form-label">Level Filter</label>
+                    <label class="form-label">@Language.T("로그 레벨", "Log level")</label>
                     <select class="form-select" @bind="LevelFilter">
-                        <option value="">All</option>
+                        <option value="">@Language.T("전체", "All")</option>
                         <option value="TRACE">TRACE</option>
                         <option value="DEBUG">DEBUG</option>
                         <option value="INFO">INFO</option>
@@ -30,15 +30,15 @@
                     </select>
                 </div>
                 <div class="col-12 col-md-4">
-                    <label class="form-label">Search</label>
-                    <input class="form-control" @bind="SearchText" @bind:event="oninput" placeholder="logger, message, thread..." />
+                    <label class="form-label">@Language.T("검색", "Search")</label>
+                    <input class="form-control" @bind="SearchText" @bind:event="oninput" placeholder="@Language.T("로거, 메시지, 스레드...", "Logger, message, thread...")" />
                 </div>
             </div>
             <div class="d-flex flex-wrap gap-2 mt-3">
                 <button class="btn btn-primary" @onclick="ParseAsync" disabled="@(!SelectedFiles.Any() || IsParsing)">
-                    @(IsParsing ? "Parsing..." : "Parse")
+                    @(IsParsing ? Language.T("파싱 중…", "Parsing…") : Language.T("파싱", "Parse"))
                 </button>
-                <button class="btn btn-outline-secondary" @onclick="ClearAsync" disabled="@IsParsing">Clear</button>
+                <button class="btn btn-outline-secondary" @onclick="ClearAsync" disabled="@IsParsing">@Language.T("초기화", "Clear")</button>
             </div>
 
             @if (!string.IsNullOrWhiteSpace(StatusMessage))
@@ -61,7 +61,7 @@
         <div class="col-12 col-md-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <div class="metric-label">Parsed Lines</div>
+                    <div class="metric-label">@Language.T("파싱된 행", "Parsed lines")</div>
                     <div class="metric-value">@totalLines.ToString("N0")</div>
                 </div>
             </div>
@@ -69,7 +69,7 @@
         <div class="col-12 col-md-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <div class="metric-label">Visible Rows</div>
+                    <div class="metric-label">@Language.T("표시 행", "Visible rows")</div>
                     <div class="metric-value">@filtered.Count.ToString("N0")</div>
                 </div>
             </div>
@@ -77,7 +77,7 @@
         <div class="col-12 col-md-4">
             <div class="card h-100">
                 <div class="card-body">
-                    <div class="metric-label">Loggers</div>
+                    <div class="metric-label">@Language.T("로거 수", "Loggers")</div>
                     <div class="metric-value">@filtered.Select(x => x.Logger).Where(x => !string.IsNullOrWhiteSpace(x)).Distinct(StringComparer.OrdinalIgnoreCase).Count().ToString("N0")</div>
                 </div>
             </div>
@@ -87,10 +87,10 @@
     <div class="row g-3 mb-3">
         <div class="col-12 col-xl-5">
             <div class="card h-100">
-                <div class="card-header"><strong>Level Summary</strong></div>
+                <div class="card-header"><strong>@Language.T("레벨별 요약", "Level summary")</strong></div>
                 <div class="card-body">
                     <table class="table table-sm mb-0">
-                        <thead><tr><th>Level</th><th class="text-end">Count</th></tr></thead>
+                        <thead><tr><th>@Language.T("레벨", "Level")</th><th class="text-end">@Language.T("건수", "Count")</th></tr></thead>
                         <tbody>
                         @foreach (var item in levelSummary)
                         {
@@ -106,10 +106,10 @@
         </div>
         <div class="col-12 col-xl-7">
             <div class="card h-100">
-                <div class="card-header"><strong>Top Loggers</strong></div>
+                <div class="card-header"><strong>@Language.T("상위 로거", "Top loggers")</strong></div>
                 <div class="card-body">
                     <table class="table table-sm mb-0">
-                        <thead><tr><th>Logger</th><th class="text-end">Count</th></tr></thead>
+                        <thead><tr><th>@Language.T("로거", "Logger")</th><th class="text-end">@Language.T("건수", "Count")</th></tr></thead>
                         <tbody>
                         @foreach (var item in loggerSummary)
                         {
@@ -126,17 +126,17 @@
     </div>
 
     <div class="card">
-        <div class="card-header"><strong>Log Entries</strong></div>
+        <div class="card-header"><strong>@Language.T("로그 항목", "Log entries")</strong></div>
         <div class="table-responsive">
             <table class="table table-sm table-striped mb-0">
                 <thead>
                     <tr>
-                        <th>Timestamp</th>
-                        <th>Level</th>
-                        <th>Thread</th>
-                        <th>Logger</th>
-                        <th>Message</th>
-                        <th>Source</th>
+                        <th>@Language.T("시각", "Timestamp")</th>
+                        <th>@Language.T("레벨", "Level")</th>
+                        <th>@Language.T("스레드", "Thread")</th>
+                        <th>@Language.T("로거", "Logger")</th>
+                        <th>@Language.T("메시지", "Message")</th>
+                        <th>@Language.T("파일", "File")</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -170,15 +170,15 @@
         SelectedFiles.Clear();
         SelectedFiles.AddRange(args.GetMultipleFiles());
         StatusMessage = SelectedFiles.Count == 0
-            ? "Select one or more Java log files."
-            : $"{SelectedFiles.Count} file(s) selected.";
+            ? Language.T("Java 로그 파일을 하나 이상 선택하세요.", "Select one or more Java log files.")
+            : Language.T($"파일 {SelectedFiles.Count}개를 선택했습니다.", $"{SelectedFiles.Count} file{(SelectedFiles.Count == 1 ? "" : "s")} selected.");
     }
 
     private async Task ParseAsync()
     {
         if (!SelectedFiles.Any())
         {
-            StatusMessage = "Select one or more Java log files first.";
+            StatusMessage = Language.T("먼저 Java 로그 파일을 하나 이상 선택하세요.", "Select one or more Java log files first.");
             return;
         }
 
@@ -195,11 +195,13 @@
                 ParsedRows.AddRange(JavaParser.ParseLines(lines, file.Name));
             }
 
-            StatusMessage = $"Parsed {ParsedRows.Count:N0} line(s) from {SelectedFiles.Count} file(s).";
+            StatusMessage = Language.T(
+                $"{SelectedFiles.Count}개 파일에서 {ParsedRows.Count:N0}개 로그 행을 파싱했습니다.",
+                $"Parsed {ParsedRows.Count:N0} log lines from {SelectedFiles.Count} file{(SelectedFiles.Count == 1 ? "" : "s")}.");
         }
         catch (Exception ex)
         {
-            StatusMessage = $"Java log parse failed: {ex.Message}";
+            StatusMessage = Language.T($"Java 로그 파싱에 실패했습니다: {ex.Message}", $"Failed to parse the Java logs: {ex.Message}");
         }
         finally
         {

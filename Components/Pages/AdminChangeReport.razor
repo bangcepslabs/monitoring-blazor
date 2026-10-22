@@ -5,13 +5,13 @@
 @using Monitoring.Blazor.Services
 @inject IDbContextFactory<MonitoringDbContext> DbFactory
 
-<PageTitle>OpsEye | @Language.T("변경 리포트", "Change Report")</PageTitle>
+<PageTitle>OpsEye | @Language.T("변경 보고서", "Change Report")</PageTitle>
 
 <div class="container-fluid py-4">
     <div class="d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
             <div class="text-uppercase text-muted small mb-1">@Language.T("관리자 센터", "Admin Center")</div>
-            <h1 class="h3 mb-1">@Language.T("변경 리포트", "Change report")</h1>
+            <h1 class="h3 mb-1">@Language.T("변경 보고서", "Change report")</h1>
             <p class="text-secondary mb-0">@Language.T("구성·보안·권한 변경의 전후 내용을 확인합니다.", "Review configuration, security, and permission changes with before/after details.")</p>
         </div>
         <div class="d-flex gap-2">
@@ -63,11 +63,11 @@
                 </div>
                 <div class="col-6 col-md-2">
                     <select class="form-select" @bind="CategoryFilter">
-                        <option value="">All types</option>
-                        <option value="config">Config</option>
-                        <option value="security">Security</option>
-                        <option value="access">Access</option>
-                        <option value="restore">Restore</option>
+                        <option value="">@Language.T("모든 유형", "All types")</option>
+                        <option value="config">@Language.T("구성", "Configuration")</option>
+                        <option value="security">@Language.T("보안", "Security")</option>
+                        <option value="access">@Language.T("접근 권한", "Access")</option>
+                        <option value="restore">@Language.T("복원", "Restore")</option>
                     </select>
                 </div>
                 <div class="col-6 col-md-2">
@@ -77,13 +77,13 @@
                     <input class="form-control" type="date" @bind="ToDate" />
                 </div>
                 <div class="col-12 d-flex flex-wrap gap-2">
-                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">Clear</button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearFilters">@Language.T("초기화", "Clear")</button>
                 </div>
             </div>
 
             @if (FilteredLogs.Count == 0)
             {
-                <div class="text-muted">No changes found.</div>
+                <div class="text-muted">@Language.T("변경 내역이 없습니다.", "No changes found.")</div>
             }
             else
             {
@@ -91,12 +91,12 @@
                     <table class="table table-hover align-middle">
                         <thead>
                             <tr>
-                                <th>Time</th>
-                                <th>Actor</th>
-                                <th>Action</th>
-                                <th>Target</th>
-                                <th>Status</th>
-                                <th>Details</th>
+                                <th>@Language.T("시각", "Time")</th>
+                                <th>@Language.T("수행자", "Actor")</th>
+                                <th>@Language.T("작업", "Action")</th>
+                                <th>@Language.T("대상", "Target")</th>
+                                <th>@Language.T("상태", "Status")</th>
+                                <th>@Language.T("세부 정보", "Details")</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -105,16 +105,16 @@
                                 <tr>
                                     <td>@log.CreatedUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</td>
                                     <td>@log.ActorUserName</td>
-                                    <td><span class="badge text-bg-primary">@log.Action</span></td>
+                                    <td><span class="badge text-bg-primary">@GetActionLabel(log.Action)</span></td>
                                     <td>@(log.TargetUserName ?? "-")</td>
                                     <td>
                                         @if (log.Success)
                                         {
-                                            <span class="badge text-bg-success">Success</span>
+                                            <span class="badge text-bg-success">@Language.T("성공", "Success")</span>
                                         }
                                         else
                                         {
-                                            <span class="badge text-bg-danger">Failed</span>
+                                            <span class="badge text-bg-danger">@Language.T("실패", "Failed")</span>
                                         }
                                     </td>
                                     <td class="text-break">@log.Details</td>
@@ -129,6 +129,31 @@
 </div>
 
 @code {
+    private string GetActionLabel(string action) => action switch
+    {
+        "member_create" => Language.T("사용자 생성", "User created"),
+        "member_register" => Language.T("회원가입", "User registered"),
+        "member_update" => Language.T("사용자 정보 수정", "User updated"),
+        "login" => Language.T("로그인", "Sign-in"),
+        "logout" => Language.T("로그아웃", "Sign-out"),
+        "two_factor" => Language.T("2차 인증 변경", "Two-factor authentication changed"),
+        "member_active" => Language.T("계정 상태 변경", "Account status changed"),
+        "member_role" => Language.T("사용자 역할 변경", "User role changed"),
+        "member_display_name" => Language.T("표시 이름 변경", "Display name changed"),
+        "password_change" => Language.T("비밀번호 변경", "Password changed"),
+        "password_reset_request" => Language.T("비밀번호 재설정 요청", "Password reset requested"),
+        "password_reset_confirm" => Language.T("비밀번호 재설정 완료", "Password reset completed"),
+        "alert_settings_update" => Language.T("알림 설정 변경", "Alert settings updated"),
+        "security_settings_update" => Language.T("보안 설정 변경", "Security settings updated"),
+        "email_settings_update" => Language.T("이메일 설정 변경", "Email settings updated"),
+        "sql_target_update" => Language.T("SQL 연결 설정 변경", "SQL connection settings updated"),
+        "sql_target_remove" => Language.T("SQL 연결 설정 삭제", "SQL connection settings removed"),
+        "settings_backup" => Language.T("설정 백업", "Settings backed up"),
+        "settings_restore" => Language.T("설정 복원", "Settings restored"),
+        "notification_settings_update" => Language.T("알림 채널 설정 변경", "Notification settings updated"),
+        _ => action
+    };
+
     private readonly List<MemberAuditLogEntity> _logs = new();
     private string _searchText = string.Empty;
     private string _categoryFilter = string.Empty;

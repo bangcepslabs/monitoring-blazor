@@ -8,23 +8,23 @@
 @inject MemberAuthService MemberAuthService
 @inject IJSRuntime JSRuntime
 
-<PageTitle>OpsEye | @Language.T("관리자 사용자", "Admin Users")</PageTitle>
+<PageTitle>OpsEye | @Language.T("사용자 관리", "User management")</PageTitle>
 
 <div class="account-page">
     <div class="page-hero d-flex flex-wrap align-items-end justify-content-between gap-3 mb-4">
         <div>
-            <div class="eyebrow">Admin Center</div>
+            <div class="eyebrow">@Language.T("관리자 센터", "Admin center")</div>
             <h1 class="display-6 mb-2">@Language.T("사용자 관리", "User management")</h1>
             <p class="text-secondary mb-0">
-                Create users, manage roles, control active status, and reset passwords.
+                @Language.T("사용자를 추가하고 역할과 활성 상태를 관리하거나 비밀번호를 재설정할 수 있습니다.", "Create users, manage roles and account status, or reset passwords.")
             </p>
         </div>
         <div class="d-flex flex-wrap gap-2">
             <a class="btn btn-outline-secondary" href="/account">
-                <i class="bi bi-person-gear me-2"></i>My account
+                <i class="bi bi-person-gear me-2"></i>@Language.T("내 계정", "My account")
             </a>
             <a class="btn btn-outline-secondary" href="/admin/audit">
-                <i class="bi bi-journal-text me-2"></i>Audit log
+                <i class="bi bi-journal-text me-2"></i>@Language.T("감사 로그", "Audit log")
             </a>
         </div>
     </div>
@@ -40,37 +40,37 @@
         <div class="col-12 col-xl-5">
             <div class="card section-card h-100">
                 <div class="card-header">
-                    <strong>Create member</strong>
+                    <strong>@Language.T("사용자 추가", "Add user")</strong>
                 </div>
                 <div class="card-body d-grid gap-3">
                     <div>
-                        <label class="form-label" for="new-user-name">User ID</label>
+                        <label class="form-label" for="new-user-name">@Language.T("사용자 ID", "User ID")</label>
                         <input id="new-user-name" class="form-control" @bind="_newUserName" />
                     </div>
                     <div>
-                        <label class="form-label" for="new-display-name">Display name</label>
+                        <label class="form-label" for="new-display-name">@Language.T("표시 이름", "Display name")</label>
                         <input id="new-display-name" class="form-control" @bind="_newDisplayName" />
                     </div>
                     <div>
-                        <label class="form-label" for="new-role">Role</label>
+                        <label class="form-label" for="new-role">@Language.T("역할", "Role")</label>
                         <select id="new-role" class="form-select" @bind="_newRole">
-                            <option value="User">User</option>
-                            <option value="Admin">Admin</option>
+                            <option value="User">@Language.T("사용자", "User")</option>
+                            <option value="Admin">@Language.T("관리자", "Admin")</option>
                         </select>
                     </div>
                     <div>
-                        <label class="form-label" for="new-user-password">Password</label>
+                        <label class="form-label" for="new-user-password">@Language.T("비밀번호", "Password")</label>
                         <input id="new-user-password" type="password" class="form-control" autocomplete="new-password" @bind="_newPasswordForCreate" />
                     </div>
                     <div>
-                        <label class="form-label" for="new-user-confirm">Confirm password</label>
+                        <label class="form-label" for="new-user-confirm">@Language.T("비밀번호 확인", "Confirm password")</label>
                         <input id="new-user-confirm" type="password" class="form-control" autocomplete="new-password" @bind="_newPasswordConfirmForCreate" />
                     </div>
                     <div class="alert alert-info small mb-0" role="note">
-                        Password policy: at least 12 characters, uppercase, lowercase, number, special character, and no spaces.
+                        @Language.T("비밀번호는 12자 이상이어야 하며 대문자, 소문자, 숫자, 특수문자를 각각 포함해야 합니다. 공백은 사용할 수 없습니다.", "Use at least 12 characters, including uppercase and lowercase letters, a number, and a special character. Spaces are not allowed.")
                     </div>
                     <button type="button" class="btn btn-outline-primary" @onclick="CreateMemberAsync" disabled="@(!CanCreateMember)">
-                        <i class="bi bi-person-plus-fill me-2"></i>Create user
+                        <i class="bi bi-person-plus-fill me-2"></i>@Language.T("사용자 생성", "Create user")
                     </button>
                 </div>
             </div>
@@ -79,14 +79,14 @@
         <div class="col-12 col-xl-7">
             <div class="card section-card mb-4">
                 <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                    <strong>Members</strong>
-                    <span class="text-secondary small">@_sortedMembers.Count() member(s)</span>
+                    <strong>@Language.T("사용자 목록", "Users")</strong>
+                    <span class="text-secondary small">@Language.T($"사용자 {_sortedMembers.Count()}명", $"{_sortedMembers.Count()} user{(_sortedMembers.Count() == 1 ? "" : "s")}")</span>
                 </div>
                 <div class="card-body">
                     <div class="d-flex flex-wrap gap-2 mb-3">
-                        <input class="form-control flex-grow-1" style="min-width: 220px;" placeholder="Search user / display name" @bind="_searchText" @bind:event="oninput" />
+                        <input class="form-control flex-grow-1" style="min-width: 220px;" placeholder="@Language.T("사용자 ID 또는 표시 이름 검색", "Search by user ID or display name")" @bind="_searchText" @bind:event="oninput" />
                         <button type="button" class="btn btn-outline-secondary" @onclick="LoadMembersAsync">
-                            <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                            <i class="bi bi-arrow-clockwise me-2"></i>@Language.T("새로고침", "Refresh")
                         </button>
                     </div>
 
@@ -94,11 +94,11 @@
                         <table class="table align-middle member-table">
                             <thead>
                                 <tr>
-                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.UserName))">User <span>@GetSortGlyph(nameof(MemberEntity.UserName))</span></button></th>
-                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.DisplayName))">Display <span>@GetSortGlyph(nameof(MemberEntity.DisplayName))</span></button></th>
-                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.Role))">Role <span>@GetSortGlyph(nameof(MemberEntity.Role))</span></button></th>
-                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.IsActive))">Status <span>@GetSortGlyph(nameof(MemberEntity.IsActive))</span></button></th>
-                                    <th class="text-end">Actions</th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.UserName))">@Language.T("사용자", "User") <span>@GetSortGlyph(nameof(MemberEntity.UserName))</span></button></th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.DisplayName))">@Language.T("표시 이름", "Display name") <span>@GetSortGlyph(nameof(MemberEntity.DisplayName))</span></button></th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.Role))">@Language.T("역할", "Role") <span>@GetSortGlyph(nameof(MemberEntity.Role))</span></button></th>
+                                    <th><button type="button" class="sort-header" @onclick="() => SetMemberSort(nameof(MemberEntity.IsActive))">@Language.T("상태", "Status") <span>@GetSortGlyph(nameof(MemberEntity.IsActive))</span></button></th>
+                                    <th class="text-end">@Language.T("작업", "Actions")</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -109,20 +109,20 @@
                                         <tr class="@(IsSelected(member.Id) ? "table-active" : string.Empty)">
                                             <td>@member.UserName</td>
                                             <td>@member.DisplayName</td>
-                                            <td><span class="badge text-bg-primary">@member.Role</span></td>
+                                            <td><span class="badge text-bg-primary">@(member.Role == "Admin" ? Language.T("관리자", "Admin") : Language.T("사용자", "User"))</span></td>
                                             <td>
                                                 @if (member.IsActive)
                                                 {
-                                                    <span class="badge text-bg-success">Active</span>
+                                                    <span class="badge text-bg-success">@Language.T("활성", "Active")</span>
                                                 }
                                                 else
                                                 {
-                                                    <span class="badge text-bg-secondary">Inactive</span>
+                                                    <span class="badge text-bg-secondary">@Language.T("비활성", "Inactive")</span>
                                                 }
                                             </td>
                                             <td class="text-end">
                                                 <button type="button" class="btn btn-sm btn-outline-primary" @onclick="() => SelectMember(member.Id)">
-                                                    Manage
+                                                    @Language.T("관리", "Manage")
                                                 </button>
                                             </td>
                                         </tr>
@@ -132,7 +132,7 @@
                                 {
                                     <tr>
                                         <td colspan="5" class="text-center text-secondary py-4">
-                                            No members match your search.
+                                            @Language.T("검색 조건에 맞는 사용자가 없습니다.", "No users match your search.")
                                         </td>
                                     </tr>
                                 }
@@ -146,111 +146,111 @@
             {
                 <div class="card section-card">
                     <div class="card-header d-flex flex-wrap align-items-center justify-content-between gap-2">
-                        <strong>Selected member</strong>
+                        <strong>@Language.T("선택한 사용자", "Selected user")</strong>
                         <span class="text-secondary small">ID @_selectedMember.Id</span>
                     </div>
                     <div class="card-body d-grid gap-3">
                         <div class="alert alert-info small mb-0" role="note">
-                            Username is fixed. Use this panel to update the display name, role, active state, password, and account lock state.
+                            @Language.T("사용자 ID는 변경할 수 없습니다. 이곳에서 표시 이름, 역할, 활성 상태, 비밀번호, 계정 잠금 상태를 관리할 수 있습니다.", "The user ID cannot be changed. Use this panel to manage the display name, role, account status, password, and lockout.")
                         </div>
 
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
-                                <label class="form-label" for="selected-user">User ID</label>
+                                <label class="form-label" for="selected-user">@Language.T("사용자 ID", "User ID")</label>
                                 <input id="selected-user" class="form-control" value="@_selectedMember.UserName" disabled />
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label" for="selected-role">Role</label>
+                                <label class="form-label" for="selected-role">@Language.T("역할", "Role")</label>
                                 <select id="selected-role" class="form-select" @bind="_selectedMember.Role" disabled="@IsCurrentUserSelected()">
-                                    <option value="User">User</option>
-                                    <option value="Admin">Admin</option>
+                                    <option value="User">@Language.T("사용자", "User")</option>
+                                    <option value="Admin">@Language.T("관리자", "Admin")</option>
                                 </select>
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label" for="selected-display">Display name</label>
+                                <label class="form-label" for="selected-display">@Language.T("표시 이름", "Display name")</label>
                                 <input id="selected-display" class="form-control" @bind="_selectedMember.DisplayName" />
                             </div>
                             <div class="col-12 col-md-6 d-flex align-items-end">
                                 <div class="form-check form-switch">
                                     <input id="selected-active" class="form-check-input" type="checkbox" @bind="_selectedMember.IsActive" disabled="@IsCurrentUserSelected()" />
-                                    <label class="form-check-label" for="selected-active">Active account</label>
+                                    <label class="form-check-label" for="selected-active">@Language.T("계정 활성화", "Active account")</label>
                                 </div>
                             </div>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-12 col-md-4">
-                                <label class="form-label">Failed logins</label>
+                                <label class="form-label">@Language.T("로그인 실패 횟수", "Failed logins")</label>
                                 <input class="form-control" value="@_selectedMember.FailedLoginCount" disabled />
                             </div>
                             <div class="col-12 col-md-4">
-                                <label class="form-label">Last failed login</label>
+                                <label class="form-label">@Language.T("최근 로그인 실패", "Last failed login")</label>
                                 <input class="form-control" value="@(_selectedMember.LastFailedLoginUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
                             </div>
                             <div class="col-12 col-md-4">
-                                <label class="form-label">Lockout until</label>
+                                <label class="form-label">@Language.T("잠금 해제 시각", "Locked until")</label>
                                 <input class="form-control" value="@(_selectedMember.LockoutUntilUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
                             </div>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
-                                <label class="form-label">Two-factor authentication</label>
-                                <input class="form-control" value="@(_selectedMember.TwoFactorEnabled ? "Enabled" : "Disabled")" disabled />
+                                <label class="form-label">@Language.T("2차 인증", "Two-factor authentication")</label>
+                                <input class="form-control" value="@(_selectedMember.TwoFactorEnabled ? Language.T("사용", "Enabled") : Language.T("사용 안 함", "Disabled"))" disabled />
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label">Enabled at</label>
+                                <label class="form-label">@Language.T("활성화 시각", "Enabled at")</label>
                                 <input class="form-control" value="@(_selectedMember.TwoFactorEnabledUtc?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "-")" disabled />
                             </div>
                         </div>
 
                         <div class="row g-3">
                             <div class="col-12 col-md-6">
-                                <label class="form-label" for="reset-password">Reset password</label>
+                                <label class="form-label" for="reset-password">@Language.T("비밀번호 재설정", "Reset password")</label>
                                 <input id="reset-password" type="password" class="form-control" autocomplete="new-password" @bind="_selectedPassword" />
                             </div>
                             <div class="col-12 col-md-6">
-                                <label class="form-label" for="reset-password-confirm">Confirm password</label>
+                                <label class="form-label" for="reset-password-confirm">@Language.T("비밀번호 확인", "Confirm password")</label>
                                 <input id="reset-password-confirm" type="password" class="form-control" autocomplete="new-password" @bind="_selectedPasswordConfirm" />
                             </div>
                         </div>
 
                         <div class="alert alert-info small mb-0" role="note">
-                            Admin actions affect the selected member immediately. Role and active state changes will ask for confirmation.
+                            @Language.T("관리자 작업은 선택한 사용자에게 적용됩니다. 역할이나 활성 상태를 변경할 때는 확인을 요청합니다.", "Admin actions apply to the selected user. Changes to their role or account status require confirmation.")
                         </div>
 
                         <div class="d-flex flex-wrap gap-2">
                             <button type="button" class="btn btn-primary" @onclick="SaveSelectedMemberAsync" disabled="@(!CanSaveSelectedMember)">
-                                <i class="bi bi-save me-2"></i>Save profile
+                                <i class="bi bi-save me-2"></i>@Language.T("프로필 저장", "Save profile")
                             </button>
                             <button type="button" class="btn btn-outline-warning" @onclick="ResetSelectedPasswordAsync" disabled="@(!CanResetSelectedPassword)">
-                                <i class="bi bi-key me-2"></i>Reset password
+                                <i class="bi bi-key me-2"></i>@Language.T("비밀번호 재설정", "Reset password")
                             </button>
                             <button type="button" class="btn btn-outline-danger" @onclick="LockSelectedMemberAsync" disabled="@IsLockActionDisabled()">
-                                <i class="bi bi-lock-fill me-2"></i>Lock account
+                                <i class="bi bi-lock-fill me-2"></i>@Language.T("계정 잠금", "Lock account")
                             </button>
                             <button type="button" class="btn btn-outline-success" @onclick="UnlockSelectedMemberAsync" disabled="@IsUnlockActionDisabled()">
-                                <i class="bi bi-unlock me-2"></i>Unlock account
+                                <i class="bi bi-unlock me-2"></i>@Language.T("계정 잠금 해제", "Unlock account")
                             </button>
                             <button type="button" class="btn btn-outline-danger" @onclick="DisableSelectedMemberTwoFactorAsync" disabled="@IsDisableSelectedMemberTwoFactorDisabled()">
-                                <i class="bi bi-shield-slash me-2"></i>Disable 2FA
+                                <i class="bi bi-shield-slash me-2"></i>@Language.T("2차 인증 해제", "Disable 2FA")
                             </button>
                             <button type="button" class="btn btn-outline-secondary" @onclick="ClearSelection">
-                                Close
+                                @Language.T("닫기", "Close")
                             </button>
                         </div>
 
                         @if (_loginAttempts.Any())
                         {
                             <div class="mt-3">
-                                <div class="fw-semibold mb-2">Recent login attempts</div>
+                                <div class="fw-semibold mb-2">@Language.T("최근 로그인 시도", "Recent login attempts")</div>
                                 <div class="table-responsive">
                                     <table class="table table-sm align-middle">
                                         <thead>
                                             <tr>
-                                                <th>When</th>
-                                                <th>Status</th>
-                                                <th>Reason</th>
+                                                <th>@Language.T("시각", "When")</th>
+                                                <th>@Language.T("상태", "Status")</th>
+                                                <th>@Language.T("사유", "Reason")</th>
                                                 <th>IP</th>
                                             </tr>
                                         </thead>
@@ -262,14 +262,14 @@
                                                     <td>
                                                         @if (attempt.Success)
                                                         {
-                                                            <span class="badge text-bg-success">Success</span>
+                                                            <span class="badge text-bg-success">@Language.T("성공", "Success")</span>
                                                         }
                                                         else
                                                         {
-                                                            <span class="badge text-bg-danger">Failed</span>
+                                                            <span class="badge text-bg-danger">@Language.T("실패", "Failed")</span>
                                                         }
                                                     </td>
-                                                    <td>@attempt.Reason</td>
+                                                    <td>@Language.Label(attempt.Reason)</td>
                                                     <td>@(attempt.IpAddress ?? "-")</td>
                                                 </tr>
                                             }
@@ -395,7 +395,7 @@
 
         if (!CanCreateMember)
         {
-            SetError("Please fill out all create-user fields and satisfy the password policy.");
+            SetError(Language.T("사용자 생성에 필요한 항목을 모두 입력하고 비밀번호 정책을 확인하세요.", "Complete all required fields and make sure the password meets the requirements."));
             return;
         }
 
@@ -407,7 +407,7 @@
             _newRole = "User";
             _newPasswordForCreate = string.Empty;
             _newPasswordConfirmForCreate = string.Empty;
-            SetSuccess("Member created.");
+            SetSuccess(Language.T("사용자를 생성했습니다.", "User created successfully."));
             await LoadMembersAsync();
         }
         catch (Exception ex)
@@ -435,10 +435,10 @@
             if (!IsCurrentUserSelected() && (roleChanged || activeChanged))
             {
                 var confirmText = roleChanged && activeChanged
-                    ? $"Role and active status for {_selectedMember.UserName} will be updated. Continue?"
+                    ? Language.T($"{_selectedMember.UserName} 사용자의 역할과 계정 상태를 변경하시겠습니까?", $"Update the role and account status for {_selectedMember.UserName}?")
                     : roleChanged
-                        ? $"Role for {_selectedMember.UserName} will be updated. Continue?"
-                        : $"Active status for {_selectedMember.UserName} will be updated. Continue?";
+                        ? Language.T($"{_selectedMember.UserName} 사용자의 역할을 변경하시겠습니까?", $"Update the role for {_selectedMember.UserName}?")
+                        : Language.T($"{_selectedMember.UserName} 사용자의 계정 상태를 변경하시겠습니까?", $"Update the account status for {_selectedMember.UserName}?");
 
                 if (!await ConfirmAsync(confirmText))
                 {
@@ -454,7 +454,7 @@
                 await MemberAuthService.SetMemberActiveAsync(_selectedMember.Id, _selectedMember.IsActive);
             }
 
-            SetSuccess("Member profile updated.");
+            SetSuccess(Language.T("사용자 정보를 수정했습니다.", "User details have been updated."));
             await LoadMembersAsync();
             await LoadSelectedMemberSecurityAsync();
         }
@@ -475,11 +475,11 @@
 
         if (!CanResetSelectedPassword)
         {
-            SetError("Please enter a valid new password and confirmation.");
+            SetError(Language.T("새 비밀번호를 입력하고 확인란과 일치하는지 확인하세요.", "Enter a valid new password and confirm that both password fields match."));
             return;
         }
 
-        if (!await ConfirmAsync($"Reset password for {_selectedMember.UserName}?"))
+        if (!await ConfirmAsync(Language.T($"{_selectedMember.UserName} 사용자의 비밀번호를 재설정하시겠습니까?", $"Reset the password for {_selectedMember.UserName}?")))
         {
             return;
         }
@@ -489,7 +489,7 @@
             await MemberAuthService.ChangePasswordAsync(_selectedMember.Id, _selectedPassword);
             _selectedPassword = string.Empty;
             _selectedPasswordConfirm = string.Empty;
-            SetSuccess("Password reset complete.");
+            SetSuccess(Language.T("비밀번호를 재설정했습니다.", "The password has been reset."));
             await LoadMembersAsync();
             await LoadSelectedMemberSecurityAsync();
         }
@@ -627,7 +627,7 @@
 
         ClearMessage();
 
-        if (!await ConfirmAsync($"Lock account for {_selectedMember.UserName}?"))
+        if (!await ConfirmAsync(Language.T($"{_selectedMember.UserName} 사용자 계정을 잠그시겠습니까?", $"Lock the account for {_selectedMember.UserName}?")))
         {
             return;
         }
@@ -635,7 +635,7 @@
         try
         {
             await MemberAuthService.LockMemberAsync(_selectedMember.Id, "manual admin lock");
-            SetSuccess("Account locked.");
+            SetSuccess(Language.T("계정을 잠갔습니다.", "The account has been locked."));
             await LoadMembersAsync();
             await LoadSelectedMemberSecurityAsync();
         }
@@ -654,7 +654,7 @@
 
         ClearMessage();
 
-        if (!await ConfirmAsync($"Unlock account for {_selectedMember.UserName}?"))
+        if (!await ConfirmAsync(Language.T($"{_selectedMember.UserName} 사용자 계정의 잠금을 해제하시겠습니까?", $"Unlock the account for {_selectedMember.UserName}?")))
         {
             return;
         }
@@ -662,7 +662,7 @@
         try
         {
             await MemberAuthService.UnlockMemberAsync(_selectedMember.Id);
-            SetSuccess("Account unlocked.");
+            SetSuccess(Language.T("계정 잠금을 해제했습니다.", "The account has been unlocked."));
             await LoadMembersAsync();
             await LoadSelectedMemberSecurityAsync();
         }
@@ -681,7 +681,7 @@
 
         ClearMessage();
 
-        if (!await ConfirmAsync($"Disable two-factor authentication for {_selectedMember.UserName}?"))
+        if (!await ConfirmAsync(Language.T($"{_selectedMember.UserName} 사용자의 2차 인증을 해제하시겠습니까?", $"Disable two-factor authentication for {_selectedMember.UserName}?")))
         {
             return;
         }
@@ -689,7 +689,7 @@
         try
         {
             await MemberAuthService.DisableTwoFactorAsync(_selectedMember.Id);
-            SetSuccess("Two-factor authentication disabled.");
+            SetSuccess(Language.T("2차 인증을 해제했습니다.", "Two-factor authentication has been disabled."));
             await LoadMembersAsync();
             await LoadSelectedMemberSecurityAsync();
         }

@@ -1,25 +1,3 @@
-> **Portfolio project** · .NET / Blazor Server / SQL Server  
-> Real-time operations dashboard for host metrics, alert history, and log analysis.
-
-## Highlights
-
-- Monitor CPU, memory, disk, and network trends from a single dashboard
-- Track alerts and incidents with a time-based history
-- Analyze IIS and Java logs to speed up operational troubleshooting
-- Provide liveness and readiness health endpoints for deployment checks
-
-## Preview
-
-> All screenshots use sanitized demo data. Production IP addresses, hosts, accounts, domains, and log paths are excluded.
-
-### Dashboard
-
-![OpsEye dashboard preview](./opseye-dashboard-demo-v2.png)
-
-### Log analysis
-
-![OpsEye log analysis preview](./opseye-log-analysis-demo.png)
-
 ﻿# OpsEye
 
 Blazor Server 기반 운영 모니터링 대시보드입니다. 호스트 스냅샷/알림/로그 분석을 포함합니다.

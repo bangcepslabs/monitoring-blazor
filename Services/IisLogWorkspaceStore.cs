@@ -70,7 +70,6 @@ public sealed class IisLogWorkspaceStore
     public async Task<long> GetCountAsync(string workspaceId, IisLogFilterCriteria criteria, CancellationToken cancellationToken = default)
     {
         await using var connection = await OpenConnectionAsync(GetPath(workspaceId), cancellationToken);
-        await EnsureDefaultPageIndexAsync(connection, cancellationToken);
         var query = BuildWhere(criteria);
         await using var command = connection.CreateCommand();
         command.CommandText = $"SELECT COUNT(*) FROM LogRows {query.Where};";
@@ -120,6 +119,76 @@ public sealed class IisLogWorkspaceStore
         return rows;
     }
 
+    public async Task<List<ParsedLogRow>> GetAnalysisSampleAsync(
+        string workspaceId,
+        IisLogFilterCriteria criteria,
+        int maxRows,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenConnectionAsync(GetPath(workspaceId), cancellationToken);
+        var query = BuildWhere(criteria);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT Date, Time, Ip, Method, Uri, Status, Referrer, UserAgent
+            FROM LogRows {query.Where}
+            ORDER BY CASE WHEN Status LIKE '5%' THEN 0 WHEN Status LIKE '4%' THEN 1 ELSE 2 END, Id DESC
+            LIMIT $limit;
+            """;
+        AddParameters(command, query.Parameters);
+        var limit = Math.Clamp(maxRows, 1, IisLogPreviewService.MaxPreviewRows);
+        command.Parameters.AddWithValue("$limit", limit);
+
+        var rows = new List<ParsedLogRow>(limit);
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            rows.Add(new ParsedLogRow
+            {
+                Date = reader.GetString(0),
+                Time = reader.GetString(1),
+                Ip = reader.GetString(2),
+                Method = reader.GetString(3),
+                Uri = reader.GetString(4),
+                Status = reader.GetString(5),
+                Referrer = reader.GetString(6),
+                UserAgent = reader.GetString(7)
+            });
+        }
+
+        return rows;
+    }
+
+    public async Task<List<LogTrafficPath>> GetTopTrafficPathsAsync(
+        string workspaceId,
+        IisLogFilterCriteria criteria,
+        int take = 15,
+        CancellationToken cancellationToken = default)
+    {
+        await using var connection = await OpenConnectionAsync(GetPath(workspaceId), cancellationToken);
+        var query = BuildWhere(criteria);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT CASE WHEN instr(Uri, '?') > 0 THEN substr(Uri, 1, instr(Uri, '?') - 1) ELSE Uri END AS Path,
+                   COUNT(*) AS Requests,
+                   COUNT(DISTINCT NULLIF(Ip, '')) AS UniqueIps,
+                   SUM(CASE WHEN Status LIKE '4%' OR Status LIKE '5%' THEN 1 ELSE 0 END) AS ErrorResponses,
+                   COUNT(DISTINCT Uri) AS UriVariants
+            FROM LogRows {query.Where} {(query.Where.Length == 0 ? "WHERE" : "AND")} Uri <> ''
+            GROUP BY Path COLLATE NOCASE
+            ORDER BY Requests DESC, Path COLLATE NOCASE ASC
+            LIMIT $take;
+            """;
+        AddParameters(command, query.Parameters);
+        command.Parameters.AddWithValue("$take", Math.Clamp(take, 1, 50));
+        var paths = new List<LogTrafficPath>();
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            paths.Add(new LogTrafficPath(reader.GetString(0), reader.GetInt64(1), reader.GetInt64(2), reader.GetInt64(3), reader.GetInt64(4)));
+        }
+        return paths;
+    }
+
     public async Task<IisLogWorkspaceSummary> GetSummaryAsync(
         string workspaceId,
         IisLogFilterCriteria criteria,
@@ -127,18 +196,45 @@ public sealed class IisLogWorkspaceStore
     {
         await using var connection = await OpenConnectionAsync(GetPath(workspaceId), cancellationToken);
         var query = BuildWhere(criteria);
-        await using var totalsCommand = connection.CreateCommand();
-        totalsCommand.CommandText = $"SELECT COUNT(*), COUNT(DISTINCT NULLIF(Ip, '')), COUNT(DISTINCT NULLIF(Uri, '')) FROM LogRows {query.Where};";
-        AddParameters(totalsCommand, query.Parameters);
-        await using var totalsReader = await totalsCommand.ExecuteReaderAsync(cancellationToken);
-        await totalsReader.ReadAsync(cancellationToken);
-        var totalRows = totalsReader.GetInt64(0);
-        var uniqueIps = totalsReader.GetInt64(1);
-        var uniqueUrls = totalsReader.GetInt64(2);
-        var statusCounts = await GetGroupedCountsAsync(connection, query, "Status", 0, cancellationToken);
-        var topUrls = await GetGroupedCountsAsync(connection, query, "Uri", 8, cancellationToken);
-        var topIps = await GetGroupedCountsAsync(connection, query, "Ip", 5, cancellationToken);
-        return new IisLogWorkspaceSummary(totalRows, uniqueIps, uniqueUrls, statusCounts, topUrls, topIps);
+        await using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT Ip, Uri, Status FROM LogRows {query.Where};";
+        AddParameters(command, query.Parameters);
+
+        // A filtered summary used to re-evaluate every predicate four times.
+        // Count and group the three required columns during one database scan.
+        var ipCounts = new Dictionary<string, long>(StringComparer.Ordinal);
+        var urlCounts = new Dictionary<string, long>(StringComparer.Ordinal);
+        var statusCounts = new Dictionary<string, long>(StringComparer.Ordinal);
+        long totalRows = 0;
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            totalRows++;
+            AddCount(ipCounts, reader.GetString(0));
+            AddCount(urlCounts, reader.GetString(1));
+            AddCount(statusCounts, reader.GetString(2));
+        }
+
+        return new IisLogWorkspaceSummary(
+            totalRows,
+            ipCounts.Count,
+            urlCounts.Count,
+            SortCounts(statusCounts),
+            SortCounts(urlCounts, 8),
+            SortCounts(ipCounts, 5));
+    }
+
+    private static void AddCount(Dictionary<string, long> counts, string value)
+    {
+        if (value.Length == 0) return;
+        counts.TryGetValue(value, out var count);
+        counts[value] = count + 1;
+    }
+
+    private static List<KeyValuePair<string, long>> SortCounts(Dictionary<string, long> counts, int take = 0)
+    {
+        var ordered = counts.OrderByDescending(item => item.Value).ThenBy(item => item.Key, StringComparer.Ordinal);
+        return (take > 0 ? ordered.Take(take) : ordered).ToList();
     }
 
     public async Task<long> GetAggregateGroupCountAsync(string workspaceId, CancellationToken cancellationToken = default)
@@ -300,13 +396,6 @@ public sealed class IisLogWorkspaceStore
         return connection;
     }
 
-    private static async Task EnsureDefaultPageIndexAsync(SqliteConnection connection, CancellationToken cancellationToken)
-    {
-        await using var command = connection.CreateCommand();
-        command.CommandText = "CREATE INDEX IF NOT EXISTS IX_LogRows_Date_Time_Id ON LogRows(Date, Time, Id);";
-        await command.ExecuteNonQueryAsync(cancellationToken);
-    }
-
     private static (string Where, List<SqliteParameter> Parameters) BuildWhere(IisLogFilterCriteria criteria)
     {
         var clauses = new List<string>();
@@ -390,28 +479,6 @@ public sealed class IisLogWorkspaceStore
     private static void AddParameters(SqliteCommand command, IEnumerable<SqliteParameter> parameters)
     {
         foreach (var parameter in parameters) command.Parameters.Add(parameter);
-    }
-
-    private static async Task<List<KeyValuePair<string, long>>> GetGroupedCountsAsync(
-        SqliteConnection connection,
-        (string Where, List<SqliteParameter> Parameters) query,
-        string column,
-        int take,
-        CancellationToken cancellationToken)
-    {
-        var validColumn = column is "Status" or "Uri" or "Ip" ? column : throw new ArgumentOutOfRangeException(nameof(column));
-        await using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT {validColumn}, COUNT(*) FROM LogRows {query.Where} {(query.Where.Length == 0 ? "WHERE" : "AND")} {validColumn} <> '' GROUP BY {validColumn} ORDER BY COUNT(*) DESC, {validColumn} ASC {(take > 0 ? "LIMIT $take" : string.Empty)};";
-        AddParameters(command, query.Parameters);
-        if (take > 0) command.Parameters.AddWithValue("$take", take);
-
-        var items = new List<KeyValuePair<string, long>>();
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
-        {
-            items.Add(new KeyValuePair<string, long>(reader.GetString(0), reader.GetInt64(1)));
-        }
-        return items;
     }
 
     private static string Csv(string value) => $"\"{value.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";

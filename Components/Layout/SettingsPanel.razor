@@ -116,7 +116,7 @@
                         </div>
                         <div class="col-12 col-md-3">
                             <label class="form-label">@Language.T("내보내기 폴더", "Export folder")</label>
-                            <input class="form-control" @bind="LogExportSettings.OutputFolder" placeholder="F:\\iis_log" />
+                            <input class="form-control" @bind="LogExportSettings.OutputFolder" placeholder="E:\\iis_log" />
                         </div>
                         <div class="col-12 col-md-2">
                             <label class="form-label">@Language.T("내보내기 시", "Export hour")</label>
@@ -143,7 +143,7 @@
                         </div>
                         <div class="col-12 col-md-3">
                             <label class="form-label">@Language.T("가져오기 상태 파일", "Import state file")</label>
-                            <input class="form-control" @bind="LogImportSettings.StateFilePath" placeholder="F:\\iis_log\\log-import-state.json" />
+                            <input class="form-control" @bind="LogImportSettings.StateFilePath" placeholder="E:\\iis_log\\log-import-state.json" />
                         </div>
                         <div class="col-12 col-md-2">
                             <label class="form-label">@Language.T("가져오기 시", "Import hour")</label>
@@ -191,10 +191,14 @@
                                 <input class="form-control" type="number" @bind="OllamaSettings.TimeoutSeconds" />
                             </div>
                             <div class="col-12">
-                                <button class="btn btn-outline-primary" @onclick="CheckOllamaConnectionAsync" disabled="@IsCheckingOllama">
+                                <button type="button" class="btn btn-outline-primary" @onclick="CheckOllamaConnectionAsync" disabled="@IsCheckingOllama">
                                     @(IsCheckingOllama ? Language.T("연결 확인 중…", "Checking Ollama…") : Language.T("Ollama 연결 확인", "Test Ollama connection"))
                                 </button>
                                 <div class="form-text">@Language.T("저장된 설정으로 연결을 확인합니다. 주소나 모델을 변경했다면 먼저 저장하세요.", "This checks the saved settings. Save any URL or model changes before testing.")</div>
+                                @if (!string.IsNullOrWhiteSpace(OllamaConnectionMessage))
+                                {
+                                    <div class="alert @(OllamaConnectionSucceeded ? "alert-success" : "alert-danger") mt-2 mb-0" role="status">@OllamaConnectionMessage</div>
+                                }
                             </div>
                             <div class="col-12 col-md-3">
                                 <label class="form-label">@Language.T("자동 분석", "Automatic analysis")</label>
@@ -209,7 +213,7 @@
                             </div>
                         <div class="col-12 col-md-6">
                             <label class="form-label">@Language.T("분석 결과 저장 폴더", "Analysis output folder")</label>
-                            <input class="form-control" @bind="OllamaSettings.AnalysisOutputFolder" placeholder="F:\\iis_log\\analysis" />
+                            <input class="form-control" @bind="OllamaSettings.AnalysisOutputFolder" placeholder="E:\\iis_log\\analysis" />
                             <div class="form-text">@Language.T("최신 IIS 분석 결과 JSON을 저장하고 불러올 폴더입니다.", "Folder used to save and load the latest IIS analysis JSON report.")</div>
                         </div>
                         <div class="col-12">
@@ -429,6 +433,8 @@
     private bool IsSaving { get; set; }
     private bool SettingsLoaded { get; set; }
     private bool IsCheckingOllama { get; set; }
+    private bool OllamaConnectionSucceeded { get; set; }
+    private string? OllamaConnectionMessage { get; set; }
     private string ActiveSettingsTab { get; set; } = "basic";
     private string? StatusMessage { get; set; }
     private EmailSettings EmailSettings { get; set; } = new();
@@ -626,23 +632,35 @@
     {
         if (IsCheckingOllama) return;
         IsCheckingOllama = true;
-        StatusMessage = null;
+        OllamaConnectionMessage = null;
         try
         {
             var status = await ReadJsonAsync<OllamaClient.ConnectionStatus>("api/runtime/ollama/status");
-            StatusMessage = status is null
+            OllamaConnectionSucceeded = status is { Enabled: true, Reachable: true, ModelAvailable: true };
+            OllamaConnectionMessage = status is null
                 ? Language.T("Ollama 상태 응답을 받지 못했습니다.", "No Ollama status response was received.")
                 : GetOllamaStatusMessage(status);
         }
         catch (Exception ex)
         {
-            StatusMessage = Language.IsKorean
+            OllamaConnectionSucceeded = false;
+            OllamaConnectionMessage = Language.IsKorean
                 ? $"Ollama 연결 상태를 확인하지 못했습니다. 앱 설정과 서버 로그를 확인하세요. ({ex.Message})"
                 : $"Could not check the Ollama connection. Review the app settings and server logs. ({ex.Message})";
         }
         finally
         {
             IsCheckingOllama = false;
+        }
+
+        await InvokeAsync(StateHasChanged);
+        try
+        {
+            await JS.InvokeVoidAsync("monitorSettings.showToast", OllamaConnectionMessage, OllamaConnectionSucceeded ? "success" : "danger");
+        }
+        catch (JSException)
+        {
+            // The inline result remains visible if browser notifications are unavailable.
         }
     }
 

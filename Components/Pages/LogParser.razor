@@ -205,7 +205,7 @@
 
 @if (IsWorkspaceMode)
 {
-    <div class="alert @(IsLoadingWorkspacePage ? "alert-primary" : "alert-light border") d-flex align-items-center gap-2 py-2 mb-3" role="status" aria-live="polite" aria-busy="@(IsLoadingWorkspacePage || _workspaceFilterDebounceCts is not null)">
+    <div class="alert @(IsLoadingWorkspacePage ? "alert-primary" : "alert-light") d-flex align-items-center gap-2 py-2 mb-3" role="status" aria-live="polite" aria-busy="@(IsLoadingWorkspacePage || _workspaceFilterDebounceCts is not null)">
         @if (IsLoadingWorkspacePage || _workspaceFilterDebounceCts is not null)
         {
             <span class="spinner-border spinner-border-sm" aria-hidden="true"></span>
@@ -337,9 +337,19 @@
         <div class="log-entries-actions">
             <div class="log-entries-action-group" aria-label="@Language.T("분석 작업", "Analysis actions")">
                 <button class="btn btn-sm btn-outline-secondary" @onclick="RunExportNow" disabled="@IsRunningExport">@Language.T("지금 내보내기 실행", "Run Export Now")</button>
-                <button class="btn btn-sm btn-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)" title="@(IsPreviewTruncated ? Language.T("일부 미리보기만으로는 AI 분석을 실행할 수 없습니다.", "AI analysis is unavailable for a partial preview.") : null)">@Language.T("AI 분석", "Analyze with AI")</button>
-                <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing)">@Language.T("AI 분석 취소", "Cancel AI analysis")</button>
+                <span class="disabled-action-hint" title="@AnalyzeButtonHint" tabindex="@(CanRunAnalyze ? -1 : 0)" aria-label="@AnalyzeButtonHint">
+                    <button class="btn btn-sm btn-primary" @onclick="RunAnalyze" disabled="@(!CanRunAnalyze)" aria-describedby="analyze-button-hint">@(IsWorkspaceMode ? Language.T("AI 표본 분석", "Analyze sample") : Language.T("AI 분석", "Analyze with AI"))</button>
+                </span>
+                @if (!CanRunAnalyze)
+                {
+                    <span id="analyze-button-hint" class="visually-hidden">@AnalyzeButtonHint</span>
+                }
+                <button class="btn btn-sm btn-outline-danger" @onclick="CancelAnalyzeAsync" disabled="@(!IsAnalyzing || IsCancellingAnalysis)">@(IsCancellingAnalysis ? Language.T("취소 중…", "Cancelling…") : Language.T("AI 분석 취소", "Cancel AI analysis"))</button>
             </div>
+            @if (IsWorkspaceMode)
+            {
+                <span class="small text-secondary">@Language.T("대량 로그는 오류 응답 우선 최대 5만 행을 표본 분석합니다.", "Large logs are analyzed from a sample of up to 50,000 rows, prioritizing errors.")</span>
+            }
             <div class="log-entries-action-group log-entries-action-group--candidates" aria-label="@Language.T("대응 후보 작업", "Candidate actions")">
                 <button class="btn btn-sm btn-outline-dark" @onclick="CopyBlockCandidatesAsync" disabled="@(!CanCopyBlockCandidates)">@Language.T("차단 IP 복사", "Copy Block IPs")</button>
                 <button class="btn btn-sm btn-outline-dark" @onclick="CopyRateLimitCandidatesAsync" disabled="@(!CanCopyRateLimitCandidates)">@Language.T("속도 제한 대상 IP 복사", "Copy Rate-Limit IPs")</button>
@@ -410,6 +420,9 @@
                         <button type="button" class="analysis-inline-report__action" @onclick="ToggleAnalysisReportCollapsed">
                             @(IsAnalysisReportCollapsed ? Language.T("펼치기", "Expand") : Language.T("접기", "Collapse"))
                         </button>
+                        <button type="button" class="analysis-inline-report__action" @onclick="CopyBlockCandidatesAsync" disabled="@(blockCandidateIps.Count == 0)">
+                            @Language.T($"차단 후보 IP {blockCandidateIps.Count}개 복사", $"Copy {blockCandidateIps.Count} block-candidate IPs")
+                        </button>
                     </div>
                 </div>
 
@@ -430,35 +443,67 @@
                                 </div>
                                 <div class="analysis-section-card__body">
                                     @{
-                                        var primaryLine = section.Lines.FirstOrDefault();
-                                        var detailLines = section.Lines.Skip(1).ToList();
+                                        var previewLines = LogAnalysisPresentationService.GetPreviewLines(section);
                                     }
-
-                                    @if (!string.IsNullOrWhiteSpace(primaryLine))
+                                    @if (previewLines.Count > 0)
                                     {
-                                        <div class="analysis-section-card__primary">@primaryLine</div>
-                                    }
-
-                                    @if (detailLines.Count > 0)
-                                    {
-                                        <div class="analysis-section-card__list">
-                                            @foreach (var line in detailLines)
+                                        <ol class="analysis-section-card__highlights @(section.Title == "의심 IP" ? "analysis-section-card__highlights--ips" : string.Empty)">
+                                            @foreach (var line in previewLines)
                                             {
-                                                if (line.StartsWith("- "))
-                                                {
-                                                    <div class="analysis-section-card__bullet">@line.Substring(2)</div>
-                                                }
-                                                else
-                                                {
-                                                    <p>@line</p>
-                                                }
+                                                <li>@line</li>
                                             }
-                                        </div>
+                                        </ol>
+                                    }
+                                    @if (section.Lines.Count > 0)
+                                    {
+                                        <details class="analysis-section-card__details">
+                                            <summary>@Language.T("전체 근거·원문 보기", "View full evidence and text")</summary>
+                                            <div class="analysis-section-card__list">
+                                                @foreach (var line in section.Lines)
+                                                {
+                                                    if (line.StartsWith("- "))
+                                                    {
+                                                        <div class="analysis-section-card__bullet">@line.Substring(2)</div>
+                                                    }
+                                                    else
+                                                    {
+                                                        <p>@line</p>
+                                                    }
+                                                }
+                                            </div>
+                                        </details>
                                     }
                                 </div>
                             </article>
                         }
                     </div>
+                    @if (AnalysisTrafficPaths.Count > 0)
+                    {
+                        <section class="analysis-traffic-paths" aria-label="@Language.T("접근 집중 페이지", "High-traffic paths")">
+                            <div class="analysis-traffic-paths__header">
+                                <h3>@Language.T("접근 집중 페이지", "High-traffic paths")</h3>
+                                <p>@Language.T("쿼리 문자열을 제외한 경로별 집계입니다. 요청 수만으로 공격을 단정하지 말고 오류 응답과 IP 분포를 함께 확인하세요.", "Paths are grouped without query strings. Review errors and IP spread before treating volume as an attack.")</p>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm mb-0">
+                                    <thead><tr><th>@Language.T("경로", "Path")</th><th class="text-end">@Language.T("요청", "Requests")</th><th class="text-end">@Language.T("전체 비중", "Share")</th><th class="text-end">@Language.T("고유 IP", "Unique IPs")</th><th class="text-end">4xx/5xx</th><th class="text-end">@Language.T("URL 변형", "URL variants")</th></tr></thead>
+                                    <tbody>
+                                        @foreach (var path in AnalysisTrafficPaths)
+                                        {
+                                            <tr>
+                                                <td class="analysis-traffic-paths__path">@path.Path</td>
+                                                <td class="text-end">@path.Requests.ToString("N0")</td>
+                                                <td class="text-end">@((AnalysisScopeRowCount == 0 ? 0 : path.Requests / (double)AnalysisScopeRowCount).ToString("P1"))</td>
+                                                <td class="text-end">@path.UniqueIps.ToString("N0")</td>
+                                                <td class="text-end">@path.ErrorResponses.ToString("N0")</td>
+                                                <td class="text-end">@path.UriVariants.ToString("N0")</td>
+                                            </tr>
+                                        }
+                                    </tbody>
+                                </table>
+                            </div>
+                        </section>
+                    }
                     @if (topIpAccess.Count > 0)
                     {
                         <div class="analysis-ip-chart-card" aria-label="@Language.T("IP 요청 상위 5개", "Top 5 IPs by requests")">
@@ -663,6 +708,8 @@
     private List<ParsedLogRow> FilteredRows { get; set; } = [];
     private List<KeyValuePair<string, long>> CachedStatusSummary { get; set; } = [];
     private List<KeyValuePair<string, long>> CachedTopUrls { get; set; } = [];
+    private List<LogTrafficPath> AnalysisTrafficPaths { get; set; } = [];
+    private long AnalysisScopeRowCount { get; set; }
     private List<CountItem> CachedTopIpAccess { get; set; } = [];
     private long CachedUniqueIpCount { get; set; }
     private long CachedUniqueUrlCount { get; set; }
@@ -685,10 +732,19 @@
     private string SaveStage { get; set; } = "Idle";
     private bool FilterDirty { get; set; } = true;
     private bool UseOllama { get; set; } = true;
-    private bool CanRunAnalyze => UseOllama && !IsAnalyzing && !IsPreviewTruncated;
+    private bool CanRunAnalyze => UseOllama && !IsAnalyzing && !IsCancellingAnalysis && (!IsPreviewTruncated || (IsWorkspaceMode && !IsLoadingWorkspacePage && _workspaceFilterDebounceCts is null));
+    private string AnalyzeButtonHint => !UseOllama
+            ? Language.T("Ollama 사용이 꺼져 있습니다. 위 Ollama 항목을 ‘사용’으로 바꾸세요.", "Ollama is turned off. Set the Ollama option above to Enabled.")
+            : IsAnalyzing
+                ? Language.T("AI 분석을 진행 중입니다.", "AI analysis is already in progress.")
+                : IsPreviewTruncated && !IsWorkspaceMode
+                    ? Language.T("대량 로그 작업공간을 불러오는 중입니다.", "The large-log workspace is loading.")
+                : string.Empty;
     private DotNetObjectReference<LogParser>? _settingsRef;
     private CancellationTokenSource? _uploadCts;
     private CancellationTokenSource? _analysisCts;
+    private bool IsCancellingAnalysis;
+    private string? _analysisRequestId;
     private CancellationTokenSource? _workspaceFilterDebounceCts;
     private const int WorkspaceFilterDebounceMilliseconds = 350;
     private LogAnalysisRuntimeSettings LogAnalysisSettings { get; set; } = new();
@@ -715,7 +771,7 @@
     private List<LogIpAggregate> ParsedAggregates { get; set; } = [];
     private long TotalParsedRows { get; set; }
     private bool IsPreviewTruncated { get; set; }
-    private bool CanCopyBlockCandidates => !IsPreviewTruncated && GetBlockCandidateIps().Count > 0;
+    private bool CanCopyBlockCandidates => GetBlockCandidateIps().Count > 0;
     private bool CanCopyRateLimitCandidates => !IsPreviewTruncated && GetRateLimitCandidateIps().Count > 0;
     private string OllamaEnabledChoice
     {
@@ -916,6 +972,8 @@
     private void LoadHistoryEntry(OllamaAnalysisEntry entry)
     {
         AnalyzeMessage = entry.Response;
+        AnalysisTrafficPaths = [];
+        AnalysisScopeRowCount = 0;
         LastAnalysisUsedFallback = IsFallbackResponse(entry.Response);
         LastAnalysisSourceLabel = entry.Source;
     }
@@ -1743,34 +1801,49 @@
 
     private async Task RunAnalyze()
     {
-        if (IsAnalyzing)
+        if (!CanRunAnalyze)
         {
-            return;
-        }
-
-        if (!UseOllama)
-        {
-            AnalyzeMessage = "Ollama is disabled. Set Ollama to Y to enable AI analysis.";
-            LastAnalysisUsedFallback = false;
-            LastAnalysisSourceLabel = "disabled";
             return;
         }
 
         IsAnalyzing = true;
+        IsCancellingAnalysis = false;
+        AnalysisTrafficPaths = [];
+        AnalysisScopeRowCount = 0;
         AnalyzeMessage = "AI 분석을 실행 중입니다. 완료되면 결과가 한 번에 표시됩니다.";
         LastAnalysisUsedFallback = false;
         LastAnalysisSourceLabel = "running";
-        _analysisCts?.Dispose();
-        _analysisCts = new CancellationTokenSource();
-        var ct = _analysisCts.Token;
+        var analysisCts = new CancellationTokenSource();
+        _analysisCts = analysisCts;
+        _analysisRequestId = Guid.NewGuid().ToString("N");
+        var ct = analysisCts.Token;
         try
         {
             ApplyRuntimeAnalysisSettings(LogAnalysisSettings);
-            var filtered = GetFilteredRows();
-            var analysisPayload = BuildAnalysisPayload(filtered);
+            var sampleMode = IsWorkspaceMode;
+            var fullCount = sampleMode ? WorkspaceFilteredCount : GetFilteredRows().Count;
+            var fullStatus5xxCount = sampleMode
+                ? WorkspaceSummary?.StatusCounts.Where(item => item.Key.StartsWith("5", StringComparison.Ordinal)).Sum(item => item.Value) ?? 0
+                : 0;
+            var filtered = sampleMode
+                ? await LogWorkspaceStore.GetAnalysisSampleAsync(WorkspaceId!, AppliedWorkspaceCriteria, IisLogPreviewService.MaxPreviewRows, ct)
+                : GetFilteredRows();
+            ct.ThrowIfCancellationRequested();
+            AnalysisTrafficPaths = sampleMode
+                ? await LogWorkspaceStore.GetTopTrafficPathsAsync(WorkspaceId!, AppliedWorkspaceCriteria, 15, ct)
+                : await Task.Run(() => LogAnalysisPresentationService.SummarizePaths(filtered), ct);
+            AnalysisScopeRowCount = fullCount;
+            ct.ThrowIfCancellationRequested();
+            var analysisPayload = await Task.Run(() => BuildAnalysisPayload(filtered, ct), ct);
+            ct.ThrowIfCancellationRequested();
             var analysisJson = BuildAnalysisJson(analysisPayload);
-            var status5xxCount = filtered.Count(x => x.Status.StartsWith("5", StringComparison.Ordinal));
-            var ratio = filtered.Count == 0 ? 0 : status5xxCount / (double)filtered.Count;
+            var status5xxCount = sampleMode ? fullStatus5xxCount : filtered.Count(x => x.Status.StartsWith("5", StringComparison.Ordinal));
+            var totalRows = sampleMode ? fullCount : filtered.Count;
+            var ratio = totalRows == 0 ? 0 : status5xxCount / (double)totalRows;
+            if (sampleMode)
+            {
+                analysisJson = $"전체 필터 결과 {fullCount:N0}행 중 오류 응답을 우선한 {filtered.Count:N0}행 표본입니다. 전체 5xx 건수는 {status5xxCount:N0}건입니다. 표본에서 확인되지 않은 항목을 전체 로그의 부재로 단정하지 마세요.\n\n{analysisJson}";
+            }
             var logDate = GetLogDate(filtered);
             var systemPrompt = string.IsNullOrWhiteSpace(LogAnalysisSettings.AnalysisSystemPrompt)
                 ? LogAnalysisPromptDefaults.SystemPrompt
@@ -1780,14 +1853,15 @@
             {
                 prompt = analysisJson,
                 systemPrompt = effectiveSystemPrompt,
-                source = "manual-aggregated",
+                source = sampleMode ? "manual-aggregated-sample" : "manual-aggregated",
                 logDate,
-                totalRows = filtered.Count,
+                totalRows,
                 status5xxCount,
                 status5xxRatio = ratio
             };
 
             var response = await PostJsonFromBrowserAsync("api/ollama/analyze", requestPayload, ct);
+            ct.ThrowIfCancellationRequested();
 
             if (!response.Ok)
             {
@@ -1815,12 +1889,13 @@
                 {
                     prompt = analysisJson,
                     systemPrompt = retrySystemPrompt,
-                    source = "manual-aggregated-retry",
+                    source = sampleMode ? "manual-aggregated-sample-retry" : "manual-aggregated-retry",
                     logDate,
-                    totalRows = filtered.Count,
+                    totalRows,
                     status5xxCount,
                     status5xxRatio = ratio
                 }, ct);
+                ct.ThrowIfCancellationRequested();
 
                 if (retryResponse.Ok)
                 {
@@ -1843,8 +1918,24 @@
                 LastAnalysisUsedFallback = false;
             }
 
-            LastAnalysisSourceLabel = LastAnalysisUsedFallback ? "manual-fallback" : "ollama";
+            if (sampleMode)
+            {
+                AnalyzeMessage = Language.T($"표본 분석 ({filtered.Count:N0}/{fullCount:N0}행, 오류 응답 우선)\n\n", $"Sample analysis ({filtered.Count:N0}/{fullCount:N0} rows, errors prioritized)\n\n") + AnalyzeMessage;
+            }
+            LastAnalysisSourceLabel = LastAnalysisUsedFallback ? "manual-fallback" : sampleMode ? "ollama-sample" : "ollama";
             await LoadRecentAnalysisHistoryAsync();
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+            AnalyzeMessage = Language.T("AI 분석이 취소되었습니다.", "AI analysis was cancelled.");
+            LastAnalysisUsedFallback = false;
+            LastAnalysisSourceLabel = "cancelled";
+        }
+        catch (JSException) when (ct.IsCancellationRequested)
+        {
+            AnalyzeMessage = Language.T("AI 분석이 취소되었습니다.", "AI analysis was cancelled.");
+            LastAnalysisUsedFallback = false;
+            LastAnalysisSourceLabel = "cancelled";
         }
         catch (TaskCanceledException)
         {
@@ -1862,8 +1953,9 @@
         finally
         {
             IsAnalyzing = false;
-            _analysisCts?.Dispose();
-            _analysisCts = null;
+            if (ReferenceEquals(_analysisCts, analysisCts)) _analysisCts = null;
+            analysisCts.Dispose();
+            _analysisRequestId = null;
             await InvokeAsync(StateHasChanged);
         }
     }
@@ -1905,20 +1997,38 @@
             return;
         }
 
+        IsCancellingAnalysis = true;
+        AnalyzeMessage = Language.T("AI 분석을 취소하는 중입니다.", "Cancelling AI analysis.");
+        var requestId = _analysisRequestId;
         _analysisCts?.Cancel();
-        _analysisCts?.Dispose();
-        _analysisCts = null;
-        IsAnalyzing = false;
-        AnalyzeMessage = "AI 분석이 취소되었습니다.";
-
         await InvokeAsync(StateHasChanged);
+        try
+        {
+            if (requestId is not null)
+            {
+                await JS.InvokeVoidAsync("monitorSettings.abortRequest", requestId);
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            AnalyzeMessage = Language.T("화면의 분석을 취소했지만 서버 요청 중단을 확인하지 못했습니다.", "The page cancelled analysis, but could not confirm that the server request stopped.");
+        }
+        finally
+        {
+            IsCancellingAnalysis = false;
+            await InvokeAsync(StateHasChanged);
+        }
     }
 
     private async Task CopyBlockCandidatesAsync()
     {
-        var content = string.Join(Environment.NewLine, GetBlockCandidateIps());
+        var candidates = GetBlockCandidateIps();
+        if (candidates.Count == 0) return;
+        var content = string.Join(Environment.NewLine, candidates);
         var ok = await JS.InvokeAsync<bool>("monitorSettings.copyText", content);
-        ExportMessage = ok ? "Block 후보 IP를 클립보드에 복사했습니다." : "클립보드 복사에 실패했습니다.";
+        ExportMessage = ok
+            ? Language.T($"차단 후보 IP {candidates.Count}개를 복사했습니다.", $"Copied {candidates.Count} block-candidate IPs.")
+            : Language.T("클립보드 복사에 실패했습니다.", "Could not copy to the clipboard.");
         await InvokeAsync(StateHasChanged);
     }
 
@@ -1949,7 +2059,7 @@
 
     private List<string> GetBlockCandidateIps()
     {
-        return LogAnalysisPresentationService.ParseCandidateIps(AnalyzeMessage, "즉시 차단");
+        return LogAnalysisPresentationService.ParseBlockCandidateIps(AnalyzeMessage);
     }
 
     private List<string> GetRateLimitCandidateIps()
@@ -2259,11 +2369,12 @@
         return AnalysisExcludedIpPrefixes.Any(prefix => value.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
     }
 
-    private static CompactLogAnalysisPayload BuildAnalysisPayload(List<ParsedLogRow> rows)
+    private static CompactLogAnalysisPayload BuildAnalysisPayload(List<ParsedLogRow> rows, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var total = rows.Count;
         var analyzedRows = rows
-            .Where(row => !IsExcludedAnalysisIp(row.Ip))
+            .Where(row => { cancellationToken.ThrowIfCancellationRequested(); return !IsExcludedAnalysisIp(row.Ip); })
             .ToList();
         var analyzedCount = analyzedRows.Count;
         var excludedCount = total - analyzedCount;
@@ -2272,7 +2383,7 @@
         var ipStats = analyzedRows
             .Where(x => !string.IsNullOrWhiteSpace(x.Ip))
             .GroupBy(x => x.Ip.Trim(), StringComparer.OrdinalIgnoreCase)
-            .Select(g => BuildScoredIp(g.Key, g.ToList(), analyzedCount))
+            .Select(g => { cancellationToken.ThrowIfCancellationRequested(); return BuildScoredIp(g.Key, g.ToList(), analyzedCount); })
             .OrderByDescending(x => x.Score)
             .ThenByDescending(x => x.RequestCount)
             .ThenBy(x => x.Ip, StringComparer.OrdinalIgnoreCase)
@@ -2280,14 +2391,17 @@
             .ToList();
 
         var urlAttackDetails = BuildUrlAttackDetails(analyzedRows, 30);
+        cancellationToken.ThrowIfCancellationRequested();
         var attackSummary = BuildAttackSummary(urlAttackDetails, 10);
         var top404Urls = GetStatusUrlCounts(analyzedRows, "404", 30);
+        cancellationToken.ThrowIfCancellationRequested();
         var top404Ips = GetStatusIpCounts(analyzedRows, "404", 30);
         var adminPageProbes = GetProbeUrls(analyzedRows, AdminProbeTokens.ToArray(), 30);
         var backupFileProbes = GetProbeUrls(analyzedRows, BackupProbeTokens.ToArray(), 30);
         var configFileProbes = GetProbeUrls(analyzedRows, ConfigProbeTokens.ToArray(), 30);
         var scriptProbeUrls = GetProbeUrls(analyzedRows, ScriptProbeTokens.ToArray(), 30);
         var notFoundScanIps = GetNotFoundScanIps(analyzedRows, 50);
+        cancellationToken.ThrowIfCancellationRequested();
         var topUrlAttackCandidates = urlAttackDetails
             .Where(x => x.RecommendedAction is "Block" or "RateLimit")
             .DistinctBy(x => x.Url, StringComparer.OrdinalIgnoreCase)
@@ -2356,7 +2470,7 @@
     }
 
     private async Task<BrowserApiResponse> PostJsonFromBrowserAsync<T>(string endpoint, T payload, CancellationToken cancellationToken)
-        => await JS.InvokeAsync<BrowserApiResponse>("monitorSettings.postJson", cancellationToken, endpoint, payload);
+        => await JS.InvokeAsync<BrowserApiResponse>("monitorSettings.postJson", cancellationToken, endpoint, payload, _analysisRequestId);
 
     private sealed record BrowserApiResponse(bool Ok, int Status, string? Body);
 
@@ -3905,12 +4019,11 @@
             _ => T("추가 관찰 필요", "Further review needed")
         };
 
-        string FormatIpList(IEnumerable<string> ips, int take = 8)
+        string FormatIpList(IEnumerable<string> ips)
         {
             var values = ips
                 .Where(x => !string.IsNullOrWhiteSpace(x))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .Take(take)
                 .ToList();
 
             return values.Count == 0 ? T("없음", "None") : string.Join(", ", values);
@@ -3919,7 +4032,6 @@
         var topAttackUrls = payload.TopUrlAttackCandidates.Take(3).ToList();
         var topScoredIps = payload.ScoredIps
             .Where(x => x.RecommendedAction is "Block" or "RateLimit" or "Monitor")
-            .Take(5)
             .ToList();
         var top404Ips = payload.NotFoundScanIps.Take(5).ToList();
         var boardUrls = payload.BoardAttackCandidates.Take(3).ToList();
@@ -3930,7 +4042,6 @@
             .Select(x => x.Ip)
             .Concat(payload.NotFoundScanIps.Where(x => x.RecommendedAction == "Block").Select(x => x.Ip))
             .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Take(10)
             .ToList();
         var rateLimitCandidates = payload.ScoredIps
             .Where(x => x.RecommendedAction == "RateLimit")

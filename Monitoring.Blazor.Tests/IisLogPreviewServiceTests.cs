@@ -111,10 +111,26 @@ public sealed class IisLogPreviewServiceTests
             Assert.Equal(rowCount - 1, Assert.Single(summary.TopIps).Value);
             Assert.Single(lastPage);
 
+            var unfilteredSummary = await store.GetSummaryAsync(result.WorkspaceId, new IisLogFilterCriteria());
+            Assert.Equal(rowCount, unfilteredSummary.TotalRows);
+            Assert.Equal(2, unfilteredSummary.UniqueIps);
+            Assert.Equal(2, unfilteredSummary.UniqueUrls);
+            Assert.Equal(["200", "500"], unfilteredSummary.StatusCounts.Select(item => item.Key));
+            Assert.Equal(rowCount - 1, unfilteredSummary.TopUrls[0].Value);
+            Assert.Equal(rowCount - 1, unfilteredSummary.TopIps[0].Value);
+            var trafficPaths = await store.GetTopTrafficPathsAsync(result.WorkspaceId, new IisLogFilterCriteria(), 2);
+            Assert.Equal("/health", trafficPaths[0].Path);
+            Assert.Equal(rowCount - 1, trafficPaths[0].Requests);
+            Assert.Equal("/only-after-preview", trafficPaths[1].Path);
+
             var beyondPreviewCriteria = new IisLogFilterCriteria { TextQuery = "unique-search-token" };
             Assert.Equal(1, await store.GetCountAsync(result.WorkspaceId, beyondPreviewCriteria));
             var beyondPreviewPage = await store.GetPageAsync(result.WorkspaceId, beyondPreviewCriteria, [], 1, 25, CancellationToken.None);
             Assert.Equal("203.0.113.77", Assert.Single(beyondPreviewPage).Ip);
+            var prioritizedSample = await store.GetAnalysisSampleAsync(result.WorkspaceId, new IisLogFilterCriteria(), 1);
+            Assert.Equal("500", Assert.Single(prioritizedSample).Status);
+            var filteredSample = await store.GetAnalysisSampleAsync(result.WorkspaceId, criteria, 1);
+            Assert.Equal("200", Assert.Single(filteredSample).Status);
 
             var fieldCriteria = new IisLogFilterCriteria
             {

@@ -95,19 +95,37 @@ window.monitorSettings = (function () {
     return { ok: response.ok, status: response.status, body: await response.text() };
   }
 
-  async function postJson(url, payload) {
-    const response = await fetch(url, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload ?? {})
-    });
+  const activeRequests = new Map();
+  const abortedRequests = new Set();
 
-    return {
-      ok: response.ok,
-      status: response.status,
-      body: await response.text()
-    };
+  function abortRequest(requestId) {
+    if (!requestId) return;
+    abortedRequests.add(requestId);
+    activeRequests.get(requestId)?.abort();
+    window.setTimeout(() => abortedRequests.delete(requestId), 60000);
+  }
+
+  async function postJson(url, payload, requestId) {
+    const controller = requestId ? new AbortController() : null;
+    if (controller) activeRequests.set(requestId, controller);
+    try {
+      if (requestId && abortedRequests.has(requestId)) controller.abort();
+      const response = await fetch(url, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload ?? {}),
+        signal: controller?.signal
+      });
+
+      return {
+        ok: response.ok,
+        status: response.status,
+        body: await response.text()
+      };
+    } finally {
+      if (controller) activeRequests.delete(requestId);
+    }
   }
 
   function showToast(message, kind) {
@@ -138,5 +156,5 @@ window.monitorSettings = (function () {
     }, 4200);
   }
 
-  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, getJson, postJson, showToast };
+  return { get, set, watch, unwatch, scrollToSection, downloadText, copyText, getJson, postJson, abortRequest, showToast };
 })();

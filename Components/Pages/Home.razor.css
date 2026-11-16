@@ -698,11 +698,16 @@
   border-color: rgba(255, 255, 255, 0.45) !important;
 }
 
-.dashboard-toolbar-hosts .dashboard-host-button.host-online .host-state-online,
+.dashboard-toolbar-hosts .dashboard-host-button.host-online .host-state-online {
+  color: var(--success) !important;
+  border-color: color-mix(in srgb, var(--success) 35%, var(--card-border)) !important;
+  background: var(--success-subtle) !important;
+}
+
 .dashboard-toolbar-hosts .dashboard-host-button.host-offline .host-state-offline {
-  color: #0f172a !important;
-  border-color: rgba(15, 23, 42, 0.12) !important;
-  background: rgba(248, 250, 252, 0.96) !important;
+  color: var(--danger) !important;
+  border-color: color-mix(in srgb, var(--danger) 35%, var(--card-border)) !important;
+  background: var(--danger-subtle) !important;
 }
 
 [data-theme="light"] .dashboard-toolbar-hosts .dashboard-host-button.host-online .host-state-online,
